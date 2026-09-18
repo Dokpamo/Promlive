@@ -7,6 +7,9 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  * @type {import('@react-native/metro-config').MetroConfig}
  */
 const path = require('node:path');
+// Ignore this app's outputs, while allowing dependencies such as pretty-format/build.
+const ignoredRoots = ['build', 'android/build', 'android/app/build', 'ios/Pods', 'macos/Pods']
+  .map(dir => path.resolve(__dirname, dir).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 const config = {
   resolver: {
     platforms: ['ios', 'android', 'macos', 'windows'],
@@ -19,7 +22,7 @@ const config = {
       }
       return context.resolveRequest(context, moduleName, platform);
     },
-    blockList: [/\/build\/.*$/, /\/Pods\/.*$/, /.*\.ProjectImports\.zip$/],
+    blockList: [...ignoredRoots.map(root => new RegExp(`^${root}[/\\\\]`)), /.*\.ProjectImports\.zip$/],
   },
 };
 

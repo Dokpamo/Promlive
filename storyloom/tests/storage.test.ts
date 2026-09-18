@@ -11,6 +11,35 @@ const opened: SqlDatabase[] = [];
 afterEach(async () => {for (const db of opened.splice(0)) await db.close();});
 async function repo() {const r = await repository(); opened.push(r.db); return r;}
 describe('SQLite persistence and migration', () => {
+  it('shows the latest nonempty preview for each room without borrowing another room’s messages', async () => {
+    const r = await repo();
+    const card = await r.insertCard(newCard());
+    const chat = await r.createConversation(card.id);
+    const empty = await r.createConversation(card.id);
+    await r.appendLocalUserMessage(chat.id, '이전 메시지');
+    await r.beginExchange(chat.id, 'preview-test', '마지막 메시지');
+    const rooms = await r.conversations();
+    expect(rooms.find(room => room.id === chat.id)?.preview).toBe('마지막 메시지');
+    expect(rooms.find(room => room.id === empty.id)?.preview).toBe('');
+  });
+  it('persists offline messages without creating AI replies, preserving their order and first title', async () => {
+    const r = await repo();
+    const card = await r.insertCard(newCard());
+    const chat = await r.createConversation(card.id);
+    await Promise.all([
+      r.appendLocalUserMessage(chat.id, '첫 메시지'),
+      r.appendLocalUserMessage(chat.id, '다음 메시지'),
+    ]);
+    await r.recoverInterrupted();
+    const saved = await r.messages(chat.id);
+    expect(saved.map(message => [message.sequence, message.content, message.role, message.requestId, message.status])).toEqual([
+      [1, '첫 메시지', 'user', null, 'completed'],
+      [2, '다음 메시지', 'user', null, 'completed'],
+    ]);
+    expect((await r.conversations())[0]?.title).toBe('첫 메시지');
+    await expect(r.appendLocalUserMessage(chat.id, '   ')).rejects.toThrow();
+    expect(await r.messages(chat.id)).toHaveLength(2);
+  });
   it('saves quotes and SQL-looking text as values', async () => {
     const r = await repo(); const card = newCard(); card.title = "O'Reilly'); DROP TABLE cards;--";
     await r.insertCard(card); expect((await r.listCards())[0]?.title).toBe(card.title);

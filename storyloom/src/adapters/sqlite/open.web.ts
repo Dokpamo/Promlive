@@ -33,7 +33,7 @@ export async function openDatabase() {
   let release!: () => void;
   await new Promise<void>((resolve, reject) => {
     void navigator.locks.request('storyloom-sqlite-owner', {ifAvailable: true}, async lock => {
-      if (!lock) { reject(new Error('여백이 다른 탭에서 열려 있습니다. 그 탭을 닫고 다시 열어 주세요.')); return; }
+      if (!lock) { reject(new Error('Promlive가 다른 탭에서 열려 있습니다. 그 탭을 닫고 다시 열어 주세요.')); return; }
       await new Promise<void>(done => { release = done; resolve(); });
     }).catch(reject);
   });

@@ -17,6 +17,7 @@ export interface StoryRepository {
   conversations(cardId?: string): Promise<Conversation[]>;
   messages(conversationId: string, before?: number, limit?: number): Promise<Message[]>;
   beginExchange(conversationId: string, requestId: string, content: string): Promise<{user: Message; assistant: Message}>;
+  appendLocalUserMessage(conversationId: string, content: string): Promise<Message>;
   saveMessage(message: Message): Promise<void>;
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string): Promise<void>;

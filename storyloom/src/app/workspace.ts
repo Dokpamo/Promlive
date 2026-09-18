@@ -20,6 +20,17 @@ export class Workspace {
   assistantForm(id: string) {let form = this.assistantForms.get(id); if (!form) {form = {prompt: '', mode: 'writing', target: 'world', content: '', sourceContent: '', draftId: ''}; this.assistantForms.set(id, form);} return form;}
   editAssistant(id: string, patch: Partial<AssistantForm>) {this.assistantForms.set(id, {...this.assistantForm(id), ...patch}); this.emit();}
   async ready() { await this.refresh(); }
+  private async generalCard() {
+    const existing = this.cards.find(card => card.id === 'promlive-general-chat');
+    if (existing) return existing;
+    return this.runtime.repo.insertCard({...newCard(), id: 'promlive-general-chat', title: 'Promlive', genre: '', description: ''});
+  }
+  async readyChat() {
+    await this.ready();
+    const card = await this.generalCard();
+    await this.startChat(card);
+  }
+  async newGeneralChat() { await this.startChat(await this.generalCard(), true); }
   async refresh() { this.cards = await this.runtime.repo.listCards(); this.conversations = await this.runtime.repo.conversations(); this.emit(); }
   report(error: unknown) { this.error = error instanceof Error ? error.message : '작업에 실패했습니다.'; this.emit(); }
   clearMessage() { this.error = null; this.notice = null; this.emit(); }

@@ -78,7 +78,12 @@ export class Repository implements StoryRepository {
     return item;
   }
   async conversations(cardId?: string) {
-    const result = await this.db.execute(`SELECT id,card_id AS cardId,title,created_at AS createdAt,updated_at AS updatedAt FROM conversations${cardId ? ' WHERE card_id=?' : ''} ORDER BY updated_at DESC`, cardId ? [cardId] : []);
+    const result = await this.db.execute(`
+      SELECT c.id,c.card_id AS cardId,c.title,c.created_at AS createdAt,c.updated_at AS updatedAt,
+        COALESCE((SELECT substr(m.content,1,180) FROM messages m
+          WHERE m.conversation_id=c.id AND m.content<>'' ORDER BY m.sequence DESC LIMIT 1),'') AS preview
+      FROM conversations c${cardId ? ' WHERE c.card_id=?' : ''} ORDER BY c.updated_at DESC
+    `, cardId ? [cardId] : []);
     return result.rows.map(row => conversationSchema.parse(row));
   }
   async messages(conversationId: string, before = Number.MAX_SAFE_INTEGER, limit = 40) {
@@ -102,6 +107,16 @@ export class Repository implements StoryRepository {
   }
   private async insertMessage(msg: Message, tx: SqlSession) {
     await tx.execute('INSERT INTO messages(id,conversation_id,sequence,role,content,status,request_id,error,created_at) VALUES(?,?,?,?,?,?,?,?,?)', [msg.id, msg.conversationId, msg.sequence, msg.role, msg.content, msg.status, msg.requestId, msg.error, msg.createdAt]);
+  }
+  async appendLocalUserMessage(conversationId: string, content: string) {
+    const text = z.string().trim().min(1).max(8000).parse(content);
+    return this.db.transaction(async tx => {
+      const sequence = Number((await tx.execute('SELECT COALESCE(MAX(sequence),0) AS value FROM messages WHERE conversation_id=?', [conversationId])).rows[0]?.value) + 1;
+      const message = messageSchema.parse({id: newId('msg'), conversationId, sequence, role: 'user', content: text, status: 'completed', requestId: null, error: null, createdAt: Date.now()});
+      await this.insertMessage(message, tx);
+      await tx.execute("UPDATE conversations SET updated_at=?,title=CASE WHEN title='새로운 대화' THEN ? ELSE title END WHERE id=?", [message.createdAt, text.slice(0, 40), conversationId]);
+      return message;
+    });
   }
   async saveMessage(input: Message) {
     const msg = messageSchema.parse(input);
