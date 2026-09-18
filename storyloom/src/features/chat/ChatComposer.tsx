@@ -3,6 +3,7 @@ import {Modal, Pressable, Text, TextInput, View, useWindowDimensions} from 'reac
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
+import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {chatColors as c, composerScale, referenceComposer as r} from './chatAppearance';
 
 interface Props {
@@ -35,7 +36,7 @@ export function ChatComposer(p: Props) {
   const button = r.button * s;
   const actionBottom = filled ? 14 * s : (height - button) / 2;
   return <>
-    <View style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s}}>
+    <DrawerGestureBoundary><View style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s}}>
       <View testID="chat-composer" style={{height, borderRadius: (filled ? 40 : r.compactHeight / 2) * s, backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border}}>
         <View style={{position: 'absolute', top: filled ? 25 * s : (height - line) / 2, left: (filled ? 26 : 116) * s, right: (filled ? expandable ? 76 : 26 : 116) * s}}>
           <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * s} lineHeight={r.lineHeight * s} height={inputHeight} scroll={overflowing} ready={p.ready}/>
@@ -49,7 +50,7 @@ export function ChatComposer(p: Props) {
           {(filled || p.generating) && <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>}
         </View>
       </View>
-    </View>
+    </View></DrawerGestureBoundary>
     <Modal visible={expanded} animationType="slide" onRequestClose={() => setExpanded(false)}>
       <SafeAreaView style={{flex: 1, backgroundColor: c.background, paddingHorizontal: 24}}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18}}><Text style={{color: c.text, fontSize: 17}}>메시지 작성</Text><Pressable accessibilityRole="button" accessibilityLabel="입력창 접기" hitSlop={12} onPress={() => setExpanded(false)}><ChatIcon name="close"/></Pressable></View>
