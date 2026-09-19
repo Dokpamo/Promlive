@@ -1,8 +1,9 @@
 import {TextInput} from 'react-native';
 import type {ComposerInputProps} from './ComposerInput.types';
-import {chatColors as c} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 
 export function ComposerInput(p: ComposerInputProps) {
+  const {colors: c} = useAppearance();
   return <TextInput
     testID="chat-input"
     accessibilityLabel="메시지 입력"

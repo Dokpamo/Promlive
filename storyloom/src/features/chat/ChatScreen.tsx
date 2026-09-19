@@ -4,9 +4,10 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Message} from './model';
 import {ChatComposer} from './ChatComposer';
-import {chatColors as c} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 
 export function ChatScreen({workspace: w, width}: {workspace: Workspace; width: number}) {
+  const {colors: c} = useAppearance();
   const {repo, creation, provider} = w.runtime;
   useSyncExternalStore(creation.subscribe, creation.snapshot);
   const conversation = w.conversation;
@@ -86,12 +87,13 @@ export function ChatScreen({workspace: w, width}: {workspace: Workspace; width: 
 }
 
 const MessageBubble = memo(function MessageBubble({message}: {message: Message}) {
+  const {colors: c} = useAppearance();
   const mine = message.role === 'user';
   const state = {pending: '응답 준비 중', generating: '작성 중…', completed: '', cancelled: '생성 중단됨', failed: '생성 실패', interrupted: '이전 실행에서 중단됨'}[message.status];
   return <View style={{alignItems: mine ? 'flex-end' : 'flex-start', marginBottom: 24, gap: 7}}>
-    <View style={{maxWidth: '88%', paddingHorizontal: 18, paddingVertical: 13, borderRadius: 22, backgroundColor: mine ? '#2A2A2A' : 'transparent'}}><Text selectable style={{color: c.text, fontSize: 17, lineHeight: 26}}>{message.content || '···'}</Text></View>
-    {mine && message.requestId === null && <Text style={{fontSize: 11, color: '#777', paddingHorizontal: 5}}>기기에만 저장됨</Text>}
+    <View style={{maxWidth: '88%', paddingHorizontal: 18, paddingVertical: 13, borderRadius: 22, backgroundColor: mine ? c.bubble : 'transparent'}}><Text selectable style={{color: c.text, fontSize: 17, lineHeight: 26}}>{message.content || '···'}</Text></View>
+    {mine && message.requestId === null && <Text style={{fontSize: 11, color: c.placeholder, paddingHorizontal: 5}}>기기에만 저장됨</Text>}
     {state ? <Text style={{fontSize: 11, color: c.muted}}>{state}</Text> : null}
-    {message.error && <Text style={{fontSize: 12, lineHeight: 19, color: '#E9AAAA'}}>{message.error}</Text>}
+    {message.error && <Text style={{fontSize: 12, lineHeight: 19, color: c.error}}>{message.error}</Text>}
   </View>;
 });

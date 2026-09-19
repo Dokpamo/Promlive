@@ -1,8 +1,9 @@
 import {useLayoutEffect, useRef} from 'react';
 import type {ComposerInputProps} from './ComposerInput.types';
-import {chatColors as c} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 
 export function ComposerInput(p: ComposerInputProps) {
+  const {colors: c} = useAppearance();
   const element = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const node = element.current;

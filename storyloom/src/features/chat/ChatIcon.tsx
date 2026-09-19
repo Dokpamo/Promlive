@@ -1,8 +1,10 @@
 import {View} from 'react-native';
-import {chatColors} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 
 export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'search' | 'chat' | 'stop' | 'settings' | 'user' | 'more';
-export function ChatIcon({name, size = 24, color = '#D0D0D0'}: {name: ChatIconName; size?: number; color?: string}) {
+export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: number; color?: string}) {
+  const {colors: c} = useAppearance();
+  color ??= c.icon;
   const stroke = Math.max(1.5, size / 12);
   const line = {position: 'absolute' as const, height: stroke, borderRadius: stroke, backgroundColor: color};
   return <View pointerEvents="none" style={{width: size, height: size}}>
@@ -29,7 +31,7 @@ export function ChatIcon({name, size = 24, color = '#D0D0D0'}: {name: ChatIconNa
     {name === 'settings' && <>
       {[0, 45, 90, 135].map(angle => <View key={angle} style={{position: 'absolute', width: size * 0.25, height: size, left: size * 0.375, borderRadius: size * 0.07, backgroundColor: color, transform: [{rotate: `${angle}deg`}]}}/>)}
       <View style={{position: 'absolute', inset: size * 0.14, borderRadius: size, backgroundColor: color}}/>
-      <View style={{position: 'absolute', inset: size * 0.23, borderRadius: size, backgroundColor: chatColors.drawer}}/>
+      <View style={{position: 'absolute', inset: size * 0.23, borderRadius: size, backgroundColor: c.drawer}}/>
       <View style={{position: 'absolute', inset: size * 0.36, borderRadius: size, borderWidth: stroke * 0.8, borderColor: color}}/>
     </>}
     {name === 'user' && <>

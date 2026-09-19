@@ -1,10 +1,11 @@
-import {useState} from 'react';
+import {useMemo, useState} from 'react';
 import {FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Conversation} from './model';
 import {ChatIcon} from './ChatIcon';
-import {chatAvatarColor, chatColors as c} from './chatAppearance';
+import {chatAvatarColor, type ChatColors} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 
 function conversationTime(timestamp: number) {
@@ -18,6 +19,8 @@ function conversationTime(timestamp: number) {
 }
 
 export function ChatHistory({workspace: w, close, openSettings}: {workspace: Workspace; close: () => void; openSettings: () => void}) {
+  const {colors: c, isDark} = useAppearance();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
   const query = search.trim().toLocaleLowerCase();
@@ -27,9 +30,9 @@ export function ChatHistory({workspace: w, close, openSettings}: {workspace: Wor
   return <View style={[styles.drawer, {paddingTop: insets.top + 21, paddingBottom: insets.bottom}]}>
     <Text accessibilityRole="header" style={styles.brand}>Promlive</Text>
     <DrawerGestureBoundary>
-      <View style={styles.search}>
-        <ChatIcon name="search" size={19} color="#999999"/>
-        <TextInput accessibilityLabel="채팅 내역 검색" value={search} onChangeText={setSearch} placeholder="대화 검색" placeholderTextColor="#929292" selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" style={styles.searchInput}/>
+      <View style={[styles.search, {boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)'}]}>
+        <ChatIcon name="search" size={19} color={c.searchIcon}/>
+        <TextInput accessibilityLabel="채팅 내역 검색" value={search} onChangeText={setSearch} placeholder="대화 검색" placeholderTextColor={c.muted} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" style={styles.searchInput}/>
       </View>
     </DrawerGestureBoundary>
     <FlatList
@@ -47,16 +50,18 @@ export function ChatHistory({workspace: w, close, openSettings}: {workspace: Wor
       }}/>}
     />
     <View style={styles.account}>
-      <View accessible={false} style={styles.userAvatar}><ChatIcon name="user" size={22} color="#E1D8CC"/></View>
+      <View accessible={false} style={styles.userAvatar}><ChatIcon name="user" size={22} color={c.userIcon}/></View>
       <Text numberOfLines={1} style={styles.userName}>사용자</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="설정" onPress={openSettings} style={({pressed}) => [styles.settings, {opacity: pressed ? 0.6 : 1}]}>
-        <ChatIcon name="settings" size={23} color="#CBCBCB"/>
+        <ChatIcon name="settings" size={23} color={c.settingsIcon}/>
       </Pressable>
     </View>
   </View>;
 }
 
 function HistoryRow({conversation: item, selected, open}: {conversation: Conversation; selected: boolean; open: () => void}) {
+  const {colors: c} = useAppearance();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const preview = item.preview?.replace(/\s+/g, ' ').trim() || '아직 메시지가 없어요.';
   return <Pressable accessibilityRole="button" accessibilityLabel={`${item.title} 열기`} accessibilityHint={preview} accessibilityState={{selected}} onPress={open} style={({pressed}) => [styles.row, {backgroundColor: pressed ? c.historyPressed : selected ? c.historySelected : 'transparent'}]}>
     <View accessible={false} style={[styles.avatar, {backgroundColor: chatAvatarColor(item.id)}]}><ChatIcon name="chat" size={25} color="#FFFFFF"/></View>
@@ -70,10 +75,10 @@ function HistoryRow({conversation: item, selected, open}: {conversation: Convers
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ChatColors) => StyleSheet.create({
   drawer: {flex: 1, backgroundColor: c.drawer},
-  brand: {fontSize: 27, fontWeight: '700', letterSpacing: -0.6, color: '#F3F3F3', marginLeft: 23, marginBottom: 24},
-  search: {flexDirection: 'row', alignItems: 'center', gap: 15, minHeight: 46, marginHorizontal: 12, paddingHorizontal: 18, borderRadius: 28, backgroundColor: '#262626'},
+  brand: {fontSize: 27, fontWeight: '700', letterSpacing: -0.6, color: c.brand, marginLeft: 23, marginBottom: 24},
+  search: {flexDirection: 'row', alignItems: 'center', gap: 15, minHeight: 46, marginHorizontal: 12, paddingHorizontal: 18, borderRadius: 28, backgroundColor: c.search},
   searchInput: {flex: 1, minWidth: 0, minHeight: 46, padding: 0, fontSize: 16, color: c.text},
   list: {flex: 1, marginTop: 16},
   listContent: {paddingHorizontal: 4, paddingBottom: 12},
@@ -82,11 +87,11 @@ const styles = StyleSheet.create({
   avatar: {width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center'},
   conversation: {flex: 1, minWidth: 0, gap: 7},
   titleLine: {flexDirection: 'row', alignItems: 'center', gap: 9},
-  title: {flex: 1, color: '#EFEFEF', fontSize: 17, fontWeight: '600'},
-  time: {fontSize: 11, color: '#929292'},
-  preview: {fontSize: 15, color: '#969696', lineHeight: 21},
-  account: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 76, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#303030', paddingHorizontal: 18, paddingVertical: 14},
-  userAvatar: {width: 38, height: 38, borderRadius: 19, backgroundColor: '#494137', alignItems: 'center', justifyContent: 'center'},
-  userName: {flex: 1, fontSize: 16, fontWeight: '500', color: '#E6E6E6'},
+  title: {flex: 1, color: c.title, fontSize: 17, fontWeight: '600'},
+  time: {fontSize: 11, color: c.muted},
+  preview: {fontSize: 15, color: c.preview, lineHeight: 21},
+  account: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 76, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.divider, paddingHorizontal: 18, paddingVertical: 14},
+  userAvatar: {width: 38, height: 38, borderRadius: 19, backgroundColor: c.userAvatar, alignItems: 'center', justifyContent: 'center'},
+  userName: {flex: 1, fontSize: 16, fontWeight: '500', color: c.userName},
   settings: {width: 44, height: 44, alignItems: 'center', justifyContent: 'center'},
 });

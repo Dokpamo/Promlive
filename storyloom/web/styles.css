@@ -6,6 +6,8 @@ body { background: #111111; overscroll-behavior: none; }
 input, textarea, button { font: inherit; }
 textarea { resize: none; }
 textarea::placeholder { color: #777777; opacity: 1; }
+html[data-appearance="light"] textarea::placeholder { color: #999999; }
+html[data-appearance="light"] ::-webkit-scrollbar-thumb { background: #C7C7C7; }
 ::selection { background: #31536d; }
 :focus-visible { outline: 2px solid #8d8d8d; outline-offset: 3px; }
 textarea:focus-visible { outline: none; }

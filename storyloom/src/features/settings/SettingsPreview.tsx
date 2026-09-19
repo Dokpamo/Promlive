@@ -1,27 +1,23 @@
 import {useState, type ReactNode} from 'react';
-import {Keyboard, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View, useColorScheme} from 'react-native';
-import {SafeAreaProvider, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {Keyboard, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {ChatIcon} from '../chat/ChatIcon';
 import {SettingsIcon, type SettingsIconName} from './SettingsIcon';
+import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
+import {themeLabels, useAppearance, type SettingsPalette as Palette, type ThemeMode} from '../appearance/AppAppearance';
 
-const dark = {background: '#111111', surface: '#1F1F1F', control: '#292929', selected: '#2A2A2A', text: '#EFEFEF', secondary: '#969696', faint: '#727272', divider: '#2D2D2D', icon: '#C6C6C6', accent: '#B4C8BF'};
-const light: Palette = {background: '#F5F5F5', surface: '#FFFFFF', control: '#FFFFFF', selected: '#EEEEEE', text: '#1D1D1D', secondary: '#777777', faint: '#909090', divider: '#EEEEEE', icon: '#505050', accent: '#517B69'};
-type Palette = typeof dark;
 type Sheet = 'profile' | 'connection' | 'model' | 'response' | 'text' | 'theme' | 'about' | null;
-type Theme = '다크' | '라이트' | '시스템';
 const sheetTitles: Record<Exclude<Sheet, null>, string> = {profile: '프로필', connection: 'AI 연결', model: '기본 모델', response: '응답 스타일', text: '글자 크기', theme: '화면 테마', about: 'Promlive'};
 
-/** Interactive UI preview. No authentication, network calls, or persisted settings. */
+/** Only appearance is applied and persisted; the other controls remain a local preview. */
 export function SettingsPreview({onClose}: {onClose: () => void}) {
-  return <Modal visible animationType="slide" presentationStyle="fullScreen" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-    <SafeAreaProvider><SettingsContent onClose={onClose}/></SafeAreaProvider>
-  </Modal>;
+  const [sheet, setSheet] = useState<Sheet>(null);
+  return <SwipeBackModal onClose={onClose} active={sheet === null}>{close => <SettingsContent onClose={close} sheet={sheet} setSheet={setSheet}/>}</SwipeBackModal>;
 }
 
-function SettingsContent({onClose}: {onClose: () => void}) {
-  const systemTheme = useColorScheme();
+function SettingsContent({onClose, sheet, setSheet}: {onClose: () => void; sheet: Sheet; setSheet: (sheet: Sheet) => void}) {
+  const {settings: p, colors: c, mode, setMode} = useAppearance();
   const insets = useSafeAreaInsets();
-  const [theme, setTheme] = useState<Theme>('다크');
   const [name, setName] = useState('사용자');
   const [nameDraft, setNameDraft] = useState(name);
   const [model, setModel] = useState('자동 선택');
@@ -29,15 +25,11 @@ function SettingsContent({onClose}: {onClose: () => void}) {
   const [textSize, setTextSize] = useState('보통');
   const [haptic, setHaptic] = useState(true);
   const [notification, setNotification] = useState(false);
-  const [sheet, setSheet] = useState<Sheet>(null);
-  const isDark = theme === '다크' || (theme === '시스템' && systemTheme !== 'light');
-  const p = isDark ? dark : light;
   const closeSheet = () => {Keyboard.dismiss(); setSheet(null);};
-  const choose = (setter: (value: string) => void, value: string) => {setter(value); closeSheet();};
+  const choose = (setter: (value: string) => void, value: string, dismiss: () => void) => {setter(value); dismiss();};
 
   return <SafeAreaView testID="settings-preview" edges={['left', 'right', 'bottom']} style={[styles.page, {backgroundColor: p.background}]}>
-    <StatusBar barStyle="light-content"/>
-    <View style={{height: insets.top, backgroundColor: dark.background}}/>
+    <View style={{height: insets.top, backgroundColor: p.background}}/>
     <View style={styles.frame}>
       <View style={styles.header}>
         <Pressable testID="settings-back" accessibilityRole="button" accessibilityLabel="설정 닫기" onPress={onClose} style={({pressed}) => [styles.back, {backgroundColor: p.control, opacity: pressed ? 0.7 : 1}]}><ChatIcon name="back" size={22} color={p.text}/></Pressable>
@@ -45,8 +37,9 @@ function SettingsContent({onClose}: {onClose: () => void}) {
         <View style={[styles.badge, {backgroundColor: p.surface}]}><Text style={[styles.badgeText, {color: p.secondary}]}>미리보기</Text></View>
       </View>
       <ScrollView testID="settings-scroll" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <SwipeBackScrollContent>
         <Pressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => {setNameDraft(name); setSheet('profile');}} style={({pressed}) => [styles.profile, {backgroundColor: pressed ? p.selected : p.surface}]}>
-          <View style={styles.avatar}><ChatIcon name="user" size={28} color="#E1D8CC"/></View>
+          <View style={[styles.avatar, {backgroundColor: c.userAvatar}]}><ChatIcon name="user" size={28} color={c.userIcon}/></View>
           <View style={styles.profileText}><Text numberOfLines={1} style={[styles.profileName, {color: p.text}]}>{name}</Text><Text style={[styles.profileCaption, {color: p.secondary}]}>나의 프로필</Text></View>
           <SettingsIcon name="edit" size={19} color={p.secondary}/>
         </Pressable>
@@ -62,24 +55,26 @@ function SettingsContent({onClose}: {onClose: () => void}) {
           <ToggleRow icon="bell" label="응답 알림" value={notification} onChange={setNotification} palette={p}/>
         </Group>
         <Group title="앱" palette={p}>
-          <Row icon="theme" label="화면 테마" value={theme} onPress={() => setSheet('theme')} palette={p}/>
+          <Row icon="theme" label="화면 테마" value={themeLabels[mode]} onPress={() => setSheet('theme')} palette={p}/>
           <Row icon="info" label="앱 정보" onPress={() => setSheet('about')} palette={p} separator/>
         </Group>
-        <Text style={[styles.footnote, {color: p.faint}]}>미리보기에서 바꾼 설정은 저장되지 않아요.</Text>
+        <Text style={[styles.footnote, {color: p.faint}]}>화면 테마는 저장돼요. 나머지는 미리보기예요.</Text>
+        </SwipeBackScrollContent>
       </ScrollView>
     </View>
 
-    <Modal visible={sheet !== null} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={closeSheet}>
+    {sheet !== null && <SwipeBackModal sheet onClose={closeSheet}>{dismissSheet =>
       <View style={styles.sheetOverlay}>
-        <Pressable accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={closeSheet} style={StyleSheet.absoluteFill}/>
+        <Pressable accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={dismissSheet} style={StyleSheet.absoluteFill}/>
         <View testID="settings-sheet" accessibilityViewIsModal style={[styles.sheet, {backgroundColor: p.surface, paddingBottom: Math.max(insets.bottom, 18), maxHeight: '85%'}]}>
           <View style={[styles.handle, {backgroundColor: p.divider}]}/>
-          <View style={styles.sheetHeader}><Text accessibilityRole="header" style={[styles.sheetTitle, {color: p.text}]}>{sheet ? sheetTitles[sheet] : ''}</Text><Pressable accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={closeSheet} style={styles.sheetClose}><ChatIcon name="close" size={16} color={p.secondary}/></Pressable></View>
+          <View style={styles.sheetHeader}><Text accessibilityRole="header" style={[styles.sheetTitle, {color: p.text}]}>{sheetTitles[sheet]}</Text><Pressable accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={dismissSheet} style={styles.sheetClose}><ChatIcon name="close" size={16} color={p.secondary}/></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
+            <SwipeBackScrollContent>
             {sheet === 'profile' && <>
               <Text style={[styles.sheetCaption, {color: p.secondary}]}>대화에서 사용할 이름</Text>
-              <TextInput accessibilityLabel="프로필 이름" value={nameDraft} onChangeText={setNameDraft} maxLength={24} placeholder="이름" placeholderTextColor={p.faint} returnKeyType="done" onSubmitEditing={() => {if (nameDraft.trim()) {setName(nameDraft.trim()); closeSheet();}}} style={[styles.nameInput, {color: p.text, backgroundColor: p.background, borderColor: p.divider}]}/>
-              <Pressable accessibilityRole="button" accessibilityLabel="프로필 이름 적용" disabled={!nameDraft.trim()} onPress={() => {setName(nameDraft.trim()); closeSheet();}} style={[styles.primary, {backgroundColor: p.text, opacity: nameDraft.trim() ? 1 : 0.35}]}><Text style={[styles.primaryText, {color: p.background}]}>적용</Text></Pressable>
+              <SwipeBackBoundary><TextInput accessibilityLabel="프로필 이름" value={nameDraft} onChangeText={setNameDraft} maxLength={24} placeholder="이름" placeholderTextColor={p.faint} returnKeyType="done" onSubmitEditing={() => {if (nameDraft.trim()) {setName(nameDraft.trim()); dismissSheet();}}} style={[styles.nameInput, {color: p.text, backgroundColor: p.background, borderColor: p.divider}]}/></SwipeBackBoundary>
+              <Pressable accessibilityRole="button" accessibilityLabel="프로필 이름 적용" disabled={!nameDraft.trim()} onPress={() => {setName(nameDraft.trim()); dismissSheet();}} style={[styles.primary, {backgroundColor: p.text, opacity: nameDraft.trim() ? 1 : 0.35}]}><Text style={[styles.primaryText, {color: p.background}]}>적용</Text></Pressable>
             </>}
             {sheet === 'connection' && <>
               <View style={styles.provider}><View style={[styles.providerIcon, {backgroundColor: p.background}]}><Text style={[styles.providerLetter, {color: p.text}]}>G</Text></View><View style={{flex: 1, gap: 5}}><Text style={[styles.providerName, {color: p.text}]}>Grok</Text><Text style={[styles.sheetCaption, {color: p.secondary}]}>연결 안 됨</Text></View><View style={[styles.statusDot, {backgroundColor: p.faint}]}/></View>
@@ -88,24 +83,25 @@ function SettingsContent({onClose}: {onClose: () => void}) {
             </>}
             {sheet === 'model' && <>
               <Text style={[styles.sheetCaption, {color: p.secondary, marginBottom: 14}]}>연결 후 사용할 모델의 선택 화면 예시예요.</Text>
-              <Choice label="자동 선택" detail="연결한 서비스의 기본 모델" selected={model === '자동 선택'} onPress={() => choose(setModel, '자동 선택')} palette={p}/>
-              <Choice label="Grok" detail="모델 미리보기" selected={model === 'Grok'} onPress={() => choose(setModel, 'Grok')} palette={p}/>
+              <Choice label="자동 선택" detail="연결한 서비스의 기본 모델" selected={model === '자동 선택'} onPress={() => choose(setModel, '자동 선택', dismissSheet)} palette={p}/>
+              <Choice label="Grok" detail="모델 미리보기" selected={model === 'Grok'} onPress={() => choose(setModel, 'Grok', dismissSheet)} palette={p}/>
             </>}
             {sheet === 'response' && <>
-              <Choice label="간결하게" detail="핵심 위주로 짧게" selected={response === '간결하게'} onPress={() => choose(setResponse, '간결하게')} palette={p}/>
-              <Choice label="균형 있게" detail="필요한 설명을 알맞게" selected={response === '균형 있게'} onPress={() => choose(setResponse, '균형 있게')} palette={p}/>
-              <Choice label="자세하게" detail="맥락과 예시까지 충분하게" selected={response === '자세하게'} onPress={() => choose(setResponse, '자세하게')} palette={p}/>
+              <Choice label="간결하게" detail="핵심 위주로 짧게" selected={response === '간결하게'} onPress={() => choose(setResponse, '간결하게', dismissSheet)} palette={p}/>
+              <Choice label="균형 있게" detail="필요한 설명을 알맞게" selected={response === '균형 있게'} onPress={() => choose(setResponse, '균형 있게', dismissSheet)} palette={p}/>
+              <Choice label="자세하게" detail="맥락과 예시까지 충분하게" selected={response === '자세하게'} onPress={() => choose(setResponse, '자세하게', dismissSheet)} palette={p}/>
             </>}
             {sheet === 'text' && <>
               <View style={[styles.textPreview, {backgroundColor: p.background}]}><Text style={{color: p.text, fontSize: textSize === '작게' ? 14 : textSize === '크게' ? 20 : 17, lineHeight: 30}}>오늘은 어떤 이야기를 나눌까요?</Text></View>
               {['작게', '보통', '크게'].map(value => <Choice key={value} label={value} selected={textSize === value} onPress={() => setTextSize(value)} palette={p}/>)}
             </>}
-            {sheet === 'theme' && (['다크', '라이트', '시스템'] as const).map(value => <Choice key={value} label={value} selected={theme === value} onPress={() => {setTheme(value); closeSheet();}} palette={p}/>)}
+            {sheet === 'theme' && (['dark', 'light', 'system'] satisfies ThemeMode[]).map(value => <Choice key={value} label={themeLabels[value]} selected={mode === value} onPress={() => {setMode(value); dismissSheet();}} palette={p}/>)}
             {sheet === 'about' && <View style={styles.about}><Text style={[styles.aboutBrand, {color: p.text}]}>Promlive</Text><Text style={[styles.sheetCaption, {color: p.secondary}]}>버전 0.1.0</Text><Text style={[styles.aboutDescription, {color: p.secondary}]}>이야기가 시작되는 대화.{ '\n' }대화 기록은 이 기기에 저장됩니다.</Text></View>}
+            </SwipeBackScrollContent>
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    }</SwipeBackModal>}
   </SafeAreaView>;
 }
 
@@ -122,7 +118,7 @@ function Row({icon, label, value, onPress, palette: p, separator = false}: {icon
 }
 
 function ToggleRow({icon, label, value, onChange, palette: p}: {icon: SettingsIconName; label: string; value: boolean; onChange: (value: boolean) => void; palette: Palette}) {
-  return <View style={styles.row}><View style={[styles.separator, {backgroundColor: p.divider}]}/><SettingsIcon name={icon} color={p.icon}/><Text style={[styles.rowLabel, {color: p.text}]}>{label}</Text><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{false: '#464646', true: p.accent}} thumbColor="#FFFFFF" {...(Platform.OS === 'web' ? {activeThumbColor: '#FFFFFF'} : {})} ios_backgroundColor="#464646"/></View>;
+  return <View style={styles.row}><View style={[styles.separator, {backgroundColor: p.divider}]}/><SettingsIcon name={icon} color={p.icon}/><Text style={[styles.rowLabel, {color: p.text}]}>{label}</Text><SwipeBackBoundary><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{false: p.switchOff, true: p.accent}} thumbColor="#FFFFFF" {...(Platform.OS === 'web' ? {activeThumbColor: '#FFFFFF'} : {})} ios_backgroundColor={p.switchOff}/></SwipeBackBoundary></View>;
 }
 
 function Choice({label, detail, selected, onPress, palette: p}: {label: string; detail?: string; selected: boolean; onPress: () => void; palette: Palette}) {
@@ -139,7 +135,7 @@ const styles = StyleSheet.create({
   badgeText: {fontSize: 11, fontWeight: '500'},
   content: {paddingHorizontal: 18, paddingTop: 12, paddingBottom: 24},
   profile: {flexDirection: 'row', alignItems: 'center', gap: 15, padding: 17, borderRadius: 22, minHeight: 88},
-  avatar: {width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#494137'},
+  avatar: {width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center'},
   profileText: {flex: 1, minWidth: 0, gap: 6},
   profileName: {fontSize: 19, fontWeight: '600'},
   profileCaption: {fontSize: 13},
@@ -151,7 +147,7 @@ const styles = StyleSheet.create({
   rowValue: {fontSize: 13, maxWidth: '38%'},
   separator: {position: 'absolute', left: 51, right: 16, top: 0, height: StyleSheet.hairlineWidth},
   footnote: {fontSize: 11, lineHeight: 18, textAlign: 'center', marginTop: 25},
-  sheetOverlay: {flex: 1, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.58)'},
+  sheetOverlay: {flex: 1, justifyContent: 'flex-end', alignItems: 'center'},
   sheet: {width: '100%', maxWidth: 560, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 10, overflow: 'hidden'},
   handle: {width: 32, height: 4, borderRadius: 3, alignSelf: 'center', marginBottom: 14},
   sheetHeader: {flexDirection: 'row', alignItems: 'center', paddingLeft: 23, paddingRight: 12, paddingBottom: 12},

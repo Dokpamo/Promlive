@@ -2,17 +2,18 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 import {AccessibilityInfo, Animated, BackHandler, Keyboard, PanResponder, Platform, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
 import type {Workspace} from '../../app/workspace';
 import {ChatHistory} from './ChatHistory';
-import {chatColors as c} from './chatAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 import {drawerProgress, shouldOpenDrawer} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
 import {DrawerGestureGuard} from './DrawerGestureBoundary';
 import {selectionHaptic} from './selectionHaptic';
 
 const openScale = 0.90;
-// The reference fades the whole chat into the history surface: #111 -> #1A.
+// Blend toward the history: dark #111 -> #1A, light #FFF -> #F9.
 const previewScrimOpacity = 0.61;
 
 export function ChatDrawer({workspace, children, openSettings, active = true}: {workspace: Workspace; children: (open: () => void) => ReactNode; openSettings: () => void; active?: boolean}) {
+  const {colors: c, isDark} = useAppearance();
   const {width} = useWindowDimensions();
   const drawerWidth = Math.min(width * 0.84, 400);
   const corners = useScreenCorners();
@@ -120,7 +121,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true}: {
 
   const radius = (value: number) => progress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, value, value / openScale], extrapolate: 'clamp'});
   return <DrawerGestureGuard.Provider value={blocked}>
-    <View testID="chat-drawer" style={styles.root} {...pan.panHandlers} onAccessibilityEscape={close}>
+    <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={close}>
       <View
         style={[StyleSheet.absoluteFill, {width: drawerWidth, display: revealed ? 'flex' : 'none'}]}
         pointerEvents={revealed ? 'auto' : 'none'}
@@ -130,6 +131,8 @@ export function ChatDrawer({workspace, children, openSettings, active = true}: {
         <ChatHistory workspace={workspace} close={close} openSettings={openSettings}/>
       </View>
       <Animated.View testID="chat-panel" style={[styles.panel, {
+        backgroundColor: c.background,
+        boxShadow: !isDark && revealed ? '-6px 0px 22px rgba(0, 0, 0, 0.04)' : undefined,
         borderTopLeftRadius: radius(corners.topLeft),
         borderTopRightRadius: radius(corners.topRight),
         borderBottomLeftRadius: radius(corners.bottomLeft),
@@ -151,7 +154,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true}: {
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1, overflow: 'hidden', backgroundColor: c.drawer},
-  panel: {...StyleSheet.absoluteFillObject, backgroundColor: c.background, overflow: 'hidden'},
+  root: {flex: 1, overflow: 'hidden'},
+  panel: {...StyleSheet.absoluteFillObject, overflow: 'hidden'},
   content: {flex: 1},
 });
