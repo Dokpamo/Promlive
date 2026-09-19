@@ -2,6 +2,11 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {Animated, Keyboard, Platform} from 'react-native';
 import {selectionHaptic} from './selectionHaptic';
 
+export const panelSpring = {
+  stiffness: 260, damping: 32, mass: 1, overshootClamping: true,
+  restDisplacementThreshold: 0.001, restSpeedThreshold: 0.001,
+} as const;
+
 /** Shared spring and touch tracking for adjacent panels. */
 export function usePanelMotion(reduceMotion: boolean) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -35,8 +40,7 @@ export function usePanelMotion(reduceMotion: boolean) {
       return;
     }
     Animated.spring(progress, {
-      toValue: open ? 1 : 0, stiffness: 260, damping: 32, mass: 1, overshootClamping: true,
-      restDisplacementThreshold: 0.001, restSpeedThreshold: 0.001,
+      ...panelSpring, toValue: open ? 1 : 0,
       useNativeDriver: Platform.OS !== 'web',
     }).start(({finished}) => {if (finished && !open && !target.current) setVisible(false);});
   }, [progress, reduceMotion]);

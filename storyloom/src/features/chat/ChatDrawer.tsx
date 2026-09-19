@@ -7,7 +7,7 @@ import {useAppearance} from '../appearance/AppAppearance';
 import {drawerProgress, navigationPanel, shouldOpenDrawer, type NavigationPanel} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
 import {DrawerGestureGuard} from './DrawerGestureBoundary';
-import {referenceSidebar} from './chatAppearance';
+import {sidebarWidth} from './chatAppearance';
 import {usePanelMotion} from './usePanelMotion';
 
 const openScale = 0.90;
@@ -23,7 +23,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
 }) {
   const {colors: c, isDark} = useAppearance();
   const {width} = useWindowDimensions();
-  const drawerWidth = Math.min(width * referenceSidebar.width / referenceSidebar.viewportWidth, 400);
+  const drawerWidth = sidebarWidth(width);
   const corners = useScreenCorners();
   const [reduceMotion, setReduceMotion] = useState(false);
   const cards = usePanelMotion(reduceMotion);
@@ -143,15 +143,14 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
         ],
       }]}>
         <View style={styles.content} pointerEvents={cards.visible ? 'none' : 'auto'} aria-hidden={cards.visible} accessibilityElementsHidden={cards.visible} importantForAccessibility={cards.visible ? 'no-hide-descendants' : 'auto'}>
-          <Animated.View testID="chat-page" pointerEvents={pocket.visible ? 'none' : 'auto'} aria-hidden={pocket.visible} accessibilityElementsHidden={pocket.visible} importantForAccessibility={pocket.visible ? 'no-hide-descendants' : 'auto'} style={[styles.panel, {backgroundColor: c.background,
+          <Animated.View testID="chat-pocket-pages" style={[styles.pages, {width: pocketEnabled ? width * 2 : width, backgroundColor: c.background,
             borderTopLeftRadius: pageRadius(corners.topLeft), borderTopRightRadius: pageRadius(corners.topRight), borderBottomLeftRadius: pageRadius(corners.bottomLeft), borderBottomRightRadius: pageRadius(corners.bottomRight),
             transform: [{translateX: Animated.multiply(pocket.progress, -width)}],
-          }]}>{children(openCards)}</Animated.View>
-          {pocketEnabled && pocket.visible && <Animated.View testID="pocket-page" accessible accessibilityLabel={`${activeCard?.title ?? '현재 카드'} 포켓`} accessibilityHint="오른쪽으로 밀면 채팅으로 돌아갑니다." onAccessibilityEscape={() => pocket.settle(false)} style={[styles.panel, {backgroundColor: c.background,
-            // Mirror the chat's edge curves, including asymmetric device corners.
-            borderTopLeftRadius: pageRadius(corners.topRight), borderTopRightRadius: pageRadius(corners.topLeft), borderBottomLeftRadius: pageRadius(corners.bottomRight), borderBottomRightRadius: pageRadius(corners.bottomLeft),
-            transform: [{translateX: pocket.progress.interpolate({inputRange: [0, 1], outputRange: [width, 0]})}],
-          }]}/>}
+          }]}>
+            {/* One continuous surface: only its four outside corners are rounded. */}
+            <View testID="chat-page" pointerEvents={pocket.visible ? 'none' : 'auto'} aria-hidden={pocket.visible} accessibilityElementsHidden={pocket.visible} importantForAccessibility={pocket.visible ? 'no-hide-descendants' : 'auto'} style={[styles.page, {left: 0, width}]}>{children(openCards)}</View>
+            {pocketEnabled && pocket.visible && <View testID="pocket-page" accessible accessibilityLabel={`${activeCard?.title ?? '현재 카드'} 포켓`} accessibilityHint="오른쪽으로 밀면 채팅으로 돌아갑니다." onAccessibilityEscape={() => pocket.settle(false)} style={[styles.page, {left: width, width}]}/>}
+          </Animated.View>
         </View>
         <Animated.View testID="chat-preview-scrim" pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, {backgroundColor: c.drawer, opacity: cards.progress.interpolate({inputRange: [0, 1], outputRange: [0, previewScrimOpacity], extrapolate: 'clamp'})}]}/>
         {cards.visible && <Pressable testID="chat-drawer-close" accessibilityRole="button" accessibilityLabel="채팅으로 돌아가기" onPress={closeCards} style={StyleSheet.absoluteFill}/>}
@@ -160,4 +159,10 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   </DrawerGestureGuard.Provider>;
 }
 
-const styles = StyleSheet.create({root: {flex: 1, overflow: 'hidden'}, panel: {...StyleSheet.absoluteFillObject, overflow: 'hidden'}, content: {flex: 1}});
+const styles = StyleSheet.create({
+  root: {flex: 1, overflow: 'hidden'},
+  panel: {...StyleSheet.absoluteFillObject, overflow: 'hidden'},
+  pages: {position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden'},
+  page: {position: 'absolute', top: 0, bottom: 0, overflow: 'hidden'},
+  content: {flex: 1},
+});

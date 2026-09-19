@@ -2,6 +2,7 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useS
 import {AccessibilityInfo, Animated, Keyboard, Modal, PanResponder, Platform, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {selectionHaptic} from '../chat/selectionHaptic';
+import {panelSpring} from '../chat/usePanelMotion';
 import {useScreenCorners} from '../chat/useScreenCorners';
 import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 
@@ -64,8 +65,7 @@ export function SwipeBackModal({onClose, children, sheet = false, active = true}
       return;
     }
     Animated.spring(progress, {
-      toValue: 0, stiffness: 260, damping: 32, mass: 1, overshootClamping: true,
-      restDisplacementThreshold: 0.001, restSpeedThreshold: 0.001,
+      ...panelSpring, toValue: 0,
       useNativeDriver: Platform.OS !== 'web',
     }).start(({finished}) => {if (finished) opening.current = false;});
   }, [progress, reduceMotion, shown]);
@@ -84,13 +84,8 @@ export function SwipeBackModal({onClose, children, sheet = false, active = true}
       return;
     }
     Animated.spring(progress, {
+      ...panelSpring,
       toValue: back ? 1 : 0,
-      stiffness: 260,
-      damping: 32,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.001,
-      restSpeedThreshold: 0.001,
       useNativeDriver: Platform.OS !== 'web',
     }).start(({finished}) => {if (finished && back) onCloseRef.current();});
   }, [progress, reduceMotion]);

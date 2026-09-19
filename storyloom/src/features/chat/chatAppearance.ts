@@ -49,16 +49,21 @@ export const darkChatColors = {
   noticeBorder: '#484848',
 };
 
-/** Sidebar geometry in photo_6156823455928619208_y.jpg (618 × 1280). */
+/** Reference sidebar proportions with the requested compact, full-width search layout. */
 export const referenceSidebar = {
   viewportWidth: 618, width: 525,
   headerTop: 21, headerHeight: 76,
-  searchTop: 123, searchLeft: 27, searchWidth: 375, searchHeight: 83,
-  labelTop: 420, listTop: 473,
+  brandFontSize: 44, brandLineHeight: 54,
+  searchTop: 123, searchLeft: 21, searchWidth: 483, searchHeight: 83,
+  listGap: 32,
   rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
-  footerBottom: 27, footerHeight: 83, avatar: 69, accountNameLeft: 117,
+  footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
   actionLeft: 415, actionSize: 82,
 } as const;
+
+export function sidebarWidth(viewportWidth: number) {
+  return Math.min(viewportWidth * referenceSidebar.width / referenceSidebar.viewportWidth, 400);
+}
 
 export type ChatColors = typeof darkChatColors;
 

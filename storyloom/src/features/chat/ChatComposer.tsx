@@ -1,5 +1,5 @@
-import {useCallback, useState} from 'react';
-import {Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {AccessibilityInfo, Animated, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
@@ -7,6 +7,7 @@ import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {composerScale, referenceComposer as r} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
 import {SwipeBackBoundary, SwipeBackModal} from '../settings/SwipeBackModal';
+import {panelSpring} from './usePanelMotion';
 
 interface Props {
   value: string;
@@ -37,22 +38,50 @@ export function ChatComposer(p: Props) {
   const overflowing = filled && measured > inputHeight + 1;
   const expandable = filled && height >= maxHeight - 1;
   const button = r.button * s;
-  const actionBottom = filled ? 14 * s : (height - button) / 2;
+  const hasSend = filled || p.generating;
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  const motion = useRef({
+    height: new Animated.Value(height),
+    input: new Animated.Value(inputHeight),
+    filled: new Animated.Value(filled ? 1 : 0),
+    send: new Animated.Value(hasSend ? 1 : 0),
+  }).current;
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(value => {if (mounted) setReduceMotion(value);});
+    const change = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {mounted = false; change.remove();};
+  }, []);
+  useLayoutEffect(() => {
+    const targets: [Animated.Value, number][] = [[motion.height, height], [motion.input, inputHeight], [motion.filled, filled ? 1 : 0], [motion.send, hasSend ? 1 : 0]];
+    if (reduceMotion !== false || !p.ready) {
+      for (const [value, target] of targets) {value.stopAnimation(); value.setValue(target);}
+      return;
+    }
+    // Retarget from the current size as typing continues; the bottom edge stays fixed.
+    const animation = Animated.parallel(targets.map(([value, toValue]) => Animated.spring(value, {...panelSpring, toValue, useNativeDriver: false})));
+    animation.start();
+    return () => animation.stop();
+  }, [filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
+  const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
+  const actionBottom = shape((r.compactHeight - r.button) / 2, 14);
   return <>
     <DrawerGestureBoundary><View style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s}}>
-      <View testID="chat-composer" style={{height, borderRadius: (filled ? 40 : r.compactHeight / 2) * s, backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
-        <View style={{position: 'absolute', top: filled ? 25 * s : (height - line) / 2, left: (filled ? 26 : 116) * s, right: (filled ? expandable ? 76 : 26 : 116) * s}}>
+      <Animated.View testID="chat-composer" style={{height: motion.height, borderRadius: shape(r.compactHeight / 2, 40), overflow: 'hidden', backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
+        <Animated.View style={{position: 'absolute', height: motion.input, overflow: 'hidden', top: motion.filled.interpolate({inputRange: [0, 1], outputRange: [(r.compactHeight * s - line) / 2, 25 * s]}), left: (filled ? 26 : 116) * s, right: (filled ? expandable ? 76 : 26 : 116) * s, transform: [{translateX: shape(filled ? 90 : 0, filled ? 0 : -90)}]}}>
           <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * s} lineHeight={r.lineHeight * s} height={inputHeight} scroll={overflowing} ready={p.ready}/>
-        </View>
+        </Animated.View>
         {expandable && <Pressable accessibilityRole="button" accessibilityLabel="입력창 크게 열기" hitSlop={8} onPress={() => setExpanded(true)} style={{position: 'absolute', top: 24 * s, right: 29 * s, padding: 3 * s}}><ChatIcon name="expand" size={25 * s} color="#707070"/></Pressable>}
-        <View style={{position: 'absolute', left: (filled ? 12 : 20) * s, bottom: actionBottom}}>
+        <Animated.View style={{position: 'absolute', left: shape(20, 12), bottom: actionBottom}}>
           <Circle label="첨부" icon="plus" size={button} iconSize={27 * s} onPress={() => p.onHint('첨부 기능은 아직 연결하지 않았어요.')}/>
-        </View>
-        <View style={{position: 'absolute', right: (filled ? 13 : 20) * s, bottom: actionBottom, flexDirection: 'row', gap: 13 * s}}>
+        </Animated.View>
+        <Animated.View style={{position: 'absolute', right: shape(20, 13), bottom: actionBottom, flexDirection: 'row'}}>
           <Circle label="음성 입력" icon="voice" size={button} iconSize={30 * s} onPress={() => p.onHint('음성 입력은 아직 연결하지 않았어요.')}/>
-          {(filled || p.generating) && <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>}
-        </View>
-      </View>
+          <Animated.View pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.send, button), marginLeft: Animated.multiply(motion.send, 13 * s), opacity: motion.send, overflow: 'hidden'}}>
+            <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
     </View></DrawerGestureBoundary>
     {expanded && <SwipeBackModal onClose={() => setExpanded(false)}>{close =>
       <SafeAreaView style={{flex: 1, backgroundColor: c.background, paddingHorizontal: 24}}>
