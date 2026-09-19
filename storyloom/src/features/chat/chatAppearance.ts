@@ -49,6 +49,17 @@ export const darkChatColors = {
   noticeBorder: '#484848',
 };
 
+/** Sidebar geometry in photo_6156823455928619208_y.jpg (618 × 1280). */
+export const referenceSidebar = {
+  viewportWidth: 618, width: 525,
+  headerTop: 21, headerHeight: 76,
+  searchTop: 123, searchLeft: 27, searchWidth: 375, searchHeight: 83,
+  labelTop: 420, listTop: 473,
+  rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
+  footerBottom: 27, footerHeight: 83, avatar: 69, accountNameLeft: 117,
+  actionLeft: 415, actionSize: 82,
+} as const;
+
 export type ChatColors = typeof darkChatColors;
 
 /** Sampled from the supplied light Kimi screenshots, using the same geometry. */
