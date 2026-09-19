@@ -8,7 +8,11 @@ import {useScreenCorners} from './useScreenCorners';
 import {DrawerGestureGuard} from './DrawerGestureBoundary';
 import {selectionHaptic} from './selectionHaptic';
 
-export function ChatDrawer({workspace, children}: {workspace: Workspace; children: (open: () => void) => ReactNode}) {
+const openScale = 0.90;
+// The reference fades the whole chat into the history surface: #111 -> #1A.
+const previewScrimOpacity = 0.61;
+
+export function ChatDrawer({workspace, children, openSettings, active = true}: {workspace: Workspace; children: (open: () => void) => ReactNode; openSettings: () => void; active?: boolean}) {
   const {width} = useWindowDimensions();
   const drawerWidth = Math.min(width * 0.84, 400);
   const corners = useScreenCorners();
@@ -60,17 +64,17 @@ export function ChatDrawer({workspace, children}: {workspace: Workspace; childre
   const open = useCallback(() => settle(true), [settle]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !active) return;
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!target.current && position.current <= 0) return false;
       close();
       return true;
     });
     return () => back.remove();
-  }, [close]);
+  }, [active, close]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
+    if (Platform.OS !== 'web' || !active) return;
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && (target.current || position.current > 0)) {
         event.preventDefault();
@@ -79,7 +83,7 @@ export function ChatDrawer({workspace, children}: {workspace: Workspace; childre
     };
     document.addEventListener('keydown', escape);
     return () => document.removeEventListener('keydown', escape);
-  }, [close]);
+  }, [active, close]);
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: () => {
@@ -114,7 +118,7 @@ export function ChatDrawer({workspace, children}: {workspace: Workspace; childre
     onPanResponderTerminationRequest: () => false,
   }), [drawerWidth, progress, settle]);
 
-  const radius = (value: number) => progress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, value, value / 0.96], extrapolate: 'clamp'});
+  const radius = (value: number) => progress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, value, value / openScale], extrapolate: 'clamp'});
   return <DrawerGestureGuard.Provider value={blocked}>
     <View testID="chat-drawer" style={styles.root} {...pan.panHandlers} onAccessibilityEscape={close}>
       <View
@@ -123,7 +127,7 @@ export function ChatDrawer({workspace, children}: {workspace: Workspace; childre
         aria-hidden={!revealed}
         accessibilityElementsHidden={!revealed}
         importantForAccessibility={revealed ? 'auto' : 'no-hide-descendants'}>
-        <ChatHistory workspace={workspace} close={close}/>
+        <ChatHistory workspace={workspace} close={close} openSettings={openSettings}/>
       </View>
       <Animated.View testID="chat-panel" style={[styles.panel, {
         borderTopLeftRadius: radius(corners.topLeft),
@@ -132,13 +136,14 @@ export function ChatDrawer({workspace, children}: {workspace: Workspace; childre
         borderBottomRightRadius: radius(corners.bottomRight),
         transform: [
           // Scaling around the center adds an inset; subtract it to align with the history width.
-          {translateX: progress.interpolate({inputRange: [0, 1], outputRange: [0, drawerWidth - width * 0.02]})},
-          {scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.96]})},
+          {translateX: progress.interpolate({inputRange: [0, 1], outputRange: [0, drawerWidth - width * (1 - openScale) / 2]})},
+          {scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, openScale]})},
         ],
       }]}>
         <View style={styles.content} pointerEvents={revealed ? 'none' : 'auto'} aria-hidden={revealed} accessibilityElementsHidden={revealed} importantForAccessibility={revealed ? 'no-hide-descendants' : 'auto'}>
           {children(open)}
         </View>
+        <Animated.View testID="chat-preview-scrim" pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, {backgroundColor: c.drawer, opacity: progress.interpolate({inputRange: [0, 1], outputRange: [0, previewScrimOpacity], extrapolate: 'clamp'})}]}/>
         {revealed && <Pressable testID="chat-drawer-close" accessibilityRole="button" accessibilityLabel="채팅으로 돌아가기" onPress={close} style={StyleSheet.absoluteFill}/>}
       </Animated.View>
     </View>
