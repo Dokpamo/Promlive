@@ -5,7 +5,7 @@ import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {CardThumbnail} from '../cards/CardThumbnail';
 import {ChatIcon} from './ChatIcon';
-import {referenceSidebar as r} from './chatAppearance';
+import {referenceSidebar as r, referenceTypography} from './chatAppearance';
 import {HeaderButton} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
@@ -76,7 +76,7 @@ export function CardConversationHeader({card, scale: s, onClose}: {card: Card; s
   const {colors: c} = useAppearance();
   return <View testID="card-history-header" style={{height: settingsReference.rowHeight * s, flexShrink: 0, marginBottom: settingsReference.groupPadding * s, paddingLeft: settingsReference.rowInset * s, paddingRight: settingsReference.highlightInset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
     <CardThumbnail testID="card-history-image" cover={card.cover} size={r.cardImage * s}/>
-    <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, fontWeight: '600', includeFontPadding: false}}>{card.title}</Text>
+    <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
     <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label="채팅내역 닫기" onPress={onClose} grouped/>
   </View>;
 }
@@ -121,7 +121,7 @@ function SidebarRows({items, scale: s, variant = 'cards', selectedId, testID, la
     ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: contentInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
     renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={history ? 'pressed' : 'full'} radius={highlightRadius} highlightInset={history ? settingsReference.highlightInset * s : 0} onPress={() => onSelect(item.id)} style={history ? undefined : {height: r.rowHeight * s}} contentStyle={{...(history ? {minHeight: settingsReference.rowHeight * s, paddingVertical: settingsReference.rowPadding * s, justifyContent: 'center'} : {height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}), paddingHorizontal: contentInset}}>
       {!history && item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
-      <Text numberOfLines={1} style={{...(!history ? {flex: 1, minWidth: 0} : {}), color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
+      <Text numberOfLines={1} style={{...(!history ? {flex: 1, minWidth: 0} : {}), color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{item.title}</Text>
     </SettingsPressable>}/>;
 }
 

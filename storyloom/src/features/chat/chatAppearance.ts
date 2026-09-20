@@ -1,3 +1,13 @@
+const titleFontSize = 28;
+
+/** Shared title and brand sizes in the 618px reference. */
+export const referenceTypography = {
+  titleFontSize,
+  titleLineHeight: 37,
+  titleWeight: '400',
+  logoFontSize: titleFontSize * 1.5,
+} as const;
+
 /** Measurements in the user's 618 × 1280 reference, before density conversion. */
 export const referenceComposer = {
   viewportWidth: 618,
@@ -53,10 +63,10 @@ export const darkChatColors = {
 export const referenceSidebar = {
   viewportWidth: 618, width: 525,
   headerTop: 21, headerHeight: 76,
-  brandFontSize: 44, brandLineHeight: 54,
+  brandFontSize: referenceTypography.logoFontSize, brandLineHeight: 54,
   searchTop: 123, searchLeft: 21, searchWidth: 483, searchHeight: 83, searchActionGap: 14,
   listGap: 32,
-  rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
+  rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: referenceTypography.titleFontSize, lineHeight: referenceTypography.titleLineHeight,
   cardImage: 60, cardImageGap: 18,
   footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
   historyBottomGap: 16, historyPadding: 14,
@@ -100,7 +110,7 @@ export const referenceHeader = {
   avatar: 72,
   avatarInset: 4,
   titleInset: 86,
-  titleFont: 32,
+  titleFont: referenceTypography.titleFontSize,
   icon: 32,
   moreIcon: 27,
 } as const;

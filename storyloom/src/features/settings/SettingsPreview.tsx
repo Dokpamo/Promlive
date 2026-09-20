@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import {Keyboard, Pressable, Text, TextInput, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
+import {referenceTypography} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
@@ -61,7 +62,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
       {page === 'prompt' && <PromptEditor value={prompt} onApply={value => {setPrompt(value); back();}}/>}
       {page === 'plugins' && <SettingsNote>등록된 플러그인이 없어요.</SettingsNote>}
       {page === 'about' && <View style={{marginHorizontal: 6 * s, marginTop: 24 * s, gap: 24 * s}}>
-        <Text style={{color: p.text, fontSize: 44 * s, lineHeight: 58 * s, fontWeight: '800', letterSpacing: -s}}>Promlive</Text>
+        <Text style={{color: p.text, fontSize: referenceTypography.logoFontSize * s, lineHeight: 58 * s, fontWeight: '800', letterSpacing: -s}}>Promlive</Text>
         <Text style={{color: p.secondary, fontSize: 26 * s, lineHeight: 38 * s}}>이야기가 시작되는 대화.</Text>
         <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: r.rowHeight * s}}><Text style={{color: p.text, fontSize: r.rowFont * s}}>앱 버전</Text><Text style={{color: p.secondary, fontSize: r.valueFont * s}}>0.1.0</Text></View>
       </View>}
