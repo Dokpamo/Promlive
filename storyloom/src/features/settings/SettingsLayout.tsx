@@ -33,7 +33,7 @@ export function SettingsPage({children, onBack, title, home = false}: {
   return <SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right', 'bottom']} style={{flex: 1, backgroundColor: p.background}}>
     <View style={{height: insets.top}}/>
     <ScreenHeader width={width} testID={home ? 'settings-header' : 'settings-detail-header'}>
-      <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack} leading/>
+      <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
     </ScreenHeader>
     <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: settingsReference.top * s, paddingBottom: 36 * s}}>
       <SwipeBackScrollContent>

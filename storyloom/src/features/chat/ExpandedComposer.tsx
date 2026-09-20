@@ -123,7 +123,7 @@ export function ExpandedComposer(p: Props) {
           </Animated.View>
           <Animated.View pointerEvents={closing ? 'none' : 'auto'} style={{position: 'absolute', top: insets.top, left: 0, right: 0, opacity: controlsOpacity}}>
             <ScreenHeader width={viewport.width} testID="expanded-composer-header">
-              <HeaderButton width={viewport.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close} leading/>
+              <HeaderButton width={viewport.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
               <View style={{flex: 1}}/>
               <HeaderButton width={viewport.width} testID="expanded-composer-send" icon={p.generating ? 'stop' : 'send'} label={p.generating ? '응답 중단' : '메시지 보내기'} bright disabled={!canSend} onPress={() => {if (p.generating) p.onCancel(); else {p.onSend(); close();}}}/>
             </ScreenHeader>

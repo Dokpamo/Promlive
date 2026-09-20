@@ -8,7 +8,7 @@ export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: n
   const stroke = Math.max(1.5, size / 12);
   const line = {position: 'absolute' as const, height: stroke, borderRadius: stroke, backgroundColor: color};
   return <View pointerEvents="none" style={{width: size, height: size}}>
-    {name === 'more' && [0, 10, 20].map(y => <View key={y} style={{position: 'absolute', left: size * 21 / 54, top: size * y / 27, width: size * 6 / 27, height: size * 6 / 27, borderRadius: size, backgroundColor: color}}/>)}
+    {name === 'more' && [1, 14, 27].map(y => <View key={y} style={{position: 'absolute', left: size * 14 / 32, top: size * y / 32, width: size * 4 / 32, height: size * 4 / 32, borderRadius: size, backgroundColor: color}}/>)}
     {name === 'back' && <>
       <View style={[line, {width: size * 25 / 32, height: size * 3 / 32, left: size * 4 / 32, top: size * 14.5 / 32}]}/>
       {[-1, 1].map(direction => <View key={direction} style={[line, {width: size * 17 / 32, height: size * 3 / 32, left: size * 2.5 / 32, top: size * (14.5 + direction * 6) / 32, transform: [{rotate: `${direction * 45}deg`}]}]}/>)}

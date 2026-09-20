@@ -112,27 +112,24 @@ export const lightChatColors: ChatColors = {
   bubble: '#F1F1F1', error: '#B03E3E', noticeError: '#A72E2E', notice: '#F0F0F0', noticeBorder: '#E2E2E2',
 };
 
-/** Header bounds from photo_6159075255742305505_y.jpg (618px wide). */
+/** Shared header proportions from photo_6161248182776566795_y.jpg (618px wide). */
 export const referenceHeader = {
   viewportWidth: 618,
-  left: 10,
-  right: 11,
-  top: 9,
+  left: 27,
+  right: 28,
+  top: 0,
   barHeight: 96,
-  height: 80,
-  gap: 10,
-  back: 80,
-  backGap: 10,
-  actions: 144,
-  actionInset: 8,
-  action: 64,
+  height: 76,
+  gap: 20,
+  actions: 158,
+  actionInset: 17,
+  action: 62,
   highlight: 70,
-  avatar: 72,
+  avatar: 68,
   avatarInset: 4,
-  titleInset: 86,
+  titleInset: 82,
   titleFont: referenceTypography.titleFontSize,
   icon: 32,
-  moreIcon: 27,
 } as const;
 
 export function headerScale(width: number) {
