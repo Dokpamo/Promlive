@@ -1,86 +1,124 @@
-import {useState} from 'react';
-import {FlatList, Keyboard, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
+import {useRef, useState, type RefObject} from 'react';
+import {Animated, FlatList, Keyboard, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {ChatIcon} from './ChatIcon';
-import {headerScale, referenceHeader, referenceSidebar as r} from './chatAppearance';
-import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
+import {headerScale, referenceSidebar as r} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
+import {usePressFeedback} from '../../layout/usePressFeedback';
+import type {SheetScrollState} from '../settings/sheetMotion';
+import {rowHighlightInset, SettingsPressable} from '../settings/SettingsPressable';
 
 interface Props {
   workspace: Workspace;
   width: number;
-  card?: Card;
-  selectedCardId?: string | undefined;
+  historyCard: Card | undefined;
+  historySearch: string;
+  onHistorySearch: (value: string) => void;
   openCard: (card: Card) => void;
-  backToCards: () => void;
   close: () => void;
   openSettings: () => void;
 }
 
-/** Cards and their histories share the measured, title-only list layout. */
-export function ChatHistory({workspace: w, width, card, selectedCardId, openCard, backToCards, close, openSettings}: Props) {
+/** Brand, contextual search/create controls and account stay outside the history popup. */
+export function ChatHistory({workspace: w, width, historyCard, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
   const {colors: c, isDark} = useAppearance();
-  const [search, setSearch] = useState('');
+  const [cardSearch, setCardSearch] = useState('');
   const insets = useSafeAreaInsets();
-  const {width: viewportWidth} = useWindowDimensions();
-  const headerHeight = referenceHeader.height * headerScale(viewportWidth);
   const s = width / r.width;
-  const query = search.trim().toLocaleLowerCase();
+  const query = cardSearch.trim().toLocaleLowerCase();
   const cards = w.cards.filter(item => !item.archived && `${item.title} ${item.description}`.toLocaleLowerCase().includes(query));
-  const conversations = w.conversations.filter(item => item.cardId === card?.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
-  const items = (card ? conversations : cards).map(item => ({id: item.id, title: item.title}));
-  const selectedId = card ? w.conversation?.id : selectedCardId ?? w.conversation?.cardId;
   const shadow = isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)';
   const listTop = (r.searchTop + r.searchHeight + r.listGap) * s;
-  const select = async (id: string) => {
-    Keyboard.dismiss();
-    if (!card) {
-      const item = cards.find(value => value.id === id);
-      if (item) openCard(item);
-      return;
-    }
-    const item = conversations.find(value => value.id === id);
-    if (item) {await w.openConversation(item); close();}
-  };
   const start = async () => {
-    if (!card) return;
-    await w.startChat(card, true);
+    if (historyCard) await w.startChat(historyCard, true);
+    else await w.newGeneralChat();
     close();
   };
 
-  return <View testID={card ? 'card-conversations-page' : 'card-list-page'} style={{flex: 1, backgroundColor: c.drawer, paddingTop: insets.top, paddingBottom: insets.bottom}}>
-    <View style={{height: listTop}}>
-      {card ? <ScreenHeader width={viewportWidth} testID="card-history-header">
-        <HeaderButton width={viewportWidth} testID="card-history-back" icon="back" label="카드 목록으로 돌아가기" onPress={backToCards} leading/>
-        <View style={{flex: 1, minWidth: 0, height: headerHeight, justifyContent: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '600', includeFontPadding: false}}>{card.title}</Text></View>
-        <HeaderButton width={viewportWidth} testID="card-history-new-chat" icon="plus" label={`${card.title}에서 새 채팅`} onPress={() => {void start().catch(error => w.report(error));}}/>
-      </ScreenHeader> : <View style={{position: 'absolute', left: r.textInset * s, top: r.headerTop * s, right: 28 * s, height: r.headerHeight * s, justifyContent: 'center'}}>
+  return <View testID="card-list-page" style={{flex: 1, backgroundColor: c.drawer, paddingTop: insets.top, paddingBottom: insets.bottom}}>
+    <View style={{height: listTop, flexShrink: 0}}>
+      <View style={{position: 'absolute', left: r.textInset * s, top: r.headerTop * s, right: 28 * s, height: r.headerHeight * s, justifyContent: 'center'}}>
         <Text accessibilityRole="header" numberOfLines={1} style={{color: c.brand, fontSize: r.brandFontSize * s, lineHeight: r.brandLineHeight * s, fontWeight: '800', letterSpacing: -s, includeFontPadding: false}}>Promlive</Text>
-      </View>}
-      <View style={{position: 'absolute', left: r.searchLeft * s, top: r.searchTop * s, width: r.searchWidth * s}}>
-        <DrawerGestureBoundary><View testID="sidebar-search" style={{height: r.searchHeight * s, borderRadius: r.searchHeight * s / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: shadow, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 31 * s, gap: 14 * s}}>
-          <ChatIcon name="search" size={29 * s} color={c.text}/>
-          <TextInput accessibilityLabel={card ? '이 카드의 채팅 검색' : '카드 검색'} value={search} onChangeText={setSearch} placeholder="검색" placeholderTextColor={c.placeholder} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" style={{flex: 1, minWidth: 0, padding: 0, color: c.text, height: r.searchHeight * s, fontSize: 27 * s, includeFontPadding: false}}/>
-        </View></DrawerGestureBoundary>
+      </View>
+      <View testID="sidebar-toolbar" style={{position: 'absolute', left: r.searchLeft * s, top: r.searchTop * s, width: r.searchWidth * s, height: r.searchHeight * s, flexDirection: 'row', alignItems: 'center', gap: r.searchActionGap * s}}>
+        <View style={{flex: 1, minWidth: 0}}>
+          <DrawerGestureBoundary><View testID="sidebar-search" style={{height: r.searchHeight * s, borderRadius: r.searchHeight * s / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: shadow, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 27 * s, gap: 14 * s}}>
+            <ChatIcon name="search" size={29 * s} color={c.text}/>
+            <TextInput testID="sidebar-search-input" accessibilityLabel={historyCard ? '이 카드의 채팅 검색' : '카드 검색'} value={historyCard ? historySearch : cardSearch} onChangeText={historyCard ? onHistorySearch : setCardSearch} placeholder={historyCard ? '채팅 검색' : '검색'} placeholderTextColor={c.placeholder} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" style={{flex: 1, minWidth: 0, padding: 0, color: c.text, height: r.searchHeight * s, fontSize: 27 * s, includeFontPadding: false}}/>
+          </View></DrawerGestureBoundary>
+        </View>
+        <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : '새 채팅'} onPress={() => {void start().catch(error => w.report(error));}}/>
       </View>
     </View>
-    <FlatList
-      testID={card ? 'card-conversation-list' : 'card-list'} data={items} keyExtractor={item => item.id} style={{flex: 1}}
-      contentContainerStyle={{paddingHorizontal: r.rowInset * s, paddingBottom: 12 * s}}
-      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-      ListEmptyComponent={<Text style={{padding: 19 * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{query ? '검색 결과가 없어요.' : card ? '아직 채팅이 없어요.' : '아직 카드가 없어요.'}</Text>}
-      renderItem={({item}) => <Pressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={card ? `${item.title} 채팅 열기` : `${item.title} 카드의 채팅 기록`} accessibilityState={{selected: item.id === selectedId}} onPress={() => {void select(item.id).catch(error => w.report(error));}} style={({pressed}) => ({height: r.rowHeight * s, borderRadius: r.rowRadius * s, paddingHorizontal: (r.textInset - r.rowInset) * s, justifyContent: 'center', backgroundColor: pressed ? c.historyPressed : item.id === selectedId ? c.historySelected : 'transparent'})}>
-        <Text numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
-      </Pressable>}
-    />
-    <View testID="sidebar-footer" style={{height: (r.footerHeight + r.footerBottom) * s}}>
+    <View style={{flex: 1}} pointerEvents={historyCard ? 'none' : 'auto'} aria-hidden={!!historyCard} accessibilityElementsHidden={!!historyCard} importantForAccessibility={historyCard ? 'no-hide-descendants' : 'auto'}>
+      <SidebarRows items={cards} scale={s} selectedId={historyCard?.id ?? w.conversation?.cardId} testID="card-list" label={title => `${title} 카드의 채팅 기록`} empty={query ? '검색 결과가 없어요.' : '아직 카드가 없어요.'} onSelect={id => {
+        Keyboard.dismiss();
+        const card = cards.find(item => item.id === id);
+        if (card) openCard(card);
+      }}/>
+    </View>
+    <View testID="sidebar-footer" style={{height: (r.footerHeight + r.footerBottom) * s, flexShrink: 0}}>
       <Pressable testID="sidebar-account" accessibilityRole="button" accessibilityLabel="사용자 계정" accessibilityHint="설정 열기" onPress={openSettings} style={({pressed}) => ({position: 'absolute', left: r.rowInset * s, right: r.rowInset * s, top: 0, height: r.footerHeight * s, paddingHorizontal: (r.accountAvatarLeft - r.rowInset) * s, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.6 : 1})}>
         <View accessible={false} style={{width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: '#000000'}}/>
         <Text numberOfLines={1} style={{flex: 1, marginLeft: (r.accountNameLeft - r.accountAvatarLeft - r.avatar) * s, color: c.text, fontSize: 26 * s, lineHeight: 35 * s, fontWeight: '600', includeFontPadding: false}}>사용자</Text>
       </Pressable>
     </View>
   </View>;
+}
+
+export function CardConversationList({workspace: w, width, card, search, close, scroll}: {workspace: Workspace; width: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
+  const s = width / r.width;
+  const query = search.trim().toLocaleLowerCase();
+  const conversations = w.conversations.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
+  const select = async (id: string) => {
+    Keyboard.dismiss();
+    const conversation = conversations.find(item => item.id === id);
+    if (conversation) {await w.openConversation(conversation); close();}
+  };
+  // The popup already occupies the card row bounds; do not inset those rows twice.
+  return <SidebarRows items={conversations} scale={s} selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} insetHorizontal={0} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
+}
+
+function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelect, scroll, insetHorizontal = r.rowInset * s}: {
+  items: {id: string; title: string}[];
+  scale: number;
+  selectedId: string | undefined;
+  testID: string;
+  label: (title: string) => string;
+  empty: string;
+  onSelect: (id: string) => void;
+  insetHorizontal?: number;
+  scroll?: RefObject<SheetScrollState>;
+}) {
+  const {colors: c} = useAppearance();
+  const surfaceScale = headerScale(useWindowDimensions().width);
+  const dimensions = useRef({content: 0, viewport: 0});
+  const measure = (kind: 'content' | 'viewport', height: number) => {
+    dimensions.current[kind] = height;
+    if (scroll) scroll.current.canScroll = dimensions.current.content > dimensions.current.viewport + 1;
+  };
+  return <FlatList testID={testID} data={items} keyExtractor={item => item.id} style={{flex: 1}}
+    onLayout={event => measure('viewport', event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => measure('content', height)}
+    onScroll={event => {if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16}
+    contentContainerStyle={{paddingHorizontal: insetHorizontal, paddingBottom: 12 * s}}
+    keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+    ListEmptyComponent={<Text style={{padding: 19 * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
+    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight="pressed" radius={r.rowRadius * surfaceScale} highlightInset={rowHighlightInset * surfaceScale} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.textInset - r.rowInset) * s, justifyContent: 'center'}}>
+      <Text numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
+    </SettingsPressable>}/>;
+}
+
+function CreateChatButton({scale: s, label, onPress}: {scale: number; label: string; onPress: () => void}) {
+  const {colors: c, isDark} = useAppearance();
+  const {progress, onPressIn, onPressOut} = usePressFeedback();
+  const size = r.searchHeight * s;
+  return <Pressable testID="sidebar-create" accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={{width: size, height: size, flexShrink: 0}}>
+    <Animated.View style={{flex: 1, borderRadius: size / 2, backgroundColor: c.search, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center', transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]})}]}}>
+      <Animated.View pointerEvents="none" style={{position: 'absolute', inset: 4 * s, borderRadius: size / 2, backgroundColor: c.headerPressed, opacity: progress}}/>
+      <ChatIcon name="new-chat" size={35 * s} color={c.text}/>
+    </Animated.View>
+  </Pressable>;
 }

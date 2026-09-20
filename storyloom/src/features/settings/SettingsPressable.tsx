@@ -3,23 +3,29 @@ import {Animated, Pressable, StyleSheet, type PressableProps, type StyleProp, ty
 import {usePressFeedback} from '../../layout/usePressFeedback';
 import {useAppearance} from '../appearance/AppAppearance';
 
+/** Horizontal highlight inset in the shared 618px reference geometry. */
+export const rowHighlightInset = 8;
+
 type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressOut'> & {
   children: ReactNode;
   radius: number;
   selected?: boolean;
+  selectedHighlight?: 'full' | 'pressed';
   highlightInset?: number;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
 };
 
 /** Animate the visual surface without moving the row's layout or touch target. */
-export function SettingsPressable({children, radius, selected = false, highlightInset = 0, style, contentStyle, ...props}: Props) {
+export function SettingsPressable({children, radius, selected = false, selectedHighlight = 'full', highlightInset = 0, style, contentStyle, ...props}: Props) {
   const {settings: p} = useAppearance();
   const {progress, onPressIn, onPressOut} = usePressFeedback();
+  const pressScale = progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]});
 
   return <Pressable {...props} style={style} onPressIn={onPressIn} onPressOut={onPressOut}>
-    <Animated.View testID="settings-press-surface" style={[contentStyle, {transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]})}]}]}>
-      <Animated.View testID="settings-press-highlight" pointerEvents="none" style={[StyleSheet.absoluteFill, {left: highlightInset, right: highlightInset, borderRadius: radius, backgroundColor: p.selected, opacity: selected ? 1 : progress}]}/>
+    {/* A selected background can keep its pressed shape without shrinking twice. */}
+    <Animated.View testID="settings-press-highlight" pointerEvents="none" style={[StyleSheet.absoluteFill, {left: highlightInset, right: highlightInset, borderRadius: radius, backgroundColor: p.selected, opacity: selected ? 1 : progress, transform: [{scale: selected && selectedHighlight === 'pressed' ? 0.98 : pressScale}]}]}/>
+    <Animated.View testID="settings-press-surface" style={[contentStyle, {transform: [{scale: pressScale}]}]}>
       {children}
     </Animated.View>
   </Pressable>;

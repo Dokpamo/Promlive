@@ -5,7 +5,7 @@ import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
-import {SettingsPressable} from './SettingsPressable';
+import {rowHighlightInset, SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
 import type {SheetScrollState} from './sheetMotion';
 
@@ -60,7 +60,7 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <SettingsPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : 8 * s} contentStyle={{minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: 17 * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
+  return <SettingsPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : rowHighlightInset * s} contentStyle={{minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: 17 * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
     <Text style={{flex: 1, color: p.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, includeFontPadding: false}}>{label}</Text>
     {value && <Text numberOfLines={1} style={{maxWidth: '44%', color: muted ? p.secondary : p.accent, fontSize: settingsReference.valueFont * s, lineHeight: 38 * s, includeFontPadding: false}}>{value}</Text>}
     <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>

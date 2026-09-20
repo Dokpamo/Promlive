@@ -49,15 +49,16 @@ export const darkChatColors = {
   noticeBorder: '#484848',
 };
 
-/** Reference sidebar proportions with the requested compact, full-width search layout. */
+/** Reference sidebar proportions; the create/search row spans the card list width. */
 export const referenceSidebar = {
   viewportWidth: 618, width: 525,
   headerTop: 21, headerHeight: 76,
   brandFontSize: 44, brandLineHeight: 54,
-  searchTop: 123, searchLeft: 21, searchWidth: 483, searchHeight: 83,
+  searchTop: 123, searchLeft: 21, searchWidth: 483, searchHeight: 83, searchActionGap: 14,
   listGap: 32,
   rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
   footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
+  historyRadius: 48, historyBottomGap: 16, historyPadding: 14,
 } as const;
 
 export function sidebarWidth(viewportWidth: number) {

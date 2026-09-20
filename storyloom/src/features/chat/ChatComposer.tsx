@@ -1,14 +1,12 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {AccessibilityInfo, Animated, Pressable, View, useWindowDimensions} from 'react-native';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
-import {composerScale, headerScale, referenceComposer as r, referenceHeader} from './chatAppearance';
-import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
+import {composerScale, referenceComposer as r} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
-import {SwipeBackBoundary, SwipeBackModal} from '../settings/SwipeBackModal';
 import {panelSpring} from './usePanelMotion';
+import {ExpandedComposer, type ComposerFrame} from './ExpandedComposer';
 
 interface Props {
   value: string;
@@ -29,7 +27,8 @@ export function ChatComposer(p: Props) {
   const s = composerScale(p.width);
   const line = r.lineHeight * s * fontScale;
   const [contentHeight, setContentHeight] = useState(line);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState<ComposerFrame | null>(null);
+  const composer = useRef<View>(null);
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
   const filled = p.value.length > 0;
   const measured = Math.max(line, contentHeight);
@@ -66,9 +65,12 @@ export function ChatComposer(p: Props) {
   }, [expandable, filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
   const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
   const actionBottom = shape((r.compactHeight - r.button) / 2, 14);
+  const measureComposer = (done: (frame: ComposerFrame) => void, settled = false) => {
+    composer.current?.measureInWindow((x, y, width, measuredHeight) => done({x, y: settled ? y + measuredHeight - height : y, width, height: settled ? height : measuredHeight, radius: (filled ? 40 : r.compactHeight / 2) * s}));
+  };
   return <>
-    <DrawerGestureBoundary><View style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s}}>
-      <Animated.View testID="chat-composer" style={{height: motion.height, borderRadius: shape(r.compactHeight / 2, 40), overflow: 'hidden', backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
+    <DrawerGestureBoundary><View pointerEvents={expanded ? 'none' : 'auto'} aria-hidden={!!expanded} accessibilityElementsHidden={!!expanded} importantForAccessibility={expanded ? 'no-hide-descendants' : 'auto'} style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s, opacity: expanded ? 0 : 1}}>
+      <Animated.View ref={composer} testID="chat-composer" style={{height: motion.height, borderRadius: shape(r.compactHeight / 2, 40), overflow: 'hidden', backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
         <Animated.View style={{position: 'absolute', height: motion.input, overflow: 'hidden', top: motion.filled.interpolate({inputRange: [0, 1], outputRange: [(r.compactHeight * s - line) / 2, 25 * s]}), left: (filled ? 26 : 116) * s, right: 26 * s, transform: [{translateX: shape(filled ? 90 : 0, filled ? 0 : -90)}]}}>
           <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * s} lineHeight={r.lineHeight * s} height={inputHeight} scroll={overflowing} ready={p.ready}/>
         </Animated.View>
@@ -77,7 +79,7 @@ export function ChatComposer(p: Props) {
         </Animated.View>
         <Animated.View style={{position: 'absolute', right: shape(20, 13), bottom: actionBottom, flexDirection: 'row'}}>
           <Animated.View pointerEvents={expandable ? 'auto' : 'none'} aria-hidden={!expandable} accessibilityElementsHidden={!expandable} importantForAccessibility={expandable ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.expand, button), opacity: motion.expand, overflow: 'hidden'}}>
-            <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={() => setExpanded(true)}/>
+            <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={() => measureComposer(setExpanded)}/>
           </Animated.View>
           <Animated.View pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.send, button), marginLeft: Animated.multiply(Animated.multiply(motion.expand, motion.send), 13 * s), opacity: motion.send, overflow: 'hidden'}}>
             <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>
@@ -85,16 +87,7 @@ export function ChatComposer(p: Props) {
         </Animated.View>
       </Animated.View>
     </View></DrawerGestureBoundary>
-    {expanded && <SwipeBackModal onClose={() => setExpanded(false)}>{close =>
-      <SafeAreaView style={{flex: 1, backgroundColor: c.background}}>
-        <ScreenHeader width={p.width}>
-          <View style={{flex: 1, height: referenceHeader.height * headerScale(p.width), justifyContent: 'center'}}><Text style={{color: c.text, fontSize: 17}}>메시지 작성</Text></View>
-          <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
-        </ScreenHeader>
-        <SwipeBackBoundary style={{flex: 1, marginHorizontal: 24}}><TextInput accessibilityLabel="확장 메시지 입력" autoFocus multiline value={p.value} onChangeText={p.onChange} maxLength={8000} placeholder="무엇이든 물어보세요." placeholderTextColor={c.placeholder} textAlignVertical="top" style={{flex: 1, color: c.text, fontSize: 18, lineHeight: 28, paddingVertical: 20}}/></SwipeBackBoundary>
-        <Pressable accessibilityRole="button" onPress={close} style={{alignSelf: 'flex-end', backgroundColor: c.button, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 24, marginRight: 24, marginBottom: 16}}><Text style={{color: c.text, fontSize: 15}}>완료</Text></Pressable>
-      </SafeAreaView>
-    }</SwipeBackModal>}
+    {expanded && <ExpandedComposer origin={expanded} measureOrigin={done => measureComposer(done, true)} sourceInputHeight={inputHeight} sourceExpandable={expandable} value={p.value} onChange={p.onChange} onSend={p.onSend} onCancel={p.onCancel} onClose={() => setExpanded(null)} ready={p.ready} sending={p.sending} generating={p.generating} reduceMotion={reduceMotion === true}/>}
   </>;
 }
 

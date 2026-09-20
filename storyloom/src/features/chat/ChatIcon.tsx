@@ -1,7 +1,7 @@
 import {View} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 
-export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'search' | 'chat' | 'stop' | 'settings' | 'user' | 'more';
+export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'search' | 'chat' | 'new-chat' | 'stop' | 'settings' | 'user' | 'more';
 export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: number; color?: string}) {
   const {colors: c} = useAppearance();
   color ??= c.icon;
@@ -27,6 +27,10 @@ export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: n
     {name === 'close' && [-45, 45].map(angle => <View key={angle} style={[line, {width: size, top: (size - stroke) / 2, transform: [{rotate: `${angle}deg`}]}]}/>)}
     {name === 'search' && <><View style={{width: size * 0.68, height: size * 0.68, borderWidth: stroke, borderColor: color, borderRadius: size}}/><View style={[line, {width: size * 0.47, bottom: size * 0.14, right: 0, transform: [{rotate: '45deg'}]}]}/></>}
     {name === 'chat' && <View style={{width: size * 0.9, height: size * 0.75, borderWidth: stroke, borderColor: color, borderRadius: size * 0.2, borderBottomLeftRadius: 0, marginTop: size * 0.1}}/>}
+    {name === 'new-chat' && <>
+      <View style={{position: 'absolute', left: size * 0.07, top: size * 0.05, width: size * 0.88, height: size * 0.88, borderWidth: stroke, borderColor: color, borderRadius: size * 0.44, borderBottomLeftRadius: size * 0.05}}/>
+      {[0, 90].map(angle => <View key={angle} style={[line, {width: size * 0.36, left: size * 0.33, top: size * 0.49 - stroke / 2, transform: [{rotate: `${angle}deg`}]}]}/>)}
+    </>}
     {name === 'stop' && <View style={{margin: size * 0.2, width: size * 0.6, height: size * 0.6, backgroundColor: color, borderRadius: 2}}/>}
     {name === 'settings' && <>
       {[0, 45, 90, 135].map(angle => <View key={angle} style={{position: 'absolute', width: size * 0.25, height: size, left: size * 0.375, borderRadius: size * 0.07, backgroundColor: color, transform: [{rotate: `${angle}deg`}]}}/>)}
