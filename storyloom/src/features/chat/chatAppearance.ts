@@ -6,7 +6,7 @@ export const referenceComposer = {
   compactHeight: 111,
   firstLineHeight: 171,
   lineHeight: 37,
-  maxHeight: 265,
+  maxLines: 7,
   button: 70,
   fontSize: 27,
 } as const;
@@ -94,6 +94,7 @@ export const referenceHeader = {
   actions: 144,
   actionInset: 8,
   action: 64,
+  highlight: 70,
   avatar: 68,
   avatarInset: 4,
   titleInset: 86,

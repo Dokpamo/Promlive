@@ -33,18 +33,18 @@ export function ChatComposer(p: Props) {
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
   const filled = p.value.length > 0;
   const measured = Math.max(line, contentHeight);
-  const maxHeight = r.maxHeight * s + Math.max(0, fontScale - 1) * line * 2;
-  const height = filled ? Math.min(maxHeight, r.firstLineHeight * s + measured - line) : r.compactHeight * s;
-  const inputHeight = filled ? Math.max(line, height - (r.firstLineHeight - r.lineHeight) * s) : line;
+  const inputHeight = filled ? Math.min(measured, r.maxLines * line) : line;
+  const height = filled ? inputHeight + (r.firstLineHeight - r.lineHeight) * s : r.compactHeight * s;
   const overflowing = filled && measured > inputHeight + 1;
-  const expandable = filled && height >= maxHeight - 1;
+  const expandable = filled && Math.round(measured / line) >= 2;
   const button = r.button * s;
-  const hasSend = filled || p.generating;
+  const hasSend = !!p.value.trim() || p.generating;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const motion = useRef({
     height: new Animated.Value(height),
     input: new Animated.Value(inputHeight),
     filled: new Animated.Value(filled ? 1 : 0),
+    expand: new Animated.Value(expandable ? 1 : 0),
     send: new Animated.Value(hasSend ? 1 : 0),
   }).current;
   useEffect(() => {
@@ -54,7 +54,7 @@ export function ChatComposer(p: Props) {
     return () => {mounted = false; change.remove();};
   }, []);
   useLayoutEffect(() => {
-    const targets: [Animated.Value, number][] = [[motion.height, height], [motion.input, inputHeight], [motion.filled, filled ? 1 : 0], [motion.send, hasSend ? 1 : 0]];
+    const targets: [Animated.Value, number][] = [[motion.height, height], [motion.input, inputHeight], [motion.filled, filled ? 1 : 0], [motion.expand, expandable ? 1 : 0], [motion.send, hasSend ? 1 : 0]];
     if (reduceMotion !== false || !p.ready) {
       for (const [value, target] of targets) {value.stopAnimation(); value.setValue(target);}
       return;
@@ -63,22 +63,23 @@ export function ChatComposer(p: Props) {
     const animation = Animated.parallel(targets.map(([value, toValue]) => Animated.spring(value, {...panelSpring, toValue, useNativeDriver: false})));
     animation.start();
     return () => animation.stop();
-  }, [filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
+  }, [expandable, filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
   const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
   const actionBottom = shape((r.compactHeight - r.button) / 2, 14);
   return <>
     <DrawerGestureBoundary><View style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s}}>
       <Animated.View testID="chat-composer" style={{height: motion.height, borderRadius: shape(r.compactHeight / 2, 40), overflow: 'hidden', backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
-        <Animated.View style={{position: 'absolute', height: motion.input, overflow: 'hidden', top: motion.filled.interpolate({inputRange: [0, 1], outputRange: [(r.compactHeight * s - line) / 2, 25 * s]}), left: (filled ? 26 : 116) * s, right: (filled ? expandable ? 76 : 26 : 116) * s, transform: [{translateX: shape(filled ? 90 : 0, filled ? 0 : -90)}]}}>
+        <Animated.View style={{position: 'absolute', height: motion.input, overflow: 'hidden', top: motion.filled.interpolate({inputRange: [0, 1], outputRange: [(r.compactHeight * s - line) / 2, 25 * s]}), left: (filled ? 26 : 116) * s, right: 26 * s, transform: [{translateX: shape(filled ? 90 : 0, filled ? 0 : -90)}]}}>
           <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * s} lineHeight={r.lineHeight * s} height={inputHeight} scroll={overflowing} ready={p.ready}/>
         </Animated.View>
-        {expandable && <Pressable accessibilityRole="button" accessibilityLabel="입력창 크게 열기" hitSlop={8} onPress={() => setExpanded(true)} style={{position: 'absolute', top: 24 * s, right: 29 * s, padding: 3 * s}}><ChatIcon name="expand" size={25 * s} color="#707070"/></Pressable>}
         <Animated.View style={{position: 'absolute', left: shape(20, 12), bottom: actionBottom}}>
           <Circle label="첨부" icon="plus" size={button} iconSize={27 * s} onPress={() => p.onHint('첨부 기능은 아직 연결하지 않았어요.')}/>
         </Animated.View>
         <Animated.View style={{position: 'absolute', right: shape(20, 13), bottom: actionBottom, flexDirection: 'row'}}>
-          <Circle label="음성 입력" icon="voice" size={button} iconSize={30 * s} onPress={() => p.onHint('음성 입력은 아직 연결하지 않았어요.')}/>
-          <Animated.View pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.send, button), marginLeft: Animated.multiply(motion.send, 13 * s), opacity: motion.send, overflow: 'hidden'}}>
+          <Animated.View pointerEvents={expandable ? 'auto' : 'none'} aria-hidden={!expandable} accessibilityElementsHidden={!expandable} importantForAccessibility={expandable ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.expand, button), opacity: motion.expand, overflow: 'hidden'}}>
+            <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={() => setExpanded(true)}/>
+          </Animated.View>
+          <Animated.View pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.send, button), marginLeft: Animated.multiply(Animated.multiply(motion.expand, motion.send), 13 * s), opacity: motion.send, overflow: 'hidden'}}>
             <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>
           </Animated.View>
         </Animated.View>
