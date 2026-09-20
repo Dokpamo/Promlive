@@ -1,6 +1,7 @@
 import {createContext, useContext, useEffect, useMemo, type ReactNode} from 'react';
 import {NativeModules, Platform, StatusBar, useColorScheme} from 'react-native';
 import {darkChatColors, lightChatColors, type ChatColors} from '../chat/chatAppearance';
+import type {ChatDisplayMode} from '../chat/chatPresentation';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 export const themeSettingKey = 'appearance:theme';
@@ -26,6 +27,8 @@ export type SettingsPalette = ReturnType<typeof settingsPalette>;
 const AppearanceContext = createContext({
   mode: 'dark' as ThemeMode,
   setMode: (_mode: ThemeMode) => {},
+  chatDisplay: 'default' as ChatDisplayMode,
+  setChatDisplay: (_mode: ChatDisplayMode) => {},
   isDark: true,
   colors: darkChatColors,
   settings: darkSettings,
@@ -36,7 +39,7 @@ export function syncSystemBars(isDark: boolean) {
   if (Platform.OS === 'android') NativeModules.PromliveSystemBars?.setDarkIcons(!isDark);
 }
 
-export function AppearanceProvider({mode, setMode, children}: {mode: ThemeMode; setMode: (mode: ThemeMode) => void; children: ReactNode}) {
+export function AppearanceProvider({mode, setMode, chatDisplay, setChatDisplay, children}: {mode: ThemeMode; setMode: (mode: ThemeMode) => void; chatDisplay: ChatDisplayMode; setChatDisplay: (mode: ChatDisplayMode) => void; children: ReactNode}) {
   const system = useColorScheme();
   const isDark = mode === 'dark' || (mode === 'system' && system !== 'light');
   const colors = isDark ? darkChatColors : lightChatColors;
@@ -48,7 +51,7 @@ export function AppearanceProvider({mode, setMode, children}: {mode: ThemeMode; 
       document.body.style.backgroundColor = colors.background;
     }
   }, [colors, isDark]);
-  const value = useMemo(() => ({mode, setMode, isDark, colors, settings: isDark ? darkSettings : lightSettings}), [mode, setMode, isDark, colors]);
+  const value = useMemo(() => ({mode, setMode, chatDisplay, setChatDisplay, isDark, colors, settings: isDark ? darkSettings : lightSettings}), [mode, setMode, chatDisplay, setChatDisplay, isDark, colors]);
   return <AppearanceContext.Provider value={value}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'}/>{children}</AppearanceContext.Provider>;
 }
 

@@ -1,6 +1,6 @@
 import {Text, View} from 'react-native';
 import {ChatIcon} from './ChatIcon';
-import {chatAvatarColor, headerScale, referenceHeader as r, referenceSidebar, referenceTypography, sidebarWidth} from './chatAppearance';
+import {chatAvatarColor, headerScale, referenceHeader as r, referenceTypography, typographyScale} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 
@@ -14,7 +14,7 @@ export function ChatHeader({width, title, conversationId, openHistory, openSetti
   const {colors: c, isDark} = useAppearance();
   const shadow = isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)';
   const s = headerScale(width);
-  const titleScale = sidebarWidth(width) / referenceSidebar.width;
+  const titleScale = typographyScale(width);
   const height = r.height * s;
   return <ScreenHeader width={width} testID="chat-header">
     <HeaderButton width={width} testID="chat-header-back" icon="back" label="카드 목록 열기" onPress={openHistory} leading/>

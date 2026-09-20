@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 import {ChatIcon} from './ChatIcon';
-import {composerScale, headerScale, referenceComposer as r, referenceHeader} from './chatAppearance';
+import {composerScale, headerScale, referenceComposer as r, referenceHeader, typographyScale} from './chatAppearance';
 import {panelSpring} from './usePanelMotion';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
 import {useComposerPull} from './useComposerPull';
@@ -33,6 +33,7 @@ export function ExpandedComposer(p: Props) {
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const s = composerScale(window.width);
+  const textScale = typographyScale(window.width);
   const progress = useRef(new Animated.Value(0)).current;
   const input = useRef<TextInput>(null);
   const [frame, setFrame] = useState(p.origin);
@@ -114,8 +115,8 @@ export function ExpandedComposer(p: Props) {
           borderRadius: tween(frame.radius, 0), borderWidth: tween(s, 0), borderColor: c.border, backgroundColor: c.composer, overflow: 'hidden',
           boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)',
         }}>
-          <Animated.View onStartShouldSetResponderCapture={pull.blockInput} style={{position: 'absolute', left: tween((filled ? 26 : 116) * s, 26 * s), right: 26 * s, top: tween(filled ? 25 * s : (r.compactHeight - r.lineHeight * window.fontScale) * s / 2, inputTop), height: tween(p.sourceInputHeight, Math.max(60, viewport.height - inputTop - insets.bottom - 20 * s)), overflow: 'hidden'}}>
-            <TextInput ref={input} testID="expanded-composer-input" accessibilityLabel="확장 메시지 입력" multiline scrollEnabled value={p.value} onChangeText={p.onChange} editable={p.ready && !closing} maxLength={8000} placeholder="무엇이든 물어보세요." placeholderTextColor={c.placeholder} selectionColor="#3096EB" underlineColorAndroid="transparent" textAlignVertical="top" style={{flex: 1, color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, padding: 0, margin: 0, includeFontPadding: false}}/>
+          <Animated.View onStartShouldSetResponderCapture={pull.blockInput} style={{position: 'absolute', left: tween((filled ? 26 : 116) * s, 26 * s), right: 26 * s, top: tween(filled ? 25 * s : (r.compactHeight * s - r.lineHeight * textScale * window.fontScale) / 2, inputTop), height: tween(p.sourceInputHeight, Math.max(60, viewport.height - inputTop - insets.bottom - 20 * s)), overflow: 'hidden'}}>
+            <TextInput ref={input} testID="expanded-composer-input" accessibilityLabel="확장 메시지 입력" multiline scrollEnabled value={p.value} onChangeText={p.onChange} editable={p.ready && !closing} maxLength={8000} placeholder="무엇이든 물어보세요." placeholderTextColor={c.placeholder} selectionColor="#3096EB" underlineColorAndroid="transparent" textAlignVertical="top" style={{flex: 1, color: c.text, fontSize: r.fontSize * textScale, lineHeight: r.lineHeight * textScale, padding: 0, margin: 0, includeFontPadding: false}}/>
           </Animated.View>
           <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', left: (filled ? 12 : 20) * s, right: (filled ? 13 : 20) * s, bottom: (filled ? 14 : (r.compactHeight - r.button) / 2) * s, flexDirection: 'row', alignItems: 'center', opacity: ghostOpacity}}>
             <GhostAction icon="plus" scale={s}/><View style={{flex: 1}}/>{p.sourceExpandable && <GhostAction icon="expand" scale={s}/>}{(!!p.value.trim() || p.generating) && <><View style={{width: p.sourceExpandable ? 13 * s : 0}}/><GhostAction icon="send" scale={s} bright/></>}

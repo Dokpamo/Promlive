@@ -2,27 +2,29 @@ import {useState} from 'react';
 import {Keyboard, Pressable, Text, TextInput, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../chat/chatAppearance';
+import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
 import {SettingsIcon} from './SettingsIcon';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 
-type Page = 'ai' | 'persona' | 'prompt' | 'plugins' | 'about';
-type Sheet = 'profile' | 'connection' | 'model' | 'response' | 'theme' | 'language';
+type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
+type Sheet = 'profile' | 'connection' | 'model' | 'response' | 'theme' | 'display' | 'language';
 type Persona = {name: string; description: string};
-const pageTitles: Record<Page, string> = {ai: 'AI', persona: '페르소나', prompt: '프롬프트', plugins: '플러그인', about: '정보'};
-const sheetTitles: Record<Sheet, string> = {profile: '내 정보', connection: 'AI 연결', model: '기본 모델', response: '응답 스타일', theme: '테마', language: '언어'};
+const pageTitles: Record<Page, string> = {ai: 'AI', persona: '페르소나', prompt: '프롬프트', theme: '테마', plugins: '플러그인', about: '정보'};
+const sheetTitles: Record<Sheet, string> = {profile: '내 정보', connection: 'AI 연결', model: '기본 모델', response: '응답 스타일', theme: '화면 색상', display: '대화 표시', language: '언어'};
 const sheetCaptions: Partial<Record<Sheet, string>> = {
   model: '연결 후 사용할 기본 모델을 선택해요.',
   response: '원하는 답변의 길이와 설명 방식을 골라요.',
   theme: '편안하게 사용할 화면 테마를 선택해요.',
+  display: '같은 대화를 원하는 모습으로 읽어보세요.',
   language: '앱에서 사용할 언어를 선택해요.',
 };
 // Keep this order fixed. Usage frequency never rearranges the settings.
 const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
 
-/** Theme is applied and persisted; the remaining settings are interactive previews. */
+/** Appearance choices are applied and persisted; other settings remain previews. */
 export function SettingsPreview({onClose}: {onClose: () => void}) {
-  const {settings: p, mode, setMode} = useAppearance();
+  const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
   const [page, setPage] = useState<Page | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -47,7 +49,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
         <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
       </Pressable>
       {settingsGroups.map((group, index) => <SettingsGroup key={index}>
-        {group.map(key => <SettingsRow key={key} label={key === 'theme' || key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'theme' || key === 'language' ? setSheet(key) : setPage(key)}/>)}
+        {group.map(key => <SettingsRow key={key} label={key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
       </SettingsGroup>)}
       <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
     </SettingsPage>
@@ -57,6 +59,10 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
         <SettingsRow plain label="AI 연결" value="연결 안 됨" muted onPress={() => setSheet('connection')}/>
         <SettingsRow plain label="기본 모델" value={model} onPress={() => setSheet('model')}/>
         <SettingsRow plain label="응답 스타일" value={response} onPress={() => setSheet('response')}/>
+      </>}
+      {page === 'theme' && <>
+        <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
+        <SettingsRow plain label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>
       </>}
       {page === 'persona' && <PersonaEditor value={persona} onApply={value => {setPersona(value); back();}}/>}
       {page === 'prompt' && <PromptEditor value={prompt} onApply={value => {setPrompt(value); back();}}/>}
@@ -83,6 +89,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
         <SettingsChoice label="자세하게" detail="맥락과 예시까지 충분하게" selected={response === '자세하게'} onPress={() => choose(setResponse, '자세하게', dismiss)}/>
       </>}
       {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
+      {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}
       {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
     </>}</SettingsSheet>}
   </>}</SwipeBackModal>;

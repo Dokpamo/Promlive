@@ -8,6 +8,21 @@ export const referenceTypography = {
   logoFontSize: titleFontSize * 1.5,
 } as const;
 
+/** Message proportions from the 618px-wide conversation references. */
+export const referenceMessage = {
+  viewportWidth: 618,
+  inset: 28,
+  top: 36,
+  bottom: 28,
+  bubbleWidth: 487,
+  bubbleInset: 22,
+  bubbleVerticalInset: 14,
+  bubbleRadius: 30,
+  lineHeight: 44,
+  paragraphGap: 28,
+  messageGap: 44,
+} as const;
+
 /** Measurements in the user's 618 × 1280 reference, before density conversion. */
 export const referenceComposer = {
   viewportWidth: 618,
@@ -18,7 +33,7 @@ export const referenceComposer = {
   lineHeight: 37,
   maxLines: 7,
   button: 70,
-  fontSize: 27,
+  fontSize: referenceTypography.titleFontSize,
 } as const;
 
 export const darkChatColors = {
@@ -74,6 +89,11 @@ export const referenceSidebar = {
 
 export function sidebarWidth(viewportWidth: number) {
   return Math.min(viewportWidth * referenceSidebar.width / referenceSidebar.viewportWidth, 400);
+}
+
+/** Keep card, chat title, composer and message type at the same rendered size. */
+export function typographyScale(viewportWidth: number) {
+  return sidebarWidth(viewportWidth) / referenceSidebar.width;
 }
 
 export type ChatColors = typeof darkChatColors;

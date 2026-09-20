@@ -7,6 +7,7 @@ import {ChatScreen} from './src/features/chat/ChatScreen';
 import {ChatDrawer} from './src/features/chat/ChatDrawer';
 import {ChatHeader} from './src/features/chat/ChatHeader';
 import {composerScale} from './src/features/chat/chatAppearance';
+import {chatDisplaySettingKey, storedChatDisplay, type ChatDisplayMode} from './src/features/chat/chatPresentation';
 import {SettingsPreview} from './src/features/settings/SettingsPreview';
 import {AppearanceProvider, storedTheme, themeSettingKey, useAppearance, type ThemeMode} from './src/features/appearance/AppAppearance';
 
@@ -14,13 +15,14 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [error, setError] = useState('');
   const [theme, setTheme] = useState<ThemeMode>('dark');
+  const [chatDisplay, setChatDisplay] = useState<ChatDisplayMode>('default');
   useEffect(() => {
     let active = true;
     void initialize().then(async runtime => {
       const next = new Workspace(runtime);
       await next.readyChat();
-      const savedTheme = storedTheme(await runtime.repo.getSetting(themeSettingKey));
-      if (active) {setTheme(savedTheme); setWorkspace(next);}
+      const [savedTheme, savedChatDisplay] = await Promise.all([runtime.repo.getSetting(themeSettingKey), runtime.repo.getSetting(chatDisplaySettingKey)]);
+      if (active) {setTheme(storedTheme(savedTheme)); setChatDisplay(storedChatDisplay(savedChatDisplay)); setWorkspace(next);}
     }).catch(e => {if (active) setError(e instanceof Error ? e.message : '저장소를 열지 못했어요.');});
     return () => {active = false;};
   }, []);
@@ -28,7 +30,11 @@ export default function App() {
     setTheme(mode);
     if (workspace) void workspace.runtime.repo.setSetting(themeSettingKey, mode).catch(e => workspace.report(e));
   };
-  return <SafeAreaProvider style={{flex: 1}}><AppearanceProvider mode={theme} setMode={changeTheme}>
+  const changeChatDisplay = (mode: ChatDisplayMode) => {
+    setChatDisplay(mode);
+    if (workspace) void workspace.runtime.repo.setSetting(chatDisplaySettingKey, mode).catch(e => workspace.report(e));
+  };
+  return <SafeAreaProvider style={{flex: 1}}><AppearanceProvider mode={theme} setMode={changeTheme} chatDisplay={chatDisplay} setChatDisplay={changeChatDisplay}>
     <AppContent workspace={workspace} error={error}/>
   </AppearanceProvider></SafeAreaProvider>;
 }
