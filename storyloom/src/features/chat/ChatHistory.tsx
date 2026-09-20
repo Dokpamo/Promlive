@@ -1,15 +1,15 @@
 import {useRef, useState, type RefObject} from 'react';
-import {Animated, FlatList, Keyboard, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
+import {Animated, FlatList, Keyboard, Pressable, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {ChatIcon} from './ChatIcon';
-import {headerScale, referenceSidebar as r} from './chatAppearance';
+import {referenceSidebar as r} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
 import type {SheetScrollState} from '../settings/sheetMotion';
-import {rowHighlightInset, SettingsPressable} from '../settings/SettingsPressable';
+import {SettingsPressable} from '../settings/SettingsPressable';
 
 interface Props {
   workspace: Workspace;
@@ -69,7 +69,8 @@ export function ChatHistory({workspace: w, width, historyCard, historySearch, on
   </View>;
 }
 
-export function CardConversationList({workspace: w, width, card, search, close, scroll}: {workspace: Workspace; width: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
+export function CardConversationList({workspace: w, width, rowInset, highlightRadius, card, search, close, scroll}: {workspace: Workspace; width: number; rowInset: number; highlightRadius: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
+  // Fit the same row proportions to this narrower surface; cards keep their scale.
   const s = width / r.width;
   const query = search.trim().toLocaleLowerCase();
   const conversations = w.conversations.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
@@ -78,23 +79,23 @@ export function CardConversationList({workspace: w, width, card, search, close, 
     const conversation = conversations.find(item => item.id === id);
     if (conversation) {await w.openConversation(conversation); close();}
   };
-  // The popup already occupies the card row bounds; do not inset those rows twice.
-  return <SidebarRows items={conversations} scale={s} selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} insetHorizontal={0} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
+  return <SidebarRows items={conversations} scale={s} variant="history" rowInset={rowInset} highlightRadius={highlightRadius} selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
 }
 
-function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelect, scroll, insetHorizontal = r.rowInset * s}: {
+function SidebarRows({items, scale: s, variant = 'cards', rowInset = r.rowInset * s, highlightRadius = r.rowRadius * s, selectedId, testID, label, empty, onSelect, scroll}: {
   items: {id: string; title: string}[];
   scale: number;
+  variant?: 'cards' | 'history';
+  rowInset?: number;
+  highlightRadius?: number;
   selectedId: string | undefined;
   testID: string;
   label: (title: string) => string;
   empty: string;
   onSelect: (id: string) => void;
-  insetHorizontal?: number;
   scroll?: RefObject<SheetScrollState>;
 }) {
   const {colors: c} = useAppearance();
-  const surfaceScale = headerScale(useWindowDimensions().width);
   const dimensions = useRef({content: 0, viewport: 0});
   const measure = (kind: 'content' | 'viewport', height: number) => {
     dimensions.current[kind] = height;
@@ -103,10 +104,10 @@ function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelec
   return <FlatList testID={testID} data={items} keyExtractor={item => item.id} style={{flex: 1}}
     onLayout={event => measure('viewport', event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => measure('content', height)}
     onScroll={event => {if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16}
-    contentContainerStyle={{paddingHorizontal: insetHorizontal, paddingBottom: 12 * s}}
+    contentContainerStyle={{paddingHorizontal: rowInset, paddingBottom: variant === 'history' ? 0 : 12 * s}}
     keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-    ListEmptyComponent={<Text style={{padding: 19 * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight="pressed" radius={r.rowRadius * surfaceScale} highlightInset={rowHighlightInset * surfaceScale} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.textInset - r.rowInset) * s, justifyContent: 'center'}}>
+    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: r.textInset * s - rowInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
+    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={variant === 'history' ? 'pressed' : 'full'} radius={highlightRadius} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', paddingHorizontal: r.textInset * s - rowInset, justifyContent: 'center'}}>
       <Text numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
     </SettingsPressable>}/>;
 }

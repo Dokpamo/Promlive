@@ -13,6 +13,7 @@ import {usePanelMotion} from './usePanelMotion';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
 import type {SheetScrollState} from '../settings/sheetMotion';
 import {useHistoryPull} from './useHistoryPull';
+import {rowHighlightInset, rowPressedScale} from '../settings/SettingsPressable';
 
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
@@ -32,7 +33,17 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   // Rounded controls use the same viewport scale as settings, even on desktop.
   const surfaceScale = headerScale(width);
   const historyRadius = r.historyRadius * surfaceScale;
-  const historyPadding = r.historyPadding * surfaceScale;
+  const historyWidth = r.searchWidth * sidebarScale;
+  const historyContentScale = historyWidth / r.width;
+  // Use the settings highlight gutter, independent of the smaller text scale.
+  const historyRowInset = rowHighlightInset * surfaceScale;
+  const historyRowWidth = historyWidth - 2 * historyRowInset;
+  const historyRowHeight = r.rowHeight * historyContentScale;
+  // Match the visible gap on both axes after the selected background is scaled.
+  const historyGap = historyRowInset + historyRowWidth * (1 - rowPressedScale) / 2;
+  const historyPadding = historyGap - historyRowHeight * (1 - rowPressedScale) / 2;
+  // Concentric outer/inner corners: rendered inner radius = outer radius - gap.
+  const historyHighlightRadius = Math.max(0, historyRadius - historyGap) / rowPressedScale;
   const insets = useSafeAreaInsets();
   const corners = useScreenCorners();
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -177,9 +188,8 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
 
   const drawerRadius = (value: number) => cards.progress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, value, value / openScale], extrapolate: 'clamp'});
   const pageRadius = (value: number) => pocket.progress.interpolate({inputRange: [0, 0.15, 0.85, 1], outputRange: [0, value, value, 0], extrapolate: 'clamp'});
-  const historyTop = insets.top + (r.searchTop + r.searchHeight + r.listGap) * sidebarScale - historyPadding;
+  const historyTop = insets.top + (r.searchTop + r.searchHeight + r.listGap) * sidebarScale - r.historyPadding * surfaceScale;
   const historyBottom = insets.bottom + (r.footerHeight + r.footerBottom + r.historyBottomGap) * sidebarScale;
-  const historyWidth = r.searchWidth * sidebarScale;
   return <DrawerGestureGuard.Provider value={blocked}>
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
@@ -200,7 +210,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
           }}>
             <View testID="card-conversations-popup" style={{flex: 1, borderRadius: historyRadius, overflow: 'hidden', paddingVertical: historyPadding}}>
               <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {historyListTouched.current = true; return false;}}>
-                <CardConversationList key={historyCard.id} workspace={workspace} width={drawerWidth} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
+                <CardConversationList key={historyCard.id} workspace={workspace} width={historyWidth} rowInset={historyRowInset} highlightRadius={historyHighlightRadius} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
               </View>
               <Pressable testID="card-history-handle" accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" accessibilityHint="누르거나 왼쪽으로 밀면 채팅내역을 닫습니다." onPress={backToCards} style={{position: 'absolute', top: '50%', right: 0, width: (r.textInset - r.rowInset) * sidebarScale, height: 82 * sidebarScale, transform: [{translateY: -41 * sidebarScale}], alignItems: 'center', justifyContent: 'center'}}>
                 <View pointerEvents="none" style={{width: 7 * sidebarScale, height: 82 * sidebarScale, borderRadius: 4 * sidebarScale, backgroundColor: c.divider}}/>

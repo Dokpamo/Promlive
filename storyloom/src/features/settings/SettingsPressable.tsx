@@ -5,6 +5,7 @@ import {useAppearance} from '../appearance/AppAppearance';
 
 /** Horizontal highlight inset in the shared 618px reference geometry. */
 export const rowHighlightInset = 8;
+export const rowPressedScale = 0.98;
 
 type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressOut'> & {
   children: ReactNode;
@@ -20,11 +21,11 @@ type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressO
 export function SettingsPressable({children, radius, selected = false, selectedHighlight = 'full', highlightInset = 0, style, contentStyle, ...props}: Props) {
   const {settings: p} = useAppearance();
   const {progress, onPressIn, onPressOut} = usePressFeedback();
-  const pressScale = progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]});
+  const pressScale = progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]});
 
   return <Pressable {...props} style={style} onPressIn={onPressIn} onPressOut={onPressOut}>
     {/* A selected background can keep its pressed shape without shrinking twice. */}
-    <Animated.View testID="settings-press-highlight" pointerEvents="none" style={[StyleSheet.absoluteFill, {left: highlightInset, right: highlightInset, borderRadius: radius, backgroundColor: p.selected, opacity: selected ? 1 : progress, transform: [{scale: selected && selectedHighlight === 'pressed' ? 0.98 : pressScale}]}]}/>
+    <Animated.View testID="settings-press-highlight" pointerEvents="none" style={[StyleSheet.absoluteFill, {left: highlightInset, right: highlightInset, borderRadius: radius, backgroundColor: p.selected, opacity: selected ? 1 : progress, transform: [{scale: selected && selectedHighlight === 'pressed' ? rowPressedScale : pressScale}]}]}/>
     <Animated.View testID="settings-press-surface" style={[contentStyle, {transform: [{scale: pressScale}]}]}>
       {children}
     </Animated.View>
