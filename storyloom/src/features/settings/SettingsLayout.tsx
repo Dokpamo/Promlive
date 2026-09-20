@@ -1,10 +1,11 @@
-import type {ReactNode} from 'react';
+import {useState, type ReactNode} from 'react';
 import {Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
+import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
 
 /** 618px reference geometry; panel corners follow photo_6159075255742305500_y.jpg. */
@@ -58,11 +59,11 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} style={({pressed}) => ({minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: 17 * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s, borderRadius: radius, backgroundColor: pressed ? p.pressed : 'transparent'})}>
+  return <SettingsPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : 8 * s} contentStyle={{minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: 17 * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
     <Text style={{flex: 1, color: p.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, includeFontPadding: false}}>{label}</Text>
     {value && <Text numberOfLines={1} style={{maxWidth: '44%', color: muted ? p.secondary : p.accent, fontSize: settingsReference.valueFont * s, lineHeight: 38 * s, includeFontPadding: false}}>{value}</Text>}
     <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
-  </Pressable>;
+  </SettingsPressable>;
 }
 
 export function SettingsSheet({title, caption, onClose, children}: {title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode}) {
@@ -70,9 +71,11 @@ export function SettingsSheet({title, caption, onClose, children}: {title: strin
   const insets = useSafeAreaInsets();
   const s = useSettingsScale();
   const radius = useSettingsRadius();
-  return <SwipeBackModal sheet onClose={onClose}>{close => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: Math.max(insets.bottom, settingsReference.sheetInset * s)}}>
+  const [height, setHeight] = useState(0);
+  const bottom = Math.max(insets.bottom, settingsReference.sheetInset * s);
+  return <SwipeBackModal sheet sheetHeight={height ? height + bottom : 0} onClose={onClose}>{close => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>
     <Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{position: 'absolute', inset: 0}}/>
-    <View testID="settings-sheet" accessibilityViewIsModal style={{width: '100%', maxWidth: 560, maxHeight: '85%', borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}}>
+    <View testID="settings-sheet" accessibilityViewIsModal onLayout={event => setHeight(event.nativeEvent.layout.height)} style={{width: '100%', maxWidth: 560, maxHeight: '85%', borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: 58 * s, alignItems: 'center', paddingTop: 21 * s}}><View style={{width: 82 * s, height: 7 * s, borderRadius: 4 * s, backgroundColor: p.divider}}/></Pressable>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: settingsReference.sheetPadding * s, paddingTop: 15 * s, paddingBottom: 42 * s}}>
         <SwipeBackScrollContent>
@@ -89,13 +92,13 @@ export function SettingsChoice({label, detail, selected, onPress}: {label: strin
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <Pressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} onPress={onPress} style={({pressed}) => ({minHeight: 94 * s, marginHorizontal: -20 * s, paddingHorizontal: 20 * s, paddingVertical: 20 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s, backgroundColor: pressed ? p.pressed : selected ? p.selected : 'transparent', borderRadius: radius})}>
+  return <SettingsPressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} selected={selected} onPress={onPress} radius={radius} style={{marginHorizontal: -20 * s}} contentStyle={{minHeight: 94 * s, paddingHorizontal: 20 * s, paddingVertical: 20 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s}}>
     <View style={{flex: 1, gap: 5 * s}}>
       <Text style={{color: selected ? p.accent : p.text, fontSize: 28 * s, lineHeight: 40 * s, fontWeight: '600', includeFontPadding: false}}>{label}</Text>
       {detail && <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s}}>{detail}</Text>}
     </View>
     <View style={{width: 34 * s, alignItems: 'center'}}>{selected && <SettingsIcon name="check" size={32 * s} color={p.accent}/>}</View>
-  </Pressable>;
+  </SettingsPressable>;
 }
 
 export function SettingsNote({children}: {children: ReactNode}) {

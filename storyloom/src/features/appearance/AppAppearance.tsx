@@ -13,7 +13,7 @@ export function storedTheme(value: string | undefined): ThemeMode {
 function settingsPalette(c: ChatColors) {
   return {
     background: c.drawer, surface: c.search, sheet: c.search,
-    control: c.search, selected: c.historySelected, pressed: c.historyPressed,
+    control: c.search, selected: c.historySelected,
     text: c.text, secondary: c.muted, faint: c.placeholder, divider: c.divider,
     accent: c.text, primary: c.send, onPrimary: c.sendIcon,
     avatarBackground: c.historySelected, avatarForeground: c.muted,
