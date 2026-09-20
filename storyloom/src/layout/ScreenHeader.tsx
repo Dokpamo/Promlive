@@ -22,13 +22,13 @@ export function HeaderCapsule({width, testID, children, style}: {width: number; 
   </View>;
 }
 
-export function HeaderButton({width, icon, label, onPress, testID, grouped = false, disabled = false, bright = false}: {
+export function HeaderButton({width, icon, label, onPress, testID, variant = 'filled', disabled = false, bright = false}: {
   width: number;
   icon: ChatIconName;
   label: string;
   onPress: () => void;
   testID?: string;
-  grouped?: boolean;
+  variant?: 'filled' | 'grouped' | 'plain';
   disabled?: boolean;
   bright?: boolean;
 }) {
@@ -36,20 +36,20 @@ export function HeaderButton({width, icon, label, onPress, testID, grouped = fal
   const {progress, onPressIn, onPressOut} = usePressFeedback();
   const s = headerScale(width);
   const height = r.height * s;
-  const buttonWidth = grouped ? r.action * s : height;
+  const filled = variant === 'filled';
   const highlightSize = r.highlight * s;
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={{
-    width: buttonWidth,
+    width: height,
     height,
     flexShrink: 0,
-    borderRadius: grouped ? 0 : height / 2,
-    backgroundColor: grouped ? 'transparent' : bright ? c.send : c.header,
+    borderRadius: height / 2,
+    backgroundColor: filled ? bright ? c.send : c.header : 'transparent',
     opacity: disabled ? 0.4 : 1,
-    boxShadow: grouped || isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)',
+    boxShadow: !filled || isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)',
     alignItems: 'center', justifyContent: 'center',
   }}>
     <Animated.View testID="header-button-content" style={{width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]})}]}}>
-      <Animated.View testID="header-button-highlight" pointerEvents="none" style={{position: 'absolute', left: (buttonWidth - highlightSize) / 2, top: (height - highlightSize) / 2, width: highlightSize, height: highlightSize, borderRadius: highlightSize / 2, backgroundColor: bright ? c.sendIcon : grouped ? c.actionPressed : c.headerPressed, opacity: bright ? Animated.multiply(progress, 0.08) : progress}}/>
+      <Animated.View testID="header-button-highlight" pointerEvents="none" style={{position: 'absolute', left: (height - highlightSize) / 2, top: (height - highlightSize) / 2, width: highlightSize, height: highlightSize, borderRadius: highlightSize / 2, backgroundColor: bright ? c.sendIcon : variant === 'grouped' ? c.actionPressed : variant === 'plain' ? c.historySelected : c.headerPressed, opacity: bright ? Animated.multiply(progress, 0.08) : progress}}/>
       <ChatIcon name={icon} size={r.icon * s} color={bright ? c.sendIcon : icon === 'back' ? c.backIcon : c.text}/>
     </Animated.View>
   </Pressable>;

@@ -22,9 +22,9 @@ export function ChatHeader({width, title, conversationId, openHistory, openSetti
       </View>
       <Text accessibilityRole="header" numberOfLines={1} style={{marginLeft: r.titleInset * s, marginRight: 16 * s, color: c.text, fontSize: r.titleFont * titleScale, lineHeight: referenceTypography.titleLineHeight * titleScale, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
     </HeaderCapsule>
-    <HeaderCapsule width={width} testID="chat-header-actions" style={{width: r.actions * s, flexDirection: 'row', paddingHorizontal: r.actionInset * s}}>
-      <HeaderButton width={width} testID="chat-header-search" icon="search" label="카드 검색 열기" onPress={openHistory} grouped/>
-      <HeaderButton width={width} testID="chat-header-settings" icon="more" label="설정 열기" onPress={openSettings} grouped/>
+    <HeaderCapsule width={width} testID="chat-header-actions" style={{width: r.actions * s, flexDirection: 'row', gap: r.actionGap * s}}>
+      <HeaderButton width={width} testID="chat-header-search" icon="search" label="카드 검색 열기" onPress={openHistory} variant="grouped"/>
+      <HeaderButton width={width} testID="chat-header-settings" icon="more" label="설정 열기" onPress={openSettings} variant="grouped"/>
     </HeaderCapsule>
   </ScreenHeader>;
 }

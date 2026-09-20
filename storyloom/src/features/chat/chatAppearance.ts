@@ -6,6 +6,7 @@ export const referenceTypography = {
   titleLineHeight: 37,
   titleWeight: '400',
   logoFontSize: titleFontSize * 1.5,
+  logoWeight: '400',
 } as const;
 
 /** Message proportions from the 618px-wide conversation references. */
@@ -122,8 +123,7 @@ export const referenceHeader = {
   height: 76,
   gap: 20,
   actions: 158,
-  actionInset: 17,
-  action: 62,
+  actionGap: 6,
   highlight: 70,
   avatar: 68,
   avatarInset: 4,

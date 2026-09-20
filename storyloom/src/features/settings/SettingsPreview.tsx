@@ -1,9 +1,10 @@
 import {useState} from 'react';
-import {Keyboard, Pressable, Text, TextInput, View} from 'react-native';
+import {Keyboard, Text, TextInput, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../chat/chatAppearance';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
 import {SettingsIcon} from './SettingsIcon';
+import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 
@@ -40,14 +41,14 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
 
   return <SwipeBackModal onClose={onClose} active={page === null && sheet === null}>{close => <>
     <SettingsPage home onBack={close}>
-      <Pressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} style={({pressed}) => ({flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s, marginBottom: r.profileBottom * s, opacity: pressed ? 0.65 : 1})}>
+      <SettingsPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
         <View accessible={false} style={{width: r.profileSize * s, height: r.profileSize * s, borderRadius: r.profileSize * s / 2, backgroundColor: p.avatarBackground, alignItems: 'center'}}>
           <View style={{position: 'absolute', top: 20 * s, width: 26 * s, height: 26 * s, borderRadius: 13 * s, backgroundColor: p.avatarForeground}}/>
           <View style={{position: 'absolute', top: 49 * s, width: 51 * s, height: 26 * s, borderTopLeftRadius: 30 * s, borderTopRightRadius: 30 * s, borderBottomLeftRadius: 14 * s, borderBottomRightRadius: 14 * s, backgroundColor: p.avatarForeground}}/>
         </View>
         <View style={{flex: 1, gap: 8 * s}}><Text numberOfLines={1} style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', includeFontPadding: false}}>{name}</Text><Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, includeFontPadding: false}}>내 정보</Text></View>
         <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
-      </Pressable>
+      </SettingsPressable>
       {settingsGroups.map((group, index) => <SettingsGroup key={index}>
         {group.map(key => <SettingsRow key={key} label={key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
       </SettingsGroup>)}
@@ -68,7 +69,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
       {page === 'prompt' && <PromptEditor value={prompt} onApply={value => {setPrompt(value); back();}}/>}
       {page === 'plugins' && <SettingsNote>등록된 플러그인이 없어요.</SettingsNote>}
       {page === 'about' && <View style={{marginHorizontal: 6 * s, marginTop: 24 * s, gap: 24 * s}}>
-        <Text style={{color: p.text, fontSize: referenceTypography.logoFontSize * s, lineHeight: 58 * s, fontWeight: '800', letterSpacing: -s}}>Promlive</Text>
+        <Text style={{color: p.text, fontSize: referenceTypography.logoFontSize * s, lineHeight: 58 * s, fontWeight: referenceTypography.logoWeight, letterSpacing: -s}}>Promlive</Text>
         <Text style={{color: p.secondary, fontSize: 26 * s, lineHeight: 38 * s}}>이야기가 시작되는 대화.</Text>
         <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: r.rowHeight * s}}><Text style={{color: p.text, fontSize: r.rowFont * s}}>앱 버전</Text><Text style={{color: p.secondary, fontSize: r.valueFont * s}}>0.1.0</Text></View>
       </View>}
