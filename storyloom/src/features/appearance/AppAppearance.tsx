@@ -1,6 +1,6 @@
 import {createContext, useContext, useEffect, useMemo, type ReactNode} from 'react';
 import {NativeModules, Platform, StatusBar, useColorScheme} from 'react-native';
-import {darkChatColors, lightChatColors} from '../chat/chatAppearance';
+import {darkChatColors, lightChatColors, type ChatColors} from '../chat/chatAppearance';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 export const themeSettingKey = 'appearance:theme';
@@ -9,9 +9,19 @@ export function storedTheme(value: string | undefined): ThemeMode {
   return value === 'light' || value === 'system' ? value : 'dark';
 }
 
-const darkSettings = {background: '#111111', surface: '#1F1F1F', control: '#292929', selected: '#2A2A2A', text: '#EFEFEF', secondary: '#969696', faint: '#727272', divider: '#2D2D2D', icon: '#C6C6C6', accent: '#B4C8BF', switchOff: '#464646'};
-export type SettingsPalette = typeof darkSettings;
-const lightSettings: SettingsPalette = {background: '#F5F5F5', surface: '#FFFFFF', control: '#FFFFFF', selected: '#EEEEEE', text: '#1D1D1D', secondary: '#777777', faint: '#909090', divider: '#EEEEEE', icon: '#505050', accent: '#517B69', switchOff: '#D4D4D4'};
+/** Settings uses the card list's palette instead of a separate accent color. */
+function settingsPalette(c: ChatColors) {
+  return {
+    background: c.drawer, surface: c.search, sheet: c.search,
+    control: c.search, selected: c.historySelected, pressed: c.historyPressed,
+    text: c.text, secondary: c.muted, faint: c.placeholder, divider: c.divider,
+    accent: c.text, primary: c.send, onPrimary: c.sendIcon,
+    avatarBackground: c.historySelected, avatarForeground: c.muted,
+  };
+}
+const darkSettings = settingsPalette(darkChatColors);
+const lightSettings = settingsPalette(lightChatColors);
+export type SettingsPalette = ReturnType<typeof settingsPalette>;
 
 const AppearanceContext = createContext({
   mode: 'dark' as ThemeMode,

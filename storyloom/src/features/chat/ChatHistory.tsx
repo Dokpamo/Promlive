@@ -1,10 +1,11 @@
 import {useState} from 'react';
-import {FlatList, Keyboard, Pressable, Text, TextInput, View} from 'react-native';
+import {FlatList, Keyboard, Pressable, Text, TextInput, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {ChatIcon} from './ChatIcon';
-import {referenceSidebar as r} from './chatAppearance';
+import {headerScale, referenceHeader, referenceSidebar as r} from './chatAppearance';
+import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 
@@ -24,6 +25,8 @@ export function ChatHistory({workspace: w, width, card, selectedCardId, openCard
   const {colors: c, isDark} = useAppearance();
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
+  const {width: viewportWidth} = useWindowDimensions();
+  const headerHeight = referenceHeader.height * headerScale(viewportWidth);
   const s = width / r.width;
   const query = search.trim().toLocaleLowerCase();
   const cards = w.cards.filter(item => !item.archived && `${item.title} ${item.description}`.toLocaleLowerCase().includes(query));
@@ -50,11 +53,13 @@ export function ChatHistory({workspace: w, width, card, selectedCardId, openCard
 
   return <View testID={card ? 'card-conversations-page' : 'card-list-page'} style={{flex: 1, backgroundColor: c.drawer, paddingTop: insets.top, paddingBottom: insets.bottom}}>
     <View style={{height: listTop}}>
-      <View style={{position: 'absolute', left: r.textInset * s, top: r.headerTop * s, right: 28 * s, height: r.headerHeight * s, flexDirection: 'row', alignItems: 'center', gap: 18 * s}}>
-        {card && <Pressable accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" onPress={backToCards} hitSlop={10} style={{width: 40 * s, height: 60 * s, justifyContent: 'center'}}><ChatIcon name="back" size={32 * s} color={c.text}/></Pressable>}
-        <Text accessibilityRole="header" numberOfLines={1} style={{flex: 1, color: card ? c.text : c.brand, fontSize: (card ? r.fontSize : r.brandFontSize) * s, lineHeight: (card ? r.lineHeight : r.brandLineHeight) * s, fontWeight: card ? '600' : '800', letterSpacing: card ? 0 : -s, includeFontPadding: false, marginRight: card ? 86 * s : 0}}>{card?.title ?? 'Promlive'}</Text>
-      </View>
-      {card && <Pressable accessibilityRole="button" accessibilityLabel={`${card.title}에서 새 채팅`} onPress={() => {void start().catch(error => w.report(error));}} style={({pressed}) => ({position: 'absolute', left: r.actionLeft * s, top: r.headerTop * s, width: r.actionSize * s, height: r.actionSize * s, borderRadius: r.actionSize * s / 2, backgroundColor: c.search, opacity: pressed ? 0.6 : 1, boxShadow: shadow, alignItems: 'center', justifyContent: 'center'})}><ChatIcon name="plus" size={29 * s} color={c.text}/></Pressable>}
+      {card ? <ScreenHeader width={viewportWidth} testID="card-history-header">
+        <HeaderButton width={viewportWidth} testID="card-history-back" icon="back" label="카드 목록으로 돌아가기" onPress={backToCards} leading/>
+        <View style={{flex: 1, minWidth: 0, height: headerHeight, justifyContent: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '600', includeFontPadding: false}}>{card.title}</Text></View>
+        <HeaderButton width={viewportWidth} testID="card-history-new-chat" icon="plus" label={`${card.title}에서 새 채팅`} onPress={() => {void start().catch(error => w.report(error));}}/>
+      </ScreenHeader> : <View style={{position: 'absolute', left: r.textInset * s, top: r.headerTop * s, right: 28 * s, height: r.headerHeight * s, justifyContent: 'center'}}>
+        <Text accessibilityRole="header" numberOfLines={1} style={{color: c.brand, fontSize: r.brandFontSize * s, lineHeight: r.brandLineHeight * s, fontWeight: '800', letterSpacing: -s, includeFontPadding: false}}>Promlive</Text>
+      </View>}
       <View style={{position: 'absolute', left: r.searchLeft * s, top: r.searchTop * s, width: r.searchWidth * s}}>
         <DrawerGestureBoundary><View testID="sidebar-search" style={{height: r.searchHeight * s, borderRadius: r.searchHeight * s / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: shadow, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 31 * s, gap: 14 * s}}>
           <ChatIcon name="search" size={29 * s} color={c.text}/>

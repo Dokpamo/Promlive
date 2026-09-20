@@ -4,7 +4,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
-import {composerScale, referenceComposer as r} from './chatAppearance';
+import {composerScale, headerScale, referenceComposer as r, referenceHeader} from './chatAppearance';
+import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {SwipeBackBoundary, SwipeBackModal} from '../settings/SwipeBackModal';
 import {panelSpring} from './usePanelMotion';
@@ -84,10 +85,13 @@ export function ChatComposer(p: Props) {
       </Animated.View>
     </View></DrawerGestureBoundary>
     {expanded && <SwipeBackModal onClose={() => setExpanded(false)}>{close =>
-      <SafeAreaView style={{flex: 1, backgroundColor: c.background, paddingHorizontal: 24}}>
-        <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 18}}><Text style={{color: c.text, fontSize: 17}}>메시지 작성</Text><Pressable accessibilityRole="button" accessibilityLabel="입력창 접기" hitSlop={12} onPress={close}><ChatIcon name="close"/></Pressable></View>
-        <SwipeBackBoundary style={{flex: 1}}><TextInput accessibilityLabel="확장 메시지 입력" autoFocus multiline value={p.value} onChangeText={p.onChange} maxLength={8000} placeholder="무엇이든 물어보세요." placeholderTextColor={c.placeholder} textAlignVertical="top" style={{flex: 1, color: c.text, fontSize: 18, lineHeight: 28, paddingVertical: 20}}/></SwipeBackBoundary>
-        <Pressable accessibilityRole="button" onPress={close} style={{alignSelf: 'flex-end', backgroundColor: c.button, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 24, marginBottom: 16}}><Text style={{color: c.text, fontSize: 15}}>완료</Text></Pressable>
+      <SafeAreaView style={{flex: 1, backgroundColor: c.background}}>
+        <ScreenHeader width={p.width}>
+          <View style={{flex: 1, height: referenceHeader.height * headerScale(p.width), justifyContent: 'center'}}><Text style={{color: c.text, fontSize: 17}}>메시지 작성</Text></View>
+          <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
+        </ScreenHeader>
+        <SwipeBackBoundary style={{flex: 1, marginHorizontal: 24}}><TextInput accessibilityLabel="확장 메시지 입력" autoFocus multiline value={p.value} onChangeText={p.onChange} maxLength={8000} placeholder="무엇이든 물어보세요." placeholderTextColor={c.placeholder} textAlignVertical="top" style={{flex: 1, color: c.text, fontSize: 18, lineHeight: 28, paddingVertical: 20}}/></SwipeBackBoundary>
+        <Pressable accessibilityRole="button" onPress={close} style={{alignSelf: 'flex-end', backgroundColor: c.button, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 24, marginRight: 24, marginBottom: 16}}><Text style={{color: c.text, fontSize: 15}}>완료</Text></Pressable>
       </SafeAreaView>
     }</SwipeBackModal>}
   </>;

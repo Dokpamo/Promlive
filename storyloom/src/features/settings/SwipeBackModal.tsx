@@ -145,7 +145,7 @@ export function SwipeBackModal({onClose, children, sheet = false, active = true}
     <SafeAreaProvider>
       <GestureGuard.Provider value={blocked}>
         <View testID={sheet ? 'settings-sheet-swipe' : 'settings-back-swipe'} style={styles.root} {...pan.panHandlers} onAccessibilityEscape={active ? close : undefined}>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? 0.58 : 0.18, 0], extrapolate: 'clamp'})}]}/>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? isDark ? 0.4 : 0.2 : 0.18, 0], extrapolate: 'clamp'})}]}/>
           <Animated.View style={[styles.surface, !sheet && {
             borderTopLeftRadius: radius(corners.topLeft),
             borderTopRightRadius: radius(corners.topRight),

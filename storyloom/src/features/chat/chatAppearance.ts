@@ -58,7 +58,6 @@ export const referenceSidebar = {
   listGap: 32,
   rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
   footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
-  actionLeft: 415, actionSize: 82,
 } as const;
 
 export function sidebarWidth(viewportWidth: number) {
@@ -87,6 +86,7 @@ export const referenceHeader = {
   left: 27,
   right: 11,
   top: 0,
+  barHeight: 96,
   height: 76,
   gap: 10,
   back: 76,
@@ -98,7 +98,13 @@ export const referenceHeader = {
   avatarInset: 4,
   titleInset: 86,
   titleFont: 32,
+  icon: 32,
+  moreIcon: 27,
 } as const;
+
+export function headerScale(width: number) {
+  return (width > 600 ? 412 : width) / referenceHeader.viewportWidth;
+}
 
 const avatarColors = ['#499CC4', '#8270B5', '#4B928A', '#BA8958', '#657BAE'];
 
