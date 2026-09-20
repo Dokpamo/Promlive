@@ -81,22 +81,22 @@ export const lightChatColors: ChatColors = {
   bubble: '#F1F1F1', error: '#B03E3E', noticeError: '#A72E2E', notice: '#F0F0F0', noticeBorder: '#E2E2E2',
 };
 
-/** Header placement in the 618px reference; navigation now uses a back arrow. */
+/** Header bounds from photo_6159075255742305505_y.jpg (618px wide). */
 export const referenceHeader = {
   viewportWidth: 618,
-  left: 27,
+  left: 10,
   right: 11,
-  top: 0,
+  top: 9,
   barHeight: 96,
-  height: 76,
+  height: 80,
   gap: 10,
-  back: 76,
-  backGap: 20,
+  back: 80,
+  backGap: 10,
   actions: 144,
   actionInset: 8,
   action: 64,
   highlight: 70,
-  avatar: 68,
+  avatar: 72,
   avatarInset: 4,
   titleInset: 86,
   titleFont: 32,
