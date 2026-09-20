@@ -3,7 +3,7 @@ import {AccessibilityInfo, Animated, BackHandler, PanResponder, Platform, Pressa
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
-import {CardConversationList, ChatHistory} from './ChatHistory';
+import {CardConversationHeader, CardConversationList, ChatHistory} from './ChatHistory';
 import {useAppearance} from '../appearance/AppAppearance';
 import {drawerProgress, navigationPanel, shouldOpenDrawer, type NavigationPanel} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
@@ -200,6 +200,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
             transform: history.transform,
           }}>
             <View testID="card-conversations-popup" style={{flex: 1, borderRadius: historyRadius, overflow: 'hidden', paddingVertical: historyPadding}}>
+              <CardConversationHeader card={historyCard} scale={historyScale} onClose={backToCards}/>
               <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {historyListTouched.current = true; return false;}}>
                 <CardConversationList key={historyCard.id} workspace={workspace} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
               </View>

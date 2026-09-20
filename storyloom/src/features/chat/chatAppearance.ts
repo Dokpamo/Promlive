@@ -57,6 +57,7 @@ export const referenceSidebar = {
   searchTop: 123, searchLeft: 21, searchWidth: 483, searchHeight: 83, searchActionGap: 14,
   listGap: 32,
   rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
+  cardImage: 60, cardImageGap: 18,
   footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
   historyBottomGap: 16, historyPadding: 14,
 } as const;

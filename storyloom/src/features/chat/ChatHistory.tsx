@@ -3,8 +3,10 @@ import {Animated, FlatList, Keyboard, Pressable, Text, TextInput, View} from 're
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
+import {CardThumbnail} from '../cards/CardThumbnail';
 import {ChatIcon} from './ChatIcon';
 import {referenceSidebar as r} from './chatAppearance';
+import {HeaderButton} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
@@ -70,6 +72,15 @@ export function ChatHistory({workspace: w, width, historyCard, historySearch, on
   </View>;
 }
 
+export function CardConversationHeader({card, scale: s, onClose}: {card: Card; scale: number; onClose: () => void}) {
+  const {colors: c} = useAppearance();
+  return <View testID="card-history-header" style={{height: settingsReference.rowHeight * s, flexShrink: 0, marginBottom: settingsReference.groupPadding * s, paddingLeft: settingsReference.rowInset * s, paddingRight: settingsReference.highlightInset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
+    <CardThumbnail testID="card-history-image" cover={card.cover} size={r.cardImage * s}/>
+    <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, fontWeight: '600', includeFontPadding: false}}>{card.title}</Text>
+    <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label="채팅내역 닫기" onPress={onClose} grouped/>
+  </View>;
+}
+
 export function CardConversationList({workspace: w, scale, card, search, close, scroll}: {workspace: Workspace; scale: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
   const query = search.trim().toLocaleLowerCase();
   const conversations = w.conversations.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
@@ -82,7 +93,7 @@ export function CardConversationList({workspace: w, scale, card, search, close, 
 }
 
 function SidebarRows({items, scale: s, variant = 'cards', selectedId, testID, label, empty, onSelect, scroll}: {
-  items: {id: string; title: string}[];
+  items: {id: string; title: string; cover?: Card['cover']}[];
   scale: number;
   variant?: 'cards' | 'history';
   selectedId: string | undefined;
@@ -108,8 +119,9 @@ function SidebarRows({items, scale: s, variant = 'cards', selectedId, testID, la
     contentContainerStyle={{paddingHorizontal: listInset, paddingBottom: history ? 0 : 12 * s}}
     keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
     ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: contentInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={history ? 'pressed' : 'full'} radius={highlightRadius} highlightInset={history ? settingsReference.highlightInset * s : 0} onPress={() => onSelect(item.id)} style={history ? undefined : {height: r.rowHeight * s}} contentStyle={{...(history ? {minHeight: settingsReference.rowHeight * s, paddingVertical: settingsReference.rowPadding * s} : {height: '100%'}), paddingHorizontal: contentInset, justifyContent: 'center'}}>
-      <Text numberOfLines={1} style={{color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
+    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={history ? 'pressed' : 'full'} radius={highlightRadius} highlightInset={history ? settingsReference.highlightInset * s : 0} onPress={() => onSelect(item.id)} style={history ? undefined : {height: r.rowHeight * s}} contentStyle={{...(history ? {minHeight: settingsReference.rowHeight * s, paddingVertical: settingsReference.rowPadding * s, justifyContent: 'center'} : {height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}), paddingHorizontal: contentInset}}>
+      {!history && item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
+      <Text numberOfLines={1} style={{...(!history ? {flex: 1, minWidth: 0} : {}), color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
     </SettingsPressable>}/>;
 }
 

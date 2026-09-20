@@ -23,7 +23,7 @@ export function Pill({children, active = false, onPress}: {children: ReactNode; 
 export function Empty({icon = 'world', title, children, action}: {icon?: string; title: string; children: ReactNode; action?: ReactNode}) {
   return <View style={{alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14}}><View style={{padding: 18, borderRadius: 24, backgroundColor: colors.accentSoft}}><Icon name={icon} size={30} color={colors.accent}/></View><Text style={styles.subheading}>{title}</Text><Text style={[styles.small, {textAlign: 'center', maxWidth: 320}]}>{children}</Text>{action}</View>;
 }
-export function Cover({kind, large = false}: {kind: 'moon' | 'forest' | 'sunset' | 'code'; large?: boolean}) {
+export function Cover({kind, large = false, showLabel = true}: {kind: 'moon' | 'forest' | 'sunset' | 'code'; large?: boolean; showLabel?: boolean}) {
   const backgroundColor = {moon: '#DDDBE9', forest: '#DDE4D6', sunset: '#EDDBD0', code: '#DDE1E7'}[kind];
   return <View accessible={false} style={{height: large ? 222 : 152, backgroundColor, overflow: 'hidden', justifyContent: 'center', alignItems: 'center'}}>
     <View style={{position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 1, borderColor: '#ffffff66', transform: [{rotate: '-20deg'}], left: '15%', top: -75}}/>
@@ -32,7 +32,7 @@ export function Cover({kind, large = false}: {kind: 'moon' | 'forest' | 'sunset'
     {kind === 'forest' && <><View style={{position: 'absolute', width: 100, height: 150, borderTopLeftRadius: 80, borderTopRightRadius: 10, borderBottomRightRadius: 80, backgroundColor: '#A3B397', transform: [{rotate: '-30deg'}], bottom: -30, left: '22%'}}/><View style={{position: 'absolute', width: 70, height: 130, borderTopLeftRadius: 10, borderTopRightRadius: 70, borderBottomLeftRadius: 70, backgroundColor: '#788D6F', transform: [{rotate: '35deg'}], bottom: -20, right: '25%'}}/><View style={{width: 64, height: 46, backgroundColor: '#F5F0DE', borderRadius: 3, transform: [{rotate: '-12deg'}], marginTop: 6, borderWidth: 1, borderColor: '#C8C3AE'}}><Text style={{fontSize: 31, color: '#B5A890', textAlign: 'center', marginTop: -11}}>⌄</Text></View></>}
     {kind === 'sunset' && <><View style={{height: 89, width: 89, borderRadius: 45, backgroundColor: '#D39C7A', marginTop: 30}}/><View style={{position: 'absolute', height: 82, width: '120%', backgroundColor: '#C4B2AF', bottom: -54, transform: [{rotate: '-11deg'}]}}/><View style={{position: 'absolute', height: 1, backgroundColor: '#9D858080', width: '110%', top: '53%', transform: [{rotate: '-18deg'}]}}/><View style={{position: 'absolute', height: 13, width: 13, borderRadius: 7, backgroundColor: '#F7EFE4', top: 34, left: '28%'}}/></>}
     {kind === 'code' && <Text style={{fontSize: 62, color: '#8B91A5', fontWeight: '200'}}>〈 / 〉</Text>}
-    <Text style={{position: 'absolute', bottom: 13, left: 16, fontSize: 8, letterSpacing: 2.2, color: '#53505A99'}}>YE O B A E K  /  STORIES</Text>
+    {showLabel && <Text style={{position: 'absolute', bottom: 13, left: 16, fontSize: 8, letterSpacing: 2.2, color: '#53505A99'}}>YE O B A E K  /  STORIES</Text>}
   </View>;
 }
 export const cardStyles = StyleSheet.create({panel: {backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, overflow: 'hidden'}});
