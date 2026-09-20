@@ -13,7 +13,7 @@ import {usePanelMotion} from './usePanelMotion';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
 import type {SheetScrollState} from '../settings/sheetMotion';
 import {useHistoryPull} from './useHistoryPull';
-import {rowHighlightInset, rowPressedScale} from '../settings/SettingsPressable';
+import {settingsGroupScale, settingsReference} from '../settings/settingsGeometry';
 
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
@@ -28,23 +28,14 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
 }) {
   const {colors: c, isDark} = useAppearance();
   const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const drawerWidth = sidebarWidth(width);
   const sidebarScale = drawerWidth / r.width;
-  // Rounded controls use the same viewport scale as settings, even on desktop.
   const surfaceScale = headerScale(width);
-  const historyRadius = r.historyRadius * surfaceScale;
   const historyWidth = r.searchWidth * sidebarScale;
-  const historyContentScale = historyWidth / r.width;
-  // Use the settings highlight gutter, independent of the smaller text scale.
-  const historyRowInset = rowHighlightInset * surfaceScale;
-  const historyRowWidth = historyWidth - 2 * historyRowInset;
-  const historyRowHeight = r.rowHeight * historyContentScale;
-  // Match the visible gap on both axes after the selected background is scaled.
-  const historyGap = historyRowInset + historyRowWidth * (1 - rowPressedScale) / 2;
-  const historyPadding = historyGap - historyRowHeight * (1 - rowPressedScale) / 2;
-  // Concentric outer/inner corners: rendered inner radius = outer radius - gap.
-  const historyHighlightRadius = Math.max(0, historyRadius - historyGap) / rowPressedScale;
-  const insets = useSafeAreaInsets();
+  const historyScale = settingsGroupScale(width, historyWidth, insets.left + insets.right);
+  const historyRadius = settingsReference.radius * historyScale;
+  const historyPadding = settingsReference.groupPadding * historyScale;
   const corners = useScreenCorners();
   const [reduceMotion, setReduceMotion] = useState(false);
   const cards = usePanelMotion(reduceMotion);
@@ -210,10 +201,10 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
           }}>
             <View testID="card-conversations-popup" style={{flex: 1, borderRadius: historyRadius, overflow: 'hidden', paddingVertical: historyPadding}}>
               <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {historyListTouched.current = true; return false;}}>
-                <CardConversationList key={historyCard.id} workspace={workspace} width={historyWidth} rowInset={historyRowInset} highlightRadius={historyHighlightRadius} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
+                <CardConversationList key={historyCard.id} workspace={workspace} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
               </View>
-              <Pressable testID="card-history-handle" accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" accessibilityHint="누르거나 왼쪽으로 밀면 채팅내역을 닫습니다." onPress={backToCards} style={{position: 'absolute', top: '50%', right: 0, width: (r.textInset - r.rowInset) * sidebarScale, height: 82 * sidebarScale, transform: [{translateY: -41 * sidebarScale}], alignItems: 'center', justifyContent: 'center'}}>
-                <View pointerEvents="none" style={{width: 7 * sidebarScale, height: 82 * sidebarScale, borderRadius: 4 * sidebarScale, backgroundColor: c.divider}}/>
+              <Pressable testID="card-history-handle" accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" accessibilityHint="누르거나 왼쪽으로 밀면 채팅내역을 닫습니다." onPress={backToCards} style={{position: 'absolute', top: '50%', right: 0, width: (r.textInset - r.rowInset) * historyScale, height: 82 * historyScale, transform: [{translateY: -41 * historyScale}], alignItems: 'center', justifyContent: 'center'}}>
+                <View pointerEvents="none" style={{width: 7 * historyScale, height: 82 * historyScale, borderRadius: 4 * historyScale, backgroundColor: c.divider}}/>
               </Pressable>
             </View>
           </Animated.View>

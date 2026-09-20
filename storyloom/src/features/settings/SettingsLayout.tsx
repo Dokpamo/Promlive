@@ -5,17 +5,12 @@ import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
-import {rowHighlightInset, SettingsPressable} from './SettingsPressable';
+import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
 import type {SheetScrollState} from './sheetMotion';
+import {settingsReference} from './settingsGeometry';
 
-/** 618px reference geometry; panel corners follow photo_6159075255742305500_y.jpg. */
-export const settingsReference = {
-  inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
-  rowHeight: 82, rowInset: 34, rowFont: 28, rowLine: 40, valueFont: 26,
-  profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,
-  sheetInset: 17, sheetPadding: 42,
-} as const;
+export {settingsReference} from './settingsGeometry';
 
 export function useSettingsScale() {
   return headerScale(useWindowDimensions().width);
@@ -40,7 +35,7 @@ export function SettingsPage({children, onBack, title, home = false}: {
     <ScreenHeader width={width} testID={home ? 'settings-header' : 'settings-detail-header'}>
       <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack} leading/>
     </ScreenHeader>
-    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: settingsReference.top * s, paddingBottom: 36 * s}}>
+    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: settingsReference.top * s, paddingBottom: 36 * s}}>
       <SwipeBackScrollContent>
         {title && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
         {children}
@@ -60,7 +55,7 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <SettingsPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : rowHighlightInset * s} contentStyle={{minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: 17 * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
+  return <SettingsPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : settingsReference.highlightInset * s} contentStyle={{minHeight: settingsReference.rowHeight * s, paddingHorizontal: (plain ? 6 : settingsReference.rowInset) * s, paddingVertical: settingsReference.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
     <Text style={{flex: 1, color: p.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, includeFontPadding: false}}>{label}</Text>
     {value && <Text numberOfLines={1} style={{maxWidth: '44%', color: muted ? p.secondary : p.accent, fontSize: settingsReference.valueFont * s, lineHeight: 38 * s, includeFontPadding: false}}>{value}</Text>}
     <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>

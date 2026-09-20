@@ -58,7 +58,7 @@ export const referenceSidebar = {
   listGap: 32,
   rowInset: 21, textInset: 40, rowHeight: 83, rowRadius: 30, fontSize: 28, lineHeight: 37,
   footerBottom: 27, footerHeight: 83, avatar: 69, accountAvatarLeft: 27, accountNameLeft: 117,
-  historyRadius: 48, historyBottomGap: 16, historyPadding: 14,
+  historyBottomGap: 16, historyPadding: 14,
 } as const;
 
 export function sidebarWidth(viewportWidth: number) {

@@ -10,6 +10,7 @@ import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
 import type {SheetScrollState} from '../settings/sheetMotion';
 import {SettingsPressable} from '../settings/SettingsPressable';
+import {settingsReference} from '../settings/settingsGeometry';
 
 interface Props {
   workspace: Workspace;
@@ -69,9 +70,7 @@ export function ChatHistory({workspace: w, width, historyCard, historySearch, on
   </View>;
 }
 
-export function CardConversationList({workspace: w, width, rowInset, highlightRadius, card, search, close, scroll}: {workspace: Workspace; width: number; rowInset: number; highlightRadius: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
-  // Fit the same row proportions to this narrower surface; cards keep their scale.
-  const s = width / r.width;
+export function CardConversationList({workspace: w, scale, card, search, close, scroll}: {workspace: Workspace; scale: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
   const query = search.trim().toLocaleLowerCase();
   const conversations = w.conversations.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
   const select = async (id: string) => {
@@ -79,15 +78,13 @@ export function CardConversationList({workspace: w, width, rowInset, highlightRa
     const conversation = conversations.find(item => item.id === id);
     if (conversation) {await w.openConversation(conversation); close();}
   };
-  return <SidebarRows items={conversations} scale={s} variant="history" rowInset={rowInset} highlightRadius={highlightRadius} selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
+  return <SidebarRows items={conversations} scale={scale} variant="history" selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
 }
 
-function SidebarRows({items, scale: s, variant = 'cards', rowInset = r.rowInset * s, highlightRadius = r.rowRadius * s, selectedId, testID, label, empty, onSelect, scroll}: {
+function SidebarRows({items, scale: s, variant = 'cards', selectedId, testID, label, empty, onSelect, scroll}: {
   items: {id: string; title: string}[];
   scale: number;
   variant?: 'cards' | 'history';
-  rowInset?: number;
-  highlightRadius?: number;
   selectedId: string | undefined;
   testID: string;
   label: (title: string) => string;
@@ -96,6 +93,10 @@ function SidebarRows({items, scale: s, variant = 'cards', rowInset = r.rowInset 
   scroll?: RefObject<SheetScrollState>;
 }) {
   const {colors: c} = useAppearance();
+  const history = variant === 'history';
+  const listInset = history ? 0 : r.rowInset * s;
+  const contentInset = (history ? settingsReference.rowInset : r.textInset - r.rowInset) * s;
+  const highlightRadius = (history ? settingsReference.controlRadius : r.rowRadius) * s;
   const dimensions = useRef({content: 0, viewport: 0});
   const measure = (kind: 'content' | 'viewport', height: number) => {
     dimensions.current[kind] = height;
@@ -104,11 +105,11 @@ function SidebarRows({items, scale: s, variant = 'cards', rowInset = r.rowInset 
   return <FlatList testID={testID} data={items} keyExtractor={item => item.id} style={{flex: 1}}
     onLayout={event => measure('viewport', event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => measure('content', height)}
     onScroll={event => {if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16}
-    contentContainerStyle={{paddingHorizontal: rowInset, paddingBottom: variant === 'history' ? 0 : 12 * s}}
+    contentContainerStyle={{paddingHorizontal: listInset, paddingBottom: history ? 0 : 12 * s}}
     keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: r.textInset * s - rowInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={variant === 'history' ? 'pressed' : 'full'} radius={highlightRadius} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', paddingHorizontal: r.textInset * s - rowInset, justifyContent: 'center'}}>
-      <Text numberOfLines={1} style={{color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
+    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: contentInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
+    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={history ? 'pressed' : 'full'} radius={highlightRadius} highlightInset={history ? settingsReference.highlightInset * s : 0} onPress={() => onSelect(item.id)} style={history ? undefined : {height: r.rowHeight * s}} contentStyle={{...(history ? {minHeight: settingsReference.rowHeight * s, paddingVertical: settingsReference.rowPadding * s} : {height: '100%'}), paddingHorizontal: contentInset, justifyContent: 'center'}}>
+      <Text numberOfLines={1} style={{color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
     </SettingsPressable>}/>;
 }
 

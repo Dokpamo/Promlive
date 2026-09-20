@@ -3,8 +3,6 @@ import {Animated, Pressable, StyleSheet, type PressableProps, type StyleProp, ty
 import {usePressFeedback} from '../../layout/usePressFeedback';
 import {useAppearance} from '../appearance/AppAppearance';
 
-/** Horizontal highlight inset in the shared 618px reference geometry. */
-export const rowHighlightInset = 8;
 export const rowPressedScale = 0.98;
 
 type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressOut'> & {
