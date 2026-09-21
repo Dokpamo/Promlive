@@ -7,15 +7,15 @@ import {SettingsIcon} from './SettingsIcon';
 import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
+import {AiSettingsPreview} from './AiSettingsPreview';
+import {createAiSettingsPreview} from './aiSettingsModel';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
-type Sheet = 'profile' | 'connection' | 'model' | 'response' | 'theme' | 'display' | 'language';
+type Sheet = 'profile' | 'theme' | 'display' | 'language';
 type Persona = {name: string; description: string};
 const pageTitles: Record<Page, string> = {ai: 'AI', persona: '페르소나', prompt: '프롬프트', theme: '테마', plugins: '플러그인', about: '정보'};
-const sheetTitles: Record<Sheet, string> = {profile: '내 정보', connection: 'AI 연결', model: '기본 모델', response: '응답 스타일', theme: '화면 색상', display: '대화 표시', language: '언어'};
+const sheetTitles: Record<Sheet, string> = {profile: '내 정보', theme: '화면 색상', display: '대화 표시', language: '언어'};
 const sheetCaptions: Partial<Record<Sheet, string>> = {
-  model: '연결 후 사용할 기본 모델을 선택해요.',
-  response: '원하는 답변의 길이와 설명 방식을 골라요.',
   theme: '편안하게 사용할 화면 테마를 선택해요.',
   display: '같은 대화를 원하는 모습으로 읽어보세요.',
   language: '앱에서 사용할 언어를 선택해요.',
@@ -30,8 +30,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
   const [page, setPage] = useState<Page | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [name, setName] = useState('사용자');
-  const [model, setModel] = useState('자동 선택');
-  const [response, setResponse] = useState('균형 있게');
+  const [ai, setAi] = useState(createAiSettingsPreview);
   const [language, setLanguage] = useState('한국어');
   const [persona, setPersona] = useState<Persona>({name: '기본', description: ''});
   const [prompt, setPrompt] = useState('');
@@ -55,12 +54,8 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
       <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
     </SettingsPage>
 
-    {page !== null && <SwipeBackModal onClose={() => setPage(null)} active={sheet === null}>{back => <SettingsPage title={pageTitles[page]} onBack={back}>
-      {page === 'ai' && <>
-        <SettingsRow plain label="AI 연결" value="연결 안 됨" muted onPress={() => setSheet('connection')}/>
-        <SettingsRow plain label="기본 모델" value={model} onPress={() => setSheet('model')}/>
-        <SettingsRow plain label="응답 스타일" value={response} onPress={() => setSheet('response')}/>
-      </>}
+    {page === 'ai' && <AiSettingsPreview value={ai} onChange={setAi} onClose={() => setPage(null)}/>}
+    {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => setPage(null)} active={sheet === null}>{back => <SettingsPage title={pageTitles[page]} onBack={back}>
       {page === 'theme' && <>
         <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
         <SettingsRow plain label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>
@@ -77,18 +72,6 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
 
     {sheet !== null && <SettingsSheet title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
       {sheet === 'profile' && <ProfileEditor value={name} onApply={value => {setName(value); dismiss();}}/>}
-      {sheet === 'connection' && <>
-        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 64 * s}}><Text style={{color: p.text, fontSize: 30 * s, fontWeight: '600'}}>Grok</Text><Text style={{color: p.secondary, fontSize: 24 * s}}>연결 안 됨</Text></View>
-      </>}
-      {sheet === 'model' && <>
-        <SettingsChoice label="자동 선택" detail="연결한 서비스의 기본 모델" selected={model === '자동 선택'} onPress={() => choose(setModel, '자동 선택', dismiss)}/>
-        <SettingsChoice label="Grok" detail="모델 미리보기" selected={model === 'Grok'} onPress={() => choose(setModel, 'Grok', dismiss)}/>
-      </>}
-      {sheet === 'response' && <>
-        <SettingsChoice label="간결하게" detail="핵심 위주로 짧게" selected={response === '간결하게'} onPress={() => choose(setResponse, '간결하게', dismiss)}/>
-        <SettingsChoice label="균형 있게" detail="필요한 설명을 알맞게" selected={response === '균형 있게'} onPress={() => choose(setResponse, '균형 있게', dismiss)}/>
-        <SettingsChoice label="자세하게" detail="맥락과 예시까지 충분하게" selected={response === '자세하게'} onPress={() => choose(setResponse, '자세하게', dismiss)}/>
-      </>}
       {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
       {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}
       {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
