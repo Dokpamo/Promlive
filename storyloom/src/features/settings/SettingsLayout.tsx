@@ -2,6 +2,7 @@ import {useRef, useState, type ReactNode} from 'react';
 import {Animated, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
+import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale, referenceTypography} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
@@ -93,7 +94,7 @@ export function SettingsChoice({label, detail, selected, onPress}: {label: strin
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <SettingsPressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} selected={selected} onPress={onPress} radius={radius} style={{marginHorizontal: -20 * s}} contentStyle={{minHeight: 94 * s, paddingHorizontal: 20 * s, paddingVertical: 20 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s}}>
+  return <SettingsPressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} selected={selected} selectedHighlight="pressed" onPress={onPress} radius={radius} style={{marginHorizontal: -20 * s}} contentStyle={{minHeight: 94 * s, paddingHorizontal: 20 * s, paddingVertical: 20 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s}}>
     <View style={{flex: 1, gap: 5 * s}}>
       <Text style={{color: selected ? p.accent : p.text, fontSize: 28 * s, lineHeight: 40 * s, fontWeight: '600', includeFontPadding: false}}>{label}</Text>
       {detail && <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s}}>{detail}</Text>}
@@ -112,5 +113,5 @@ export function SettingsSave({onPress, disabled = false}: {onPress: () => void; 
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <Pressable accessibilityRole="button" accessibilityLabel="적용" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => ({backgroundColor: p.primary, opacity: disabled ? 0.35 : pressed ? 0.75 : 1, minHeight: 78 * s, marginTop: 32 * s, borderRadius: radius, alignItems: 'center', justifyContent: 'center'})}><Text style={{color: p.onPrimary, fontSize: 26 * s, fontWeight: '600'}}>적용</Text></Pressable>;
+  return <PressSurface accessibilityRole="button" accessibilityLabel="적용" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} radius={radius} highlightColor={p.onPrimary} highlightOpacity={0.08} style={{marginTop: 32 * s}} contentStyle={{backgroundColor: p.primary, minHeight: 78 * s, alignItems: 'center', justifyContent: 'center'}}><Text style={{color: p.onPrimary, fontSize: 26 * s, fontWeight: '600'}}>적용</Text></PressSurface>;
 }

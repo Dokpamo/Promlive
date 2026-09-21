@@ -1,7 +1,7 @@
 import {useState, type ReactNode} from 'react';
-import {Animated, Pressable, Switch, Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
+import {Switch, Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
-import {usePressFeedback} from '../../layout/usePressFeedback';
+import {PressSurface} from '../../layout/PressSurface';
 import {referenceTypography} from '../chat/chatAppearance';
 import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary} from './SwipeBackModal';
@@ -52,6 +52,5 @@ export function AiAction({label, onPress, primary = false}: {label: string; onPr
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  const {progress, onPressIn, onPressOut} = usePressFeedback();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={{marginTop: 16 * s}}><Animated.View style={{backgroundColor: primary ? p.primary : p.surface, borderRadius: radius, minHeight: 82 * s, alignItems: 'center', justifyContent: 'center', padding: 18 * s, opacity: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.8]}), transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]})}]}}><Text style={{color: primary ? p.onPrimary : p.text, fontSize: 26 * s}}>{label}</Text></Animated.View></Pressable>;
+  return <PressSurface accessibilityRole="button" accessibilityLabel={label} onPress={onPress} radius={radius} highlightColor={primary ? p.onPrimary : p.selected} highlightOpacity={primary ? 0.08 : 1} style={{marginTop: 16 * s}} contentStyle={{backgroundColor: primary ? p.primary : p.surface, minHeight: 82 * s, alignItems: 'center', justifyContent: 'center', padding: 18 * s}}><Text style={{color: primary ? p.onPrimary : p.text, fontSize: 26 * s}}>{label}</Text></PressSurface>;
 }

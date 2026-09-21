@@ -7,6 +7,7 @@ import {CardThumbnail} from '../cards/CardThumbnail';
 import {ChatIcon} from './ChatIcon';
 import {referenceHeader, referenceSidebar as r, referenceTypography} from './chatAppearance';
 import {HeaderButton} from '../../layout/ScreenHeader';
+import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
@@ -143,12 +144,10 @@ function SidebarSearch({scale: s, history, value, onChange}: {scale: number; his
 
 function CreateChatButton({scale: s, label, onPress}: {scale: number; label: string; onPress: () => void}) {
   const {colors: c, settings: p, isDark} = useAppearance();
-  const {progress, onPressIn, onPressOut} = usePressFeedback();
   const size = r.searchHeight * s;
-  return <Pressable testID="sidebar-create" accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={{width: size, height: size, flexShrink: 0}}>
-    <Animated.View testID="sidebar-create-surface" style={{flex: 1, borderRadius: size / 2, backgroundColor: c.search, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center', transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]})}]}}>
-      <Animated.View testID="sidebar-create-tint" pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, backgroundColor: p.selected, opacity: progress}}/>
-      <ChatIcon name="new-chat" size={35 * s} color={c.text}/>
-    </Animated.View>
-  </Pressable>;
+  return <PressSurface compact testID="sidebar-create" surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+    radius={size / 2} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
+    contentStyle={{backgroundColor: c.search, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
+    <ChatIcon name="new-chat" size={35 * s} color={c.text}/>
+  </PressSurface>;
 }

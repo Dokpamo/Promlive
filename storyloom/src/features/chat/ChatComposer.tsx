@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Platform, Pressable, Text, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, Animated, Platform, Text, View, useWindowDimensions} from 'react-native';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
@@ -7,6 +7,7 @@ import {composerScale, referenceComposer as r, typographyScale} from './chatAppe
 import {useAppearance} from '../appearance/AppAppearance';
 import {panelSpring} from './usePanelMotion';
 import {ExpandedComposer, type ComposerFrame} from './ExpandedComposer';
+import {PressSurface} from '../../layout/PressSurface';
 
 interface Props {
   value: string;
@@ -97,6 +98,10 @@ export function ChatComposer(p: Props) {
 }
 
 function Circle({label, icon, size, iconSize, onPress, bright = false, disabled = false}: {label: string; icon: ChatIconName; size: number; iconSize: number; onPress: () => void; bright?: boolean; disabled?: boolean}) {
-  const {colors: c} = useAppearance();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => ({width: size, height: size, borderRadius: size / 2, backgroundColor: bright ? c.send : c.button, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.45 : pressed ? 0.7 : 1})}><ChatIcon name={icon} size={iconSize} color={bright ? c.sendIcon : c.buttonIcon}/></Pressable>;
+  const {colors: c, settings: p} = useAppearance();
+  return <PressSurface compact accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
+    surfaceTestID="composer-button-surface" highlightTestID="composer-button-highlight" radius={size / 2} highlightColor={bright ? c.sendIcon : p.selected} highlightOpacity={bright ? 0.08 : 1}
+    style={{width: size, height: size}} contentStyle={{backgroundColor: bright ? c.send : c.button, alignItems: 'center', justifyContent: 'center'}}>
+    <ChatIcon name={icon} size={iconSize} color={bright ? c.sendIcon : c.buttonIcon}/>
+  </PressSurface>;
 }

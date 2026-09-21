@@ -1,9 +1,9 @@
 import type {ReactNode} from 'react';
 import {Animated, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle} from 'react-native';
-import {usePressFeedback} from '../../layout/usePressFeedback';
+import {pressedScale, usePressFeedback} from '../../layout/usePressFeedback';
 import {useAppearance} from '../appearance/AppAppearance';
 
-export const rowPressedScale = 0.98;
+export const rowPressedScale = pressedScale;
 
 type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressOut'> & {
   children: ReactNode;

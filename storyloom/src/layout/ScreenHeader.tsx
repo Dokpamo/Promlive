@@ -1,9 +1,9 @@
 import type {ReactNode} from 'react';
-import {Animated, Pressable, View, type StyleProp, type ViewStyle} from 'react-native';
+import {View, type StyleProp, type ViewStyle} from 'react-native';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon, type ChatIconName} from '../features/chat/ChatIcon';
 import {headerScale, referenceHeader as r} from '../features/chat/chatAppearance';
-import {usePressFeedback} from './usePressFeedback';
+import {PressSurface} from './PressSurface';
 
 /** Place inside the screen's safe area; width is the viewport, including in a drawer. */
 export function ScreenHeader({width, testID, children}: {width: number; testID?: string; children: ReactNode}) {
@@ -32,25 +32,14 @@ export function HeaderButton({width, icon, label, onPress, testID, variant = 'fi
   disabled?: boolean;
   bright?: boolean;
 }) {
-  const {colors: c, isDark} = useAppearance();
-  const {progress, onPressIn, onPressOut} = usePressFeedback();
+  const {colors: c, settings: p, isDark} = useAppearance();
   const s = headerScale(width);
   const height = r.height * s;
   const filled = variant === 'filled';
-  const highlightSize = r.highlight * s;
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} style={{
-    width: height,
-    height,
-    flexShrink: 0,
-    borderRadius: height / 2,
-    backgroundColor: filled ? bright ? c.send : c.header : 'transparent',
-    opacity: disabled ? 0.4 : 1,
-    boxShadow: !filled || isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)',
-    alignItems: 'center', justifyContent: 'center',
-  }}>
-    <Animated.View testID="header-button-content" style={{width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0.98]})}]}}>
-      <Animated.View testID="header-button-highlight" pointerEvents="none" style={{position: 'absolute', left: (height - highlightSize) / 2, top: (height - highlightSize) / 2, width: highlightSize, height: highlightSize, borderRadius: highlightSize / 2, backgroundColor: bright ? c.sendIcon : variant === 'grouped' ? c.actionPressed : variant === 'plain' ? c.historySelected : c.headerPressed, opacity: bright ? Animated.multiply(progress, 0.08) : progress}}/>
-      <ChatIcon name={icon} size={r.icon * s} color={bright ? c.sendIcon : icon === 'back' ? c.backIcon : c.text}/>
-    </Animated.View>
-  </Pressable>;
+  return <PressSurface compact testID={testID} surfaceTestID="header-button-content" highlightTestID="header-button-highlight" accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
+    radius={height / 2} highlightColor={bright ? c.sendIcon : p.selected} highlightOpacity={bright ? 0.08 : 1} highlightInset={filled ? 0 : (r.height - r.highlight) * s / 2}
+    style={{width: height, height, flexShrink: 0}}
+    contentStyle={{backgroundColor: filled ? bright ? c.send : c.header : 'transparent', boxShadow: !filled || isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
+    <ChatIcon name={icon} size={r.icon * s} color={bright ? c.sendIcon : icon === 'back' ? c.backIcon : c.text}/>
+  </PressSurface>;
 }
