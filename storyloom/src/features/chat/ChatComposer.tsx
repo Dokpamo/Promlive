@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Pressable, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, Animated, Platform, Pressable, Text, View, useWindowDimensions} from 'react-native';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
@@ -55,7 +55,8 @@ export function ChatComposer(p: Props) {
   }, []);
   useLayoutEffect(() => {
     const targets: [Animated.Value, number][] = [[motion.height, height], [motion.input, inputHeight], [motion.filled, filled ? 1 : 0], [motion.expand, expandable ? 1 : 0], [motion.send, hasSend ? 1 : 0]];
-    if (reduceMotion !== false || !p.ready) {
+    // The modal owns motion while open; keep its hidden origin ready without a second spring.
+    if (expanded || reduceMotion !== false || !p.ready) {
       for (const [value, target] of targets) {value.stopAnimation(); value.setValue(target);}
       return;
     }
@@ -63,7 +64,7 @@ export function ChatComposer(p: Props) {
     const animation = Animated.parallel(targets.map(([value, toValue]) => Animated.spring(value, {...panelSpring, toValue, useNativeDriver: false})));
     animation.start();
     return () => animation.stop();
-  }, [expandable, filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
+  }, [expandable, expanded, filled, hasSend, height, inputHeight, motion, p.ready, reduceMotion]);
   const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
   const actionBottom = shape((r.compactHeight - r.button) / 2, 14);
   const measureComposer = (done: (frame: ComposerFrame) => void, settled = false) => {
@@ -73,7 +74,10 @@ export function ChatComposer(p: Props) {
     <DrawerGestureBoundary><View pointerEvents={expanded ? 'none' : 'auto'} aria-hidden={!!expanded} accessibilityElementsHidden={!!expanded} importantForAccessibility={expanded ? 'no-hide-descendants' : 'auto'} style={{width: '100%', maxWidth: 800, alignSelf: 'center', paddingHorizontal: r.inset * s, paddingBottom: p.bottom + r.bottom * s, opacity: expanded ? 0 : 1}}>
       <Animated.View ref={composer} testID="chat-composer" style={{height: motion.height, borderRadius: shape(r.compactHeight / 2, 40), overflow: 'hidden', backgroundColor: c.composer, borderWidth: 1 * s, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)'}}>
         <Animated.View style={{position: 'absolute', height: motion.input, overflow: 'hidden', top: motion.filled.interpolate({inputRange: [0, 1], outputRange: [(r.compactHeight * s - line) / 2, 25 * s]}), left: (filled ? 26 : 116) * s, right: 26 * s, transform: [{translateX: shape(filled ? 90 : 0, filled ? 0 : -90)}]}}>
-          <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={inputHeight} scroll={overflowing} ready={p.ready}/>
+          {expanded
+            // Measure the hidden origin without a second native editor mirroring every keystroke.
+            ? <Text onTextLayout={event => {if (Platform.OS !== 'web') reportHeight(Math.max(line, ...event.nativeEvent.lines.map(item => item.y + item.height)));}} onLayout={event => {if (Platform.OS === 'web') reportHeight(event.nativeEvent.layout.height);}} style={{fontSize: r.fontSize * textScale, lineHeight: r.lineHeight * textScale, includeFontPadding: false, padding: 0, margin: 0}}>{p.value || ' '}</Text>
+            : <ComposerInput value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={inputHeight} scroll={overflowing} ready={p.ready}/>}
         </Animated.View>
         <Animated.View style={{position: 'absolute', left: shape(20, 12), bottom: actionBottom}}>
           <Circle label="첨부" icon="plus" size={button} iconSize={27 * s} onPress={() => p.onHint('첨부 기능은 아직 연결하지 않았어요.')}/>

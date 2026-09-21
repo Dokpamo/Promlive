@@ -10,14 +10,14 @@ export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: n
   return <View pointerEvents="none" style={{width: size, height: size}}>
     {name === 'more' && [1, 14, 27].map(y => <View key={y} style={{position: 'absolute', left: size * 14 / 32, top: size * y / 32, width: size * 4 / 32, height: size * 4 / 32, borderRadius: size, backgroundColor: color}}/>)}
     {name === 'back' && <>
-      <View style={[line, {width: size * 25 / 32, height: size * 3 / 32, left: size * 4 / 32, top: size * 14.5 / 32}]}/>
-      {[-1, 1].map(direction => <View key={direction} style={[line, {width: size * 17 / 32, height: size * 3 / 32, left: size * 2.5 / 32, top: size * (14.5 + direction * 6) / 32, transform: [{rotate: `${direction * 45}deg`}]}]}/>)}
+      <View style={[line, {width: size * 25 / 32, left: size * 4 / 32, top: (size - stroke) / 2}]}/>
+      {[-1, 1].map(direction => <View key={direction} style={[line, {width: size * 17 / 32, left: size * 2.5 / 32, top: (size - stroke) / 2 + size * direction * 6 / 32, transform: [{rotate: `${direction * 45}deg`}]}]}/>)}
     </>}
     {name === 'plus' && <><View style={[line, {width: size, top: (size - stroke) / 2}]}/><View style={[line, {width: size, top: (size - stroke) / 2, transform: [{rotate: '90deg'}]}]}/></>}
     {name === 'send' && <>
-      <View style={{position: 'absolute', width: stroke * 1.25, height: size * 0.77, left: (size - stroke * 1.25) / 2, top: size * 0.13, borderRadius: stroke, backgroundColor: color}}/>
-      <View style={[line, {width: size * 0.58, height: stroke * 1.25, left: size * 0.04, top: size * 0.29, transform: [{rotate: '-48deg'}]}]}/>
-      <View style={[line, {width: size * 0.58, height: stroke * 1.25, right: size * 0.04, top: size * 0.29, transform: [{rotate: '48deg'}]}]}/>
+      <View style={{position: 'absolute', width: stroke, height: size * 0.77, left: (size - stroke) / 2, top: size * 0.13, borderRadius: stroke, backgroundColor: color}}/>
+      <View style={[line, {width: size * 0.58, left: size * 0.04, top: size * 0.29, transform: [{rotate: '-48deg'}]}]}/>
+      <View style={[line, {width: size * 0.58, right: size * 0.04, top: size * 0.29, transform: [{rotate: '48deg'}]}]}/>
     </>}
     {name === 'voice' && <>
       <View style={{position: 'absolute', width: size * 0.13, height: size * 0.2, borderRadius: size, backgroundColor: color, left: size * 0.13, top: size * 0.4}}/>

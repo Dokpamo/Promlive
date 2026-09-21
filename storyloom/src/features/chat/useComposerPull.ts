@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useRef, type RefObject} from 'react';
 import {Animated, PanResponder, Platform} from 'react-native';
-import {shouldDismissSheet} from '../settings/sheetMotion';
+import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../settings/sheetMotion';
 import {panelSpring} from './usePanelMotion';
 
-/** Drag the existing header/outer margin down; text editing owns its own touches. */
-export function useComposerPull(progress: Animated.Value, options: {
+/** Blank space follows the settings sheet's drag physics; text keeps editing/scrolling. */
+export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, options: {
   travel: number;
   opening: RefObject<boolean>;
   closing: RefObject<boolean>;
@@ -14,48 +14,52 @@ export function useComposerPull(progress: Animated.Value, options: {
   const config = useRef(options);
   config.current = options;
   const cancelClick = useRef(false);
-  const motion = useRef({position: 0, input: false, dragging: false, offAxis: false, multiple: false, captured: {x: 0, y: 0}, origin: {x: 0, y: 0}, travel: 1, lastMoveAt: 0});
+  const motion = useRef({x: 0, y: 0, input: false, dragging: false, multiple: false, captured: {x: 0, y: 0}, origin: {x: 0, y: 0}, travel: 1, lastMoveAt: 0});
 
   useEffect(() => {
-    const listener = progress.addListener(({value}) => {motion.current.position = value;});
-    return () => progress.removeListener(listener);
-  }, [progress]);
+    const x = drag.x.addListener(({value}) => {motion.current.x = value;});
+    const y = drag.y.addListener(({value}) => {motion.current.y = value;});
+    return () => {
+      drag.x.stopAnimation(); drag.x.removeListener(x);
+      drag.y.stopAnimation(); drag.y.removeListener(y);
+    };
+  }, [drag]);
 
   const pan = useMemo(() => {
     const ready = () => !config.current.opening.current && !config.current.closing.current;
-    const canPull = (dx: number, dy: number) => {
-      const m = motion.current;
-      if (!ready() || m.input || m.offAxis || m.multiple) return false;
-      if ((Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) || dy < -10) m.offAxis = true;
-      return !m.offAxis && dy > 10 && dy > Math.abs(dx) * 1.5;
-    };
+    const canPull = (dx: number, dy: number) => ready() && !motion.current.input && !motion.current.multiple && Math.hypot(dx, dy) > 10;
     const begin = (dx = 0, dy = 0) => {
       const m = motion.current;
-      progress.stopAnimation();
+      drag.x.stopAnimation(); drag.y.stopAnimation();
       m.travel = Math.max(160, config.current.travel);
-      m.origin = {x: dx, y: (1 - m.position) * m.travel + dy};
+      m.origin = {
+        x: sheetPullOrigin(m.x, sheetPullLimits.sideways) + dx,
+        y: (m.y < 0 ? sheetPullOrigin(m.y, sheetPullLimits.upward) : m.y) + dy,
+      };
       m.dragging = true;
       cancelClick.current = true;
     };
-    const move = (dy: number) => {
+    const move = (dx: number, dy: number) => {
       const m = motion.current;
       m.lastMoveAt = Date.now();
-      progress.setValue(Math.max(0, Math.min(1, 1 - (m.origin.y + dy) / m.travel)));
+      const down = m.origin.y + dy;
+      drag.x.setValue(sheetPullDistance(m.origin.x + dx, sheetPullLimits.sideways));
+      drag.y.setValue(down < 0 ? sheetPullDistance(down, sheetPullLimits.upward) : Math.min(m.travel, down));
     };
     const restore = () => {
-      if (config.current.reduceMotion) progress.setValue(1);
-      else Animated.spring(progress, {...panelSpring, toValue: 1, useNativeDriver: false}).start();
+      if (config.current.reduceMotion) {drag.x.setValue(0); drag.y.setValue(0);}
+      else Animated.parallel([drag.x, drag.y].map(value => Animated.spring(value, {...panelSpring, toValue: 0, useNativeDriver: false}))).start();
     };
     return PanResponder.create({
       onStartShouldSetPanResponderCapture: (_, gesture) => {
         const m = motion.current;
         if (gesture.numberActiveTouches > 1) {m.multiple = true; return false;}
-        m.input = false; m.dragging = false; m.offAxis = false; m.multiple = false;
+        m.input = false; m.dragging = false; m.multiple = false;
         m.captured = {x: 0, y: 0};
         cancelClick.current = false;
         return false;
       },
-      // Keep blank header touches out of Native Modal's wrapper responder.
+      // Keep blank sheet touches out of Native Modal's wrapper responder.
       onStartShouldSetPanResponder: () => ready() && !motion.current.input && Platform.OS !== 'web',
       onMoveShouldSetPanResponderCapture: (_, gesture) => {
         if (motion.current.dragging || gesture.numberActiveTouches !== 1 || !canPull(gesture.dx, gesture.dy)) return false;
@@ -65,7 +69,7 @@ export function useComposerPull(progress: Animated.Value, options: {
       onPanResponderGrant: () => {
         const {x, y} = motion.current.captured;
         // Capture resets PanResponder's deltas; retain the movement already made.
-        if (y) {begin(x, y); move(0);}
+        if (x || y) {begin(x, y); move(0, 0);}
       },
       onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) motion.current.multiple = true;},
       onPanResponderMove: (_, gesture) => {
@@ -76,7 +80,7 @@ export function useComposerPull(progress: Animated.Value, options: {
           if (!canPull(gesture.dx, gesture.dy)) return;
           begin();
         }
-        move(gesture.dy);
+        move(gesture.dx, gesture.dy);
       },
       onPanResponderRelease: (_, gesture) => {
         const m = motion.current;
@@ -93,7 +97,7 @@ export function useComposerPull(progress: Animated.Value, options: {
       onPanResponderTerminationRequest: () => !motion.current.dragging,
       onShouldBlockNativeResponder: () => false,
     });
-  }, [progress]);
+  }, [drag]);
 
   return {panHandlers: pan.panHandlers, cancelClick, blockInput: () => {motion.current.input = true; return false;}};
 }

@@ -8,6 +8,7 @@ export const settingsReference = {
   highlightInset: 8,
   profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,
   sheetInset: 17, sheetPadding: 42,
+  sheetHandle: {width: 82, height: 7, radius: 4, top: 21},
 } as const;
 
 /** Fit every setting-group measurement by the same rendered-width ratio. */

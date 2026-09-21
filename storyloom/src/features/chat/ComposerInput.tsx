@@ -1,12 +1,16 @@
+import {useImperativeHandle, useRef} from 'react';
 import {TextInput} from 'react-native';
 import type {ComposerInputProps} from './ComposerInput.types';
 import {useAppearance} from '../appearance/AppAppearance';
 
 export function ComposerInput(p: ComposerInputProps) {
   const {colors: c} = useAppearance();
+  const input = useRef<TextInput>(null);
+  useImperativeHandle(p.focusRef, () => ({focus: () => input.current?.focus()}), []);
   return <TextInput
-    testID="chat-input"
-    accessibilityLabel="메시지 입력"
+    ref={input}
+    testID={p.testID ?? 'chat-input'}
+    accessibilityLabel={p.label ?? '메시지 입력'}
     value={p.value}
     editable={p.ready}
     onChangeText={p.onChange}

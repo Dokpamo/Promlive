@@ -7,7 +7,7 @@ import {CardConversationHeader, CardConversationList, ChatHistory} from './ChatH
 import {useAppearance} from '../appearance/AppAppearance';
 import {drawerProgress, navigationPanel, shouldOpenDrawer, type NavigationPanel} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
-import {DrawerGestureGuard} from './DrawerGestureBoundary';
+import {DrawerGestureGuard, DrawerModalLocks} from './DrawerGestureBoundary';
 import {headerScale, referenceSidebar as r, sidebarWidth} from './chatAppearance';
 import {usePanelMotion} from './usePanelMotion';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
@@ -50,6 +50,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const historyCard = workspace.cards.find(card => card.id === historyCardId);
   const activeCard = workspace.cards.find(card => card.id === workspace.conversation?.cardId);
   const blocked = useRef(false);
+  const modalLocks = useRef(0);
   const cancelClick = useRef(false);
   const vertical = useRef(false);
   const multiTouch = useRef(false);
@@ -74,13 +75,14 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   useEffect(() => {if (!pocketEnabled) pocket.reset();}, [pocketEnabled, pocket.reset]);
 
   const closeCards = useCallback(() => cards.settle(false), [cards.settle]);
-  const openCards = useCallback(() => {pocket.reset(); cards.settle(true);}, [cards.settle, pocket.reset]);
+  const openCards = useCallback(() => {if (!modalLocks.current) {pocket.reset(); cards.settle(true);}}, [cards.settle, pocket.reset]);
   const backToCards = useCallback(() => history.settle(false), [history.settle]);
   const openCard = (card: Card) => {
     if (card.id !== historyCardId) setHistorySearch('');
     setHistoryCardId(card.id); history.settle(true);
   };
   const back = useCallback(() => {
+    if (modalLocks.current) return false;
     const p = panels.current;
     if (p.cards.visible && p.history.visible) {historyPullRef.current.settle(false); return true;}
     if (p.cards.visible) {p.cards.settle(false); return true;}
@@ -104,6 +106,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: (_, gesture) => {
+      if (!active || modalLocks.current) return false;
       if (gesture.numberActiveTouches > 1) {multiTouch.current = true; return false;}
       blocked.current = false;
       cancelClick.current = false;
@@ -117,7 +120,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
     },
     onMoveShouldSetPanResponderCapture: (_, gesture) => {
       // Keep this gesture on the same layer even after it reaches its closed edge.
-      if (!active || blocked.current || vertical.current || gesturePanel.current || gesture.numberActiveTouches !== 1) return false;
+      if (!active || modalLocks.current || blocked.current || vertical.current || gesturePanel.current || gesture.numberActiveTouches !== 1) return false;
       const x = Math.abs(gesture.dx), y = Math.abs(gesture.dy);
       const p = panels.current;
       const nextPanel = navigationPanel({cards: p.cards.position.current, historyOnTop: historyOwnsGesture.current, pocket: p.pocket.position.current, pocketEnabled}, gesture.dx);
@@ -137,6 +140,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       return gesturePanel.current !== null;
     },
     onPanResponderGrant: () => {
+      if (modalLocks.current) return;
       if (gesturePanel.current) {
         cancelClick.current = true;
         if (gesturePanel.current === 'history') {
@@ -147,6 +151,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
     },
     onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) multiTouch.current = true;},
     onPanResponderMove: (_, gesture) => {
+      if (modalLocks.current) return;
       if (gesture.numberActiveTouches > 1) multiTouch.current = true;
       const key = gesturePanel.current;
       if (!key || multiTouch.current) return;
@@ -155,6 +160,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       panels.current[key].move(drawerProgress(origin.current, gesture.dx * direction, key === 'pocket' ? width : drawerWidth));
     },
     onPanResponderRelease: (_, gesture) => {
+      if (modalLocks.current) {gesturePanel.current = null; return;}
       const key = gesturePanel.current;
       if (!key) return;
       if (key === 'history') {
@@ -181,7 +187,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const pageRadius = (value: number) => pocket.progress.interpolate({inputRange: [0, 0.15, 0.85, 1], outputRange: [0, value, value, 0], extrapolate: 'clamp'});
   const historyTop = insets.top + (r.searchTop + r.searchHeight + r.listGap) * sidebarScale - r.historyPadding * surfaceScale;
   const historyBottom = insets.bottom + (r.footerHeight + r.footerBottom + r.historyBottomGap) * sidebarScale;
-  return <DrawerGestureGuard.Provider value={blocked}>
+  return <DrawerModalLocks.Provider value={modalLocks}><DrawerGestureGuard.Provider value={blocked}>
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
@@ -237,7 +243,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       </Animated.View>
     </View>
     </DragClickBoundary>
-  </DrawerGestureGuard.Provider>;
+  </DrawerGestureGuard.Provider></DrawerModalLocks.Provider>;
 }
 
 const styles = StyleSheet.create({

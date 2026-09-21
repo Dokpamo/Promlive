@@ -1,6 +1,7 @@
 import type {Runtime} from './runtime';
 import {newCard, type Card, type Draft, type World} from '../features/cards/model';
 import type {Conversation} from '../features/chat/model';
+import {rebaseEditorChanges} from './editorState';
 export type Page = 'library' | 'editor' | 'chat' | 'settings';
 export type LibraryFilter = 'all' | 'favorites' | 'archived';
 export interface Editor {card: Card; baseRevision: number; dirty: boolean; status: 'saved' | 'saving' | 'buffered' | 'error'}
@@ -9,11 +10,17 @@ export class Workspace {
   private listeners = new Set<() => void>(); private version = 0;
   page: Page = 'library'; filter: LibraryFilter = 'all'; search = '';
   cards: Card[] = []; conversations: Conversation[] = []; editor: Editor | null = null;
-  conversation: Conversation | null = null; error: string | null = null; notice: string | null = null;
+  selectedConversationId: string | null = null;
+  error: string | null = null; notice: string | null = null;
+  private editorSession = 0;
+  private refreshVersion = 0;
   private bufferTimer: ReturnType<typeof setTimeout> | undefined;
   private saving: Promise<void> | undefined;
   private assistantForms = new Map<string, AssistantForm>();
   constructor(readonly runtime: Runtime) {}
+  get conversation(): Conversation | null {
+    return this.conversations.find(item => item.id === this.selectedConversationId) ?? null;
+  }
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
   snapshot = () => this.version;
   emit() { this.version++; this.listeners.forEach(fn => fn()); }
@@ -31,7 +38,16 @@ export class Workspace {
     await this.startChat(card);
   }
   async newGeneralChat() { await this.startChat(await this.generalCard(), true); }
-  async refresh() { this.cards = await this.runtime.repo.listCards(); this.conversations = await this.runtime.repo.conversations(); this.emit(); }
+  async refresh() {
+    const version = ++this.refreshVersion;
+    const [cards, conversations] = await Promise.all([
+      this.runtime.repo.listCards(), this.runtime.repo.conversations(),
+    ]);
+    if (version !== this.refreshVersion) return;
+    this.cards = cards;
+    this.conversations = conversations;
+    this.emit();
+  }
   report(error: unknown) { this.error = error instanceof Error ? error.message : '작업에 실패했습니다.'; this.emit(); }
   clearMessage() { this.error = null; this.notice = null; this.emit(); }
   inform(notice: string) { this.notice = notice; this.emit(); }
@@ -40,9 +56,11 @@ export class Workspace {
   setSearch(value: string) { this.search = value; this.emit(); }
   async create(kind: Card['body']['kind']) { const card = await this.runtime.repo.insertCard(newCard(kind)); await this.refresh(); await this.open(card.id); }
   async open(id: string) {
+    const session = ++this.editorSession;
     await this.flush();
     const saved = await this.runtime.repo.getCard(id);
     const buffer = await this.runtime.repo.getBuffer(id);
+    if (session !== this.editorSession) return;
     this.editor = {card: buffer?.card ?? saved, baseRevision: buffer?.baseRevision ?? saved.revision, dirty: !!buffer, status: buffer ? 'buffered' : 'saved'};
     if (buffer && buffer.baseRevision !== saved.revision) this.error = '저장된 카드가 변경되었습니다. 편집 내용은 보존되어 있습니다. 복제하여 저장해 주세요.';
     this.page = 'editor'; this.emit();
@@ -76,17 +94,27 @@ export class Workspace {
   private async saveCurrent() {
     clearTimeout(this.bufferTimer);
     const editor = this.editor;
+    const session = this.editorSession;
     if (!editor) return;
     if (!editor.card.title.trim()) throw new Error('이야기 제목을 입력해 주세요.');
     const card = await this.runtime.repo.saveCard({...editor.card, title: editor.card.title.trim(), example: false}, editor.baseRevision);
-    // Edits made while the save is in flight remain editable against the newly saved revision.
-    if (this.editor?.card === editor.card) this.editor = {card, baseRevision: card.revision, dirty: false, status: 'saved'};
-    else if (this.editor?.card.id === card.id) {
-      this.editor = {...this.editor, card: {...this.editor.card, revision: card.revision}, baseRevision: card.revision};
-      await this.flush();
-    }
+    await this.finishEditorWrite(session, editor, card);
     await this.refresh();
     this.inform('이야기를 기기에 저장했어요.');
+  }
+  private async finishEditorWrite(session: number, before: Editor, saved: Card) {
+    const current = this.editor;
+    if (session !== this.editorSession || current?.card.id !== saved.id || current.baseRevision > saved.revision) return;
+    if (current.card === before.card) {
+      this.editor = {card: saved, baseRevision: saved.revision, dirty: false, status: 'saved'};
+    } else {
+      this.editor = {
+        ...current,
+        card: rebaseEditorChanges(before.card, current.card, saved),
+        baseRevision: saved.revision,
+      };
+      await this.flush();
+    }
   }
   async duplicate(card: Card) {
     const copy = newCard(card.body.kind);
@@ -105,26 +133,41 @@ export class Workspace {
     const latest = await this.runtime.repo.getCard(card.id);
     // Archiving changes card metadata; preserve any unsaved text buffer.
     const saved = await this.runtime.repo.updateMetadata(card.id, {archived: !latest.archived});
-    if (this.editor?.card.id === saved.id) this.editor = null;
+    if (this.editor?.card.id === saved.id) {this.editorSession++; this.editor = null;}
     this.page = 'library'; await this.refresh(); this.inform(saved.archived ? '보관함으로 옮겼어요.' : '서재로 다시 가져왔어요.');
   }
   async apply(draft: Draft, content: string, field: keyof World) {
     if (!this.editor) return;
+    const session = this.editorSession;
     await this.flush();
-    if (this.editor.dirty) throw new Error('직접 편집한 내용이 있습니다. 먼저 저장하고 새 초안을 요청하거나 초안을 복사해 주세요.');
-    const body = this.editor.card.body;
+    const editor = this.editor;
+    if (session !== this.editorSession || !editor) return;
+    if (editor.dirty) throw new Error('직접 편집한 내용이 있습니다. 먼저 저장하고 새 초안을 요청하거나 초안을 복사해 주세요.');
+    const body = editor.card.body;
     if (body.kind !== 'template') throw new Error('코드 카드는 소스 편집기에서 직접 수정해 주세요.');
-    const saved = await this.runtime.repo.applyDraft({...draft, content}, {...this.editor.card, body: {...body, data: {...body.data, [field]: content}}});
+    const saved = await this.runtime.repo.applyDraft({...draft, content}, {...editor.card, body: {...body, data: {...body.data, [field]: content}}});
     this.runtime.creation.markDraftApplied(saved.id, draft.id);
-    this.editor = {card: saved, baseRevision: saved.revision, dirty: false, status: 'saved'};
+    await this.finishEditorWrite(session, editor, saved);
     await this.refresh(); this.inform('초안을 카드에 적용했어요.');
   }
   async startChat(card: Card, forceNew = false) {
     if (this.editor?.card.id === card.id && this.editor.dirty) await this.save();
     else await this.flush();
     const conversations = await this.runtime.repo.conversations(card.id);
-    this.conversation = (!forceNew && conversations[0]) || await this.runtime.repo.createConversation(card.id);
+    const conversation = (!forceNew && conversations[0]) || await this.runtime.repo.createConversation(card.id);
+    this.selectConversation(conversation);
     this.page = 'chat'; await this.refresh();
   }
-  async openConversation(conversation: Conversation) { await this.flush(); this.conversation = conversation; this.page = 'chat'; this.emit(); }
+  private selectConversation(conversation: Conversation) {
+    if (!this.conversations.some(item => item.id === conversation.id)) {
+      this.conversations = [conversation, ...this.conversations];
+    }
+    this.selectedConversationId = conversation.id;
+  }
+  async openConversation(conversation: Conversation) {
+    await this.flush();
+    this.selectConversation(conversation);
+    this.page = 'chat';
+    this.emit();
+  }
 }

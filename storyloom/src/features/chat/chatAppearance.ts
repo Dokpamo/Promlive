@@ -116,8 +116,7 @@ export const lightChatColors: ChatColors = {
 /** Shared header proportions from photo_6161248182776566795_y.jpg (618px wide). */
 export const referenceHeader = {
   viewportWidth: 618,
-  left: 27,
-  right: 28,
+  inset: 28,
   top: 0,
   barHeight: 96,
   height: 76,
