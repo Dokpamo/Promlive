@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from 'react';
+import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from 'react';
 import {AccessibilityInfo, Animated, Keyboard, Modal, PanResponder, Platform, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {selectionHaptic} from '../chat/selectionHaptic';
@@ -8,29 +8,46 @@ import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 import {DragClickBoundary} from './DragClickBoundary';
 import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet, shouldScrollSheet, type SheetScrollState} from './sheetMotion';
 
-const GestureGuard = createContext<{blocked: {current: boolean}; sheet: boolean; scroller: {current: RefObject<SheetScrollState> | null}} | null>(null);
+const GestureGuard = createContext<{
+  blocked: {current: boolean};
+  sheet: boolean;
+  scroller: {current: RefObject<SheetScrollState> | null};
+  sheets: RefObject<Map<symbol, () => void>>;
+  exitingSheets: RefObject<Set<symbol>>;
+  canInteract: () => boolean;
+} | null>(null);
 
 /** Keep horizontal editing and switch gestures inside their own controls. */
 export function SwipeBackBoundary({children, style}: {children: ReactNode; style?: StyleProp<ViewStyle>}) {
   const guard = useContext(GestureGuard);
-  return <View style={style} onStartShouldSetResponderCapture={() => {if (guard) guard.blocked.current = true; return false;}}>{children}</View>;
+  return <View style={style} onStartShouldSetResponderCapture={() => {if (guard?.canInteract()) guard.blocked.current = true; return false;}}>{children}</View>;
 }
 
 /** Keep the initial responder inside the native scroller so it can scroll vertically. */
 export function SwipeBackScrollContent({children, sheetScroll}: {children: ReactNode; sheetScroll?: RefObject<SheetScrollState>}) {
   const guard = useContext(GestureGuard);
-  return <View onStartShouldSetResponderCapture={() => {if (guard?.sheet) guard.scroller.current = sheetScroll ?? null; return false;}} onStartShouldSetResponder={() => Platform.OS !== 'web'} onResponderGrant={() => false} onResponderTerminationRequest={() => true}>{children}</View>;
+  return <View onStartShouldSetResponderCapture={() => {if (guard?.sheet && guard.canInteract()) guard.scroller.current = sheetScroll ?? null; return false;}} onStartShouldSetResponder={() => Platform.OS !== 'web' && (guard?.canInteract() ?? true)} onResponderGrant={() => false} onResponderTerminationRequest={() => true}>{children}</View>;
 }
 
 /** A transparent modal keeps the previous screen visible beneath a back swipe. */
-export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 0, active = true}: {
+export function SwipeBackModal({onClose, onDismissStart, children, sheet = false, sheetHeight = 0, active = true}: {
   onClose: () => void;
+  onDismissStart?: () => void;
   children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>) => ReactNode;
   sheet?: boolean;
   sheetHeight?: number;
   active?: boolean;
 }) {
   const {isDark} = useAppearance();
+  const parentGuard = useContext(GestureGuard);
+  const parentSheets = parentGuard?.sheets;
+  const parentExitingSheets = parentGuard?.exitingSheets;
+  // A second native Modal owns the entire window until it unmounts, even when
+  // its view ignores touches. Keep sheets in the page's window for immediate handoff.
+  const inline = sheet && parentSheets !== undefined;
+  const sheetId = useRef(Symbol('settings-sheet')).current;
+  const sheets = useRef(new Map<symbol, () => void>());
+  const exitingSheets = useRef(new Set<symbol>());
   const {width, height} = useWindowDimensions();
   const travel = sheet ? sheetHeight || height : width;
   const corners = useScreenCorners();
@@ -56,8 +73,13 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
   const entered = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const onDismissStartRef = useRef(onDismissStart);
+  onDismissStartRef.current = onDismissStart;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(inline);
+  const [sheetDismissing, setSheetDismissing] = useState(false);
+
+  const canInteract = useCallback(() => active && !finalized.current && !(sheet && closing.current) && sheets.current.size === 0, [active, sheet]);
 
   useEffect(() => {
     let mounted = true;
@@ -80,12 +102,22 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
 
   const settle = useCallback((back: boolean) => {
     if (finalized.current) return;
+    const startingClose = back && !closing.current;
     const attempt = ++generation.current;
     dragging.current = false;
     progress.stopAnimation();
     pull.stopAnimation();
     sideways.stopAnimation();
     closing.current = back;
+    if (startingClose) onDismissStartRef.current?.();
+    if (sheet) {
+      // The exit spring stays visible, but the next touch belongs to the page.
+      if (back) {
+        parentSheets?.current.delete(sheetId);
+        parentExitingSheets?.current.add(sheetId);
+      }
+      setSheetDismissing(back);
+    }
     if (back) {
       Keyboard.dismiss();
       selectionHaptic();
@@ -113,8 +145,19 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
       Animated.spring(sideways, {...panelSpringForDistance(), toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
     ]) : slide;
     animation.start(({finished}) => {if (finished) finish();});
-  }, [progress, pull, reduceMotion, sheet, sideways, travel]);
+  }, [parentExitingSheets, parentSheets, progress, pull, reduceMotion, sheet, sheetId, sideways, travel]);
   const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
+  const requestClose = useCallback(() => {
+    const topSheet = Array.from(sheets.current.values()).at(-1);
+    if (topSheet) topSheet(); else close();
+  }, [close]);
+
+  useLayoutEffect(() => {
+    if (!inline || sheetDismissing) return;
+    parentSheets.current.set(sheetId, close);
+    return () => {parentSheets.current.delete(sheetId);};
+  }, [close, inline, parentSheets, sheetDismissing, sheetId]);
+  useLayoutEffect(() => () => {parentExitingSheets?.current.delete(sheetId);}, [parentExitingSheets, sheetId]);
 
   useEffect(() => {
     if (!shown || (sheet && !sheetHeight) || reduceMotion === null || entered.current || closing.current) return;
@@ -171,7 +214,7 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: (_, gesture) => {
-      if (!active || !entered.current || finalized.current) return false;
+      if (!canInteract() || !entered.current) return false;
       if (gesture.numberActiveTouches > 1) {multipleTouches.current = true; return false;}
       blocked.current = false;
       scroller.current = null;
@@ -184,9 +227,9 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
       return false;
     },
     // Native Modal's wrapper otherwise takes unclaimed touches before move detection.
-    onStartShouldSetPanResponder: () => active && entered.current && !finalized.current && Platform.OS !== 'web' && !blocked.current,
+    onStartShouldSetPanResponder: () => canInteract() && entered.current && Platform.OS !== 'web' && !blocked.current,
     onMoveShouldSetPanResponderCapture: (_, gesture) => {
-      if (!active || !entered.current || finalized.current || blocked.current || scrolling.current || offAxis.current || dragging.current || gesture.numberActiveTouches !== 1) return false;
+      if (!canInteract() || !entered.current || blocked.current || scrolling.current || offAxis.current || dragging.current || gesture.numberActiveTouches !== 1) return false;
       if (sheet) {
         if (Math.hypot(gesture.dx, gesture.dy) <= 10) return false;
         scrolling.current = shouldScrollSheet(scroller.current?.current, gesture.dx, gesture.dy);
@@ -205,6 +248,7 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
       return canGrab;
     },
     onPanResponderGrant: () => {
+      if (!canInteract()) return;
       // PanResponder zeroes its deltas when taking over a child press. Preserve
       // the movement that claimed the sheet so short pulls do not have a dead zone.
       if (capturedSheetDrag.current) {
@@ -215,7 +259,7 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
     onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) multipleTouches.current = true;},
     onPanResponderMove: (_, gesture) => {
       if (gesture.numberActiveTouches > 1) multipleTouches.current = true;
-      if (!active || finalized.current || blocked.current || scrolling.current || offAxis.current || multipleTouches.current) return;
+      if (!canInteract() || blocked.current || scrolling.current || offAxis.current || multipleTouches.current) return;
       const along = sheet ? gesture.dy : gesture.dx;
       if (!dragging.current) {
         if (sheet) {
@@ -235,35 +279,37 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
       if (!dragging.current) return;
       releaseDrag(gesture.dx, gesture.dy, gesture.vx, gesture.vy, multipleTouches.current);
     },
-    onPanResponderTerminate: () => settle(false),
+    onPanResponderTerminate: () => {if (canInteract()) settle(false);},
     onPanResponderTerminationRequest: () => !dragging.current,
-    onShouldBlockNativeResponder: () => false,
-  }), [active, beginDrag, moveDrag, releaseDrag, settle, sheet]);
+    // Once a pan owns the touch, the outgoing sheet's native ScrollView must
+    // not cancel it while its pointer-events update reaches the UI thread.
+    onShouldBlockNativeResponder: () => dragging.current && exitingSheets.current.size > 0,
+  }), [beginDrag, canInteract, moveDrag, releaseDrag, settle, sheet]);
 
   const radius = (value: number) => progress.interpolate({inputRange: [0, 0.15, 1], outputRange: [0, value, value], extrapolate: 'clamp'});
   const sheetMotion: Animated.WithAnimatedObject<ViewStyle> = {transform: [
     {translateX: sideways},
     {translateY: Animated.subtract(Animated.multiply(progress, travel), pull)},
   ]};
-  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onShow={() => {syncSystemBars(isDark); setShown(true);}} onRequestClose={close}>
-    <SafeAreaProvider>
-      <GestureGuard.Provider value={{blocked, sheet, scroller}}>
-        <DragClickBoundary cancelClick={cancelClick}>
-        <View testID={sheet ? 'settings-sheet-swipe' : 'settings-back-swipe'} style={styles.root} {...pan.panHandlers} onAccessibilityEscape={active ? close : undefined}>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? isDark ? 0.4 : 0.2 : 0.18, 0], extrapolate: 'clamp'})}]}/>
-          <Animated.View testID={sheet ? 'settings-sheet-motion' : 'settings-page-motion'} style={[styles.surface, !sheet && {
-            borderTopLeftRadius: radius(corners.topLeft),
-            borderTopRightRadius: radius(corners.topRight),
-            borderBottomLeftRadius: radius(corners.bottomLeft),
-            borderBottomRightRadius: radius(corners.bottomRight),
-            transform: [{translateX: Animated.multiply(progress, travel)}],
-          }]}>
-            {children(close, sheetMotion)}
-          </Animated.View>
-        </View>
-        </DragClickBoundary>
-      </GestureGuard.Provider>
-    </SafeAreaProvider>
+  const content = <GestureGuard.Provider value={{blocked, sheet, scroller, sheets, exitingSheets, canInteract}}>
+    <DragClickBoundary cancelClick={cancelClick}>
+      <View testID={sheet ? 'settings-sheet-swipe' : 'settings-back-swipe'} pointerEvents={sheetDismissing ? 'none' : 'auto'} accessibilityElementsHidden={sheetDismissing} importantForAccessibility={sheetDismissing ? 'no-hide-descendants' : 'auto'} style={[styles.root, inline && StyleSheet.absoluteFill]} {...pan.panHandlers} onAccessibilityEscape={active ? requestClose : undefined}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? isDark ? 0.4 : 0.2 : 0.18, 0], extrapolate: 'clamp'})}]}/>
+        <Animated.View testID={sheet ? 'settings-sheet-motion' : 'settings-page-motion'} style={[styles.surface, !sheet && {
+          borderTopLeftRadius: radius(corners.topLeft),
+          borderTopRightRadius: radius(corners.topRight),
+          borderBottomLeftRadius: radius(corners.bottomLeft),
+          borderBottomRightRadius: radius(corners.bottomRight),
+          transform: [{translateX: Animated.multiply(progress, travel)}],
+        }]}>
+          {children(close, sheetMotion)}
+        </Animated.View>
+      </View>
+    </DragClickBoundary>
+  </GestureGuard.Provider>;
+  if (inline) return content;
+  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onShow={() => {syncSystemBars(isDark); setShown(true);}} onRequestClose={requestClose}>
+    <SafeAreaProvider>{content}</SafeAreaProvider>
   </Modal>;
 }
 

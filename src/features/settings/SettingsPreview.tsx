@@ -1,5 +1,5 @@
 import {useState, type Dispatch, type SetStateAction} from 'react';
-import {ActivityIndicator, Keyboard, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Text, TextInput, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../chat/chatAppearance';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
@@ -9,6 +9,7 @@ import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 import {AiSettingsPreview} from './AiSettingsPreview';
 import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
+import {useSettingsSheetState} from './useSettingsSheetState';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
@@ -30,17 +31,22 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
   const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
   const [page, setPage] = useState<Page | null>(null);
-  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const {sheet, sheetKey, setSheet, closeSheet} = useSettingsSheetState<Sheet>();
   const [name, setName] = useState('사용자');
   const [language, setLanguage] = useState('한국어');
   const [persona, setPersona] = useState<Persona>({name: '기본', description: ''});
   const [prompt, setPrompt] = useState('');
-  const closeSheet = () => {Keyboard.dismiss(); setSheet(null);};
   const choose = (setter: (value: string) => void, value: string, close: () => void) => {setter(value); close();};
   const values = {ai: aiServices.find(service => service.id === ai.service)?.name, persona: persona.name, prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
+  const renderSheet = () => sheet !== null && <SettingsSheet key={sheetKey} title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
+    {sheet === 'profile' && <ProfileEditor value={name} onApply={value => {setName(value); dismiss();}}/>}
+    {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
+    {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}
+    {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
+  </>}</SettingsSheet>;
 
-  return <SwipeBackModal onClose={onClose} active={page === null && sheet === null}>{close => <>
-    <SettingsPage home onBack={close}>
+  return <SwipeBackModal onClose={onClose} active={page === null}>{close => <>
+    <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
       <SettingsPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
         <View accessible={false} style={{width: r.profileSize * s, height: r.profileSize * s, borderRadius: r.profileSize * s / 2, backgroundColor: p.avatarBackground, alignItems: 'center'}}>
           <View style={{position: 'absolute', top: 20 * s, width: 26 * s, height: 26 * s, borderRadius: 13 * s, backgroundColor: p.avatarForeground}}/>
@@ -56,7 +62,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
     </SettingsPage>
 
     {page === 'ai' && (aiReady ? <AiSettingsPreview value={ai} onChange={onAiChange} saveError={aiError} onClose={() => setPage(null)}/> : <SwipeBackModal onClose={() => setPage(null)}>{back => <SettingsPage title="AI" onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
-    {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => setPage(null)} active={sheet === null}>{back => <SettingsPage title={pageTitles[page]} onBack={back}>
+    {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => {setSheet(null); setPage(null);}}>{back => <><SettingsPage title={pageTitles[page]} onBack={back} obscured={sheet !== null}>
       {page === 'theme' && <>
         <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
         <SettingsRow plain label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>
@@ -69,14 +75,9 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
         <Text style={{color: p.secondary, fontSize: 26 * s, lineHeight: 38 * s}}>이야기가 시작되는 대화.</Text>
         <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: r.rowHeight * s}}><Text style={{color: p.text, fontSize: r.rowFont * s}}>앱 버전</Text><Text style={{color: p.secondary, fontSize: r.valueFont * s}}>0.1.0</Text></View>
       </View>}
-    </SettingsPage>}</SwipeBackModal>}
+    </SettingsPage>{renderSheet()}</>}</SwipeBackModal>}
 
-    {sheet !== null && <SettingsSheet title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
-      {sheet === 'profile' && <ProfileEditor value={name} onApply={value => {setName(value); dismiss();}}/>}
-      {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
-      {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}
-      {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
-    </>}</SettingsSheet>}
+    {page === null && renderSheet()}
   </>}</SwipeBackModal>;
 }
 

@@ -1,5 +1,5 @@
 import {useRef, useState, type ReactNode} from 'react';
-import {Animated, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {Animated, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
@@ -21,17 +21,18 @@ export function useSettingsRadius(kind: 'panel' | 'control' = 'panel') {
   return (kind === 'panel' ? settingsReference.radius : settingsReference.controlRadius) * useSettingsScale();
 }
 
-export function SettingsPage({children, onBack, title, home = false}: {
+export function SettingsPage({children, onBack, title, home = false, obscured = false}: {
   children: ReactNode;
   onBack: () => void;
   title?: string;
   home?: boolean;
+  obscured?: boolean;
 }) {
   const {settings: p} = useAppearance();
   const {width} = useWindowDimensions();
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
-  return <SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
+  return <View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
     <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{marginTop: insets.top}} contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: referenceHeader.barHeight * s + settingsReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
       <SwipeBackScrollContent>
         {title && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
@@ -43,7 +44,7 @@ export function SettingsPage({children, onBack, title, home = false}: {
         <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
       </ScreenHeader>
     </View>
-  </SafeAreaView>;
+  </SafeAreaView></View>;
 }
 
 export function SettingsGroup({children}: {children: ReactNode}) {
@@ -71,6 +72,14 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const radius = useSettingsRadius();
   const {height: windowHeight} = useWindowDimensions();
   const [bodyHeight, setBodyHeight] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const scrollView = useRef<ScrollView>(null);
+  const beginDismiss = () => {
+    setClosing(true);
+    // Moving a still-scrollable Android view under a new finger looks like a
+    // vertical drag to ScrollView. Disable it before starting the native spring.
+    if (Platform.OS !== 'web') scrollView.current?.setNativeProps({scrollEnabled: false});
+  };
   const bottom = Math.max(insets.bottom, settingsReference.sheetInset * s);
   const handleHeight = 58 * s;
   const maximumHeight = (windowHeight - bottom) * 0.85;
@@ -78,11 +87,11 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   scroll.current.canScroll = bodyHeight > height - handleHeight + 1;
-  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose}>{(close, motionStyle) => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>
+  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>
     <SwipeBackBoundary style={{position: 'absolute', inset: 0}}><Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <Animated.View testID="settings-sheet" accessibilityViewIsModal style={[{width: '100%', maxWidth: 560, height, borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: handleHeight, flexShrink: 0, alignItems: 'center', paddingTop: settingsReference.sheetHandle.top * s}}><View style={{width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16} contentContainerStyle={{paddingHorizontal: settingsReference.sheetPadding * s, paddingTop: 15 * s, paddingBottom: 42 * s}}>
+      <ScrollView ref={scrollView} scrollEnabled={!closing} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16} contentContainerStyle={{paddingHorizontal: settingsReference.sheetPadding * s, paddingTop: 15 * s, paddingBottom: 42 * s}}>
         <SwipeBackScrollContent sheetScroll={scroll}>
           <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
           {caption && <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 36 * s, marginTop: 20 * s}}>{caption}</Text>}

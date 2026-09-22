@@ -4,6 +4,7 @@ import {SettingsChoice, SettingsGroup, SettingsPage, SettingsRow, SettingsSheet}
 import {SwipeBackModal} from './SwipeBackModal';
 import {AiAction, AiCaption, AiField, AiSection, AiToggle} from './AiSettingsControls';
 import {AiModelPicker} from './AiModelPicker';
+import {useSettingsSheetState} from './useSettingsSheetState';
 import {catalogKinds, catalogLabels} from './aiModelCatalog';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
 import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, connectionRoute, connectionRoutes, createConnectionPreview, dataPolicyLabels, effortLabels, filterLabels, lengthLabels, modelPresetCapabilities, modelPresetFor, previewModel, routingLabels, safetyCategories, toolLabels, type AiConnectionPreview, type AiModelPresetPreview, type AiSettingsPreviewState} from './aiSettingsModel';
@@ -27,7 +28,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
   const model = previewModel(service, connection.model, connection);
   const preset = modelPresetFor(service.id, connection);
   const capabilities = modelPresetCapabilities(service, connection);
-  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const {sheet, sheetKey, setSheet, closeSheet} = useSettingsSheetState<Sheet>();
   const [notice, setNotice] = useState('');
   const patch = (change: Partial<AiConnectionPreview>) => onChange(old => ({...old, connections: {...old.connections, [service.id]: {...old.connections[service.id], ...change}}}));
   const patchPreset = (change: Partial<AiModelPresetPreview>) => onChange(old => {
@@ -82,8 +83,8 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
     </>;
   }
 
-  return <SwipeBackModal onClose={onClose} active={sheet === null}>{back => <>
-    <KeyboardAvoidingView style={{flex: 1}} behavior="padding"><SettingsPage title="AI" onBack={back}>
+  return <SwipeBackModal onClose={onClose}>{back => <>
+    <KeyboardAvoidingView style={{flex: 1}} behavior="padding"><SettingsPage title="AI" onBack={back} obscured={sheet !== null}>
       {saveError && <AiCaption>{saveError}</AiCaption>}
       <SettingsGroup>
         <SettingsRow label="프로바이더" value={service.name} onPress={() => {Keyboard.dismiss(); setSheet({kind: 'services'});}}/>
@@ -135,7 +136,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
     </SettingsPage></KeyboardAvoidingView>
 
-    {sheet && <SettingsSheet fillHeight={sheet.kind === 'models'} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={() => {Keyboard.dismiss(); setSheet(null);}}>{close => sheet.kind === 'services' ? <>
+    {sheet && <SettingsSheet key={sheetKey} fillHeight={sheet.kind === 'models'} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
       {aiServices.map(item => <SettingsChoice key={item.id} label={item.name} selected={service.id === item.id} onPress={() => {
         onChange(old => ({...old, service: item.id, connections: {...old.connections, [item.id]: old.connections[item.id] ?? createConnectionPreview(item)}}));
         setNotice(''); close();
