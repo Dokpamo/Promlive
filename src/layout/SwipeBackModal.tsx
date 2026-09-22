@@ -30,10 +30,11 @@ export function SwipeBackScrollContent({children, sheetScroll}: {children: React
 }
 
 /** A transparent modal keeps the previous screen visible beneath a back swipe. */
-export function SwipeBackModal({onClose, onDismissStart, onBackRequest, children, sheet = false, sheetHeight = 0, active = true}: {
+export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, children, sheet = false, sheetHeight = 0, active = true}: {
   onClose: () => void;
   onDismissStart?: () => void;
   onBackRequest?: () => boolean;
+  onShow?: () => void;
   children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>) => ReactNode;
   sheet?: boolean;
   sheetHeight?: number;
@@ -78,6 +79,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, children
   onDismissStartRef.current = onDismissStart;
   const onBackRequestRef = useRef(onBackRequest);
   onBackRequestRef.current = onBackRequest;
+  const onShowRef = useRef(onShow);
+  onShowRef.current = onShow;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [shown, setShown] = useState(inline);
   const [sheetDismissing, setSheetDismissing] = useState(false);
@@ -161,6 +164,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, children
     return () => {parentSheets.current.delete(sheetId);};
   }, [requestClose, inline, parentSheets, sheetDismissing, sheetId]);
   useLayoutEffect(() => () => {parentExitingSheets?.current.delete(sheetId);}, [parentExitingSheets, sheetId]);
+  useEffect(() => {if (inline) onShowRef.current?.();}, [inline]);
 
   useEffect(() => {
     if (!shown || (sheet && !sheetHeight) || reduceMotion === null || entered.current || closing.current) return;
@@ -311,7 +315,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, children
     </DragClickBoundary>
   </GestureGuard.Provider>;
   if (inline) return content;
-  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onShow={() => {syncSystemBars(isDark); setShown(true);}} onRequestClose={requestClose}>
+  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onShow={() => {syncSystemBars(isDark); setShown(true); onShowRef.current?.();}} onRequestClose={requestClose}>
     <SafeAreaProvider>{content}</SafeAreaProvider>
   </Modal>;
 }

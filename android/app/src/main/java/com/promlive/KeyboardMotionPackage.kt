@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import androidx.core.view.ViewCompat
+import androidx.core.view.SoftwareKeyboardControllerCompat
 import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.ReactPackage
@@ -205,6 +206,40 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
   }
 
   fun keyboardWillAnimate() { expansionReady?.invoke() }
+
+  /** A dialog editor belongs to its own window, not the activity's currentFocus. */
+  @ReactMethod
+  fun showForInput(reactTag: Int) {
+    UiThreadUtil.runOnUiThread {
+      val editor = runCatching {
+        UIManagerHelper.getUIManagerForReactTag(reactApplicationContext, reactTag)?.resolveView(reactTag)
+      }.getOrNull() ?: return@runOnUiThread
+      if (!editor.isAttachedToWindow || hardwareKeyboardOnly(editor)) return@runOnUiThread
+      val show = {
+        editor.post {
+          if (editor.isAttachedToWindow && editor.hasWindowFocus() && editor.hasFocus()) {
+            SoftwareKeyboardControllerCompat(editor).show()
+          }
+        }
+      }
+      if (editor.hasWindowFocus()) {
+        show()
+      } else {
+        val observer = editor.viewTreeObserver
+        val listener = object : ViewTreeObserver.OnWindowFocusChangeListener, View.OnAttachStateChangeListener {
+          private fun remove() {
+            if (observer.isAlive) observer.removeOnWindowFocusChangeListener(this)
+            editor.removeOnAttachStateChangeListener(this)
+          }
+          override fun onWindowFocusChanged(hasFocus: Boolean) { if (hasFocus) { remove(); show() } }
+          override fun onViewDetachedFromWindow(view: View) { remove() }
+          override fun onViewAttachedToWindow(view: View) = Unit
+        }
+        observer.addOnWindowFocusChangeListener(listener)
+        editor.addOnAttachStateChangeListener(listener)
+      }
+    }
+  }
 
   @ReactMethod
   fun show() {

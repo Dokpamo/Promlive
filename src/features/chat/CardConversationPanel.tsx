@@ -10,7 +10,8 @@ import {SettingsIcon} from '../settings/SettingsIcon';
 import {panelReference as g} from '../../layout/panelGeometry';
 import {PressSurface} from '../../layout/PressSurface';
 import type {SheetScrollState} from '../../layout/sheetMotion';
-import {HistoryActionMenu, HistoryRenameDialog, type HistoryMenuTarget} from './HistoryActions';
+import {HistoryActionMenu, type HistoryMenuTarget} from './HistoryActions';
+import {HistoryRenameSheet} from './HistoryRenameSheet';
 import {selectionHaptic} from '../../layout/selectionHaptic';
 import {historyListLayout, useHistoryPresence, useHistoryReducedMotion, useHistoryRowOffset, type HistoryLayoutItem} from './historyListMotion';
 
@@ -20,6 +21,7 @@ export function CardConversationPanel({history, openConversation, report, scale:
 }) {
   useSyncExternalStore(history.subscribe, history.snapshot);
   const {colors: c, settings: p, isDark} = useAppearance();
+  const panel = useRef<View>(null);
   const dimensions = useRef({content: 0, viewport: 0});
   const {fontScale} = useWindowDimensions();
   const [menu, setMenu] = useState<HistoryMenuTarget | null>(null);
@@ -73,19 +75,24 @@ export function CardConversationPanel({history, openConversation, report, scale:
     catch (error) {report(error);}
     finally {deletion.current = false; setDeleting(false);}
   };
-  const openMenu = (item: Conversation, row: View | null) => {
+  const openMenu = (item: Conversation) => {
     if (selected || deletion.current) return;
     Keyboard.dismiss();
-    row?.measureInWindow((left, top, width, height) => {
+    panel.current?.measureInWindow((left, top, width, height) => {
+      if (width <= 0 || height <= 0) return;
       selectionHaptic();
-      setMenu({conversation: item, left, top, width, height});
+      setMenu({conversation: item, bounds: {left, top, width, height}});
     });
   };
   const measureList = (kind: 'content' | 'viewport', height: number) => {
     dimensions.current[kind] = height;
     scroll.current.canScroll = dimensions.current.content > dimensions.current.viewport + 1;
   };
-  return <View testID="history-content" style={{flex: 1}}>
+  return <View ref={panel} collapsable={false} testID="history-content" style={{flex: 1}} onLayout={() => {
+    if (menu) panel.current?.measureInWindow((left, top, width, height) => {
+      if (width > 0 && height > 0) setMenu(current => current ? {...current, bounds: {left, top, width, height}} : null);
+    });
+  }}>
     <View style={{flex: 1}} pointerEvents={overlay ? 'none' : 'auto'} aria-hidden={overlay} accessibilityElementsHidden={overlay} importantForAccessibility={overlay ? 'no-hide-descendants' : 'auto'}>
       <CardConversationHeader card={card} scale={s} onClose={() => {if (selected) setSelected(null); else onClose();}} closeLabel={selected ? '선택 취소' : '채팅내역 닫기'}/>
       <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {onListTouch(); return false;}}>
@@ -101,7 +108,7 @@ export function CardConversationPanel({history, openConversation, report, scale:
             {item.kind === 'divider' ? <HistoryPinDivider visible={item.visible} scale={s} reduced={reduced}/> :
               <HistoryRow item={item.conversation} scale={s} height={rowHeight} selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced}
                 selected={selected ? selected.has(item.conversation.id) : item.conversation.id === (menu?.conversation.id ?? history.selected?.id)} disabled={deleting}
-                onPress={() => select(item.conversation)} onLongPress={row => openMenu(item.conversation, row)}/>}
+                onPress={() => select(item.conversation)} onLongPress={() => openMenu(item.conversation)}/>}
           </HistoryMotionCell>}/>
       </View>
       {selection.present && <Animated.View testID="history-selection-footer" pointerEvents={selected ? 'auto' : 'none'} aria-hidden={!selected} accessibilityElementsHidden={!selected} importantForAccessibility={selected ? 'auto' : 'no-hide-descendants'}
@@ -118,7 +125,7 @@ export function CardConversationPanel({history, openConversation, report, scale:
       onSelect={() => setSelected(new Set([menu.conversation.id]))}
       onPin={() => {void history.pin(menu.conversation.id, menu.conversation.pinnedAt == null).catch(report);}}
       onRename={() => setRename(menu.conversation)} onDelete={() => {void remove([menu.conversation.id]);}}/>}
-    {rename && <HistoryRenameDialog conversation={rename} onClose={() => setRename(null)} onSave={title => history.rename(rename.id, title)}/>}
+    {rename && <HistoryRenameSheet conversation={rename} onClose={() => setRename(null)} onSave={title => history.rename(rename.id, title)}/>}
   </View>;
 }
 
@@ -144,20 +151,19 @@ function HistoryPinDivider({visible, scale: s, reduced}: {visible: boolean; scal
 
 function HistoryRow({item, scale: s, height, selecting, selectionProgress, reduced, selected, disabled, onPress, onLongPress}: {
   item: Conversation; scale: number; height: number; selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; disabled: boolean;
-  onPress: () => void; onLongPress: (row: View | null) => void;
+  onPress: () => void; onLongPress: () => void;
 }) {
   const {colors: c} = useAppearance();
-  const row = useRef<View>(null);
   const {progress: highlight} = useHistoryPresence(selected, reduced, true);
   const {progress: pinned} = useHistoryPresence(item.pinnedAt != null, reduced);
   const pinVisibility = Animated.multiply(pinned, Animated.subtract(1, selectionProgress));
-  return <View ref={row} collapsable={false}>
+  return <View>
     <RowPressable testID={`sidebar-row-${item.id}`} accessibilityRole={selecting ? 'checkbox' : 'button'}
       accessibilityLabel={selecting ? item.title : `${item.title} 채팅 열기`} accessibilityHint={selecting ? undefined : '길게 눌러 선택, 고정, 이름 변경, 삭제'}
       accessibilityState={selecting ? {checked: selected, disabled} : {selected, disabled}}
-      accessibilityActions={[{name: 'longpress', label: '채팅내역 메뉴'}]} onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'longpress') onLongPress(row.current);}}
+      accessibilityActions={[{name: 'longpress', label: '채팅내역 메뉴'}]} onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'longpress') onLongPress();}}
       selected={selected} selectedHighlight="pressed" selectionProgress={highlight} disabled={disabled} delayLongPress={420}
-      onPress={onPress} onLongPress={() => onLongPress(row.current)} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}
+      onPress={onPress} onLongPress={onLongPress} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}
       contentStyle={{height, paddingVertical: g.rowPadding * s, paddingHorizontal: g.rowInset * s, flexDirection: 'row', alignItems: 'center'}}>
       <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [0, 46 * s]}), opacity: selectionProgress, overflow: 'hidden'}}>
         <Animated.View testID={`history-check-${item.id}`} style={{width: 30 * s, height: 30 * s, borderWidth: 1.5 * s, borderColor: c.muted, borderRadius: 15 * s, alignItems: 'center', justifyContent: 'center',
