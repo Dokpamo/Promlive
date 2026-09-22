@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Keyboard, Pressable, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {KeyboardMotionProvider} from './src/layout/KeyboardMotion';
+import {initialStartupTheme, useStartupScreen} from './src/layout/StartupScreen';
 import {initialize} from './src/app/runtime';
 import {Workspace} from './src/app/workspace';
 import {ChatScreen} from './src/features/chat/ChatScreen';
@@ -19,8 +20,9 @@ import {AppearanceProvider, storedTheme, themeSettingKey, useAppearance, type Th
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [error, setError] = useState('');
-  const [theme, setTheme] = useState<ThemeMode>('dark');
+  const [theme, setTheme] = useState<ThemeMode>(initialStartupTheme);
   const [chatDisplay, setChatDisplay] = useState<ChatDisplayMode>('default');
+  useStartupScreen(!!error, theme);
   useEffect(() => {
     let active = true;
     void initialize().then(async runtime => {

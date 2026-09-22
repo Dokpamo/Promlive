@@ -20,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
               add(PromliveHapticsPackage())
               add(SystemBarsPackage())
               add(KeyboardMotionPackage())
+              add(StartupScreenPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
@@ -35,6 +36,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    StartupAppearance.restore(this)
     loadReactNative(this)
   }
 }

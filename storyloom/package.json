@@ -13,7 +13,8 @@
     "build:web": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm test && npm run build:web"
+    "verify": "npm run typecheck && npm test && npm run build:web",
+    "build:brand": "node scripts/generate-android-brand.cjs"
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
@@ -48,6 +49,7 @@
     "@vitejs/plugin-react": "5.0.4",
     "fake-indexeddb": "6.2.5",
     "jsdom": "26.1.0",
+    "sharp": "0.35.4",
     "typescript": "5.9.3",
     "vite": "7.1.7",
     "vitest": "3.2.4"
