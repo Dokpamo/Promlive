@@ -1,8 +1,9 @@
 import type {Card, Draft} from '../features/cards/model';
 import type {Conversation, Message} from '../features/chat/model';
+import type {ChatSessionStore} from '../features/chat/sessionStore';
 
 /** Domain storage contract. UI and generation logic do not depend on SQL or native modules. */
-export interface StoryRepository {
+export interface StoryRepository extends ChatSessionStore {
   listCards(): Promise<Card[]>;
   getCard(id: string): Promise<Card>;
   insertCard(card: Card): Promise<Card>;
@@ -18,7 +19,6 @@ export interface StoryRepository {
   renameConversation(id: string, title: string): Promise<void>;
   pinConversation(id: string, pinned: boolean): Promise<void>;
   deleteConversations(ids: readonly string[]): Promise<void>;
-  saveComposerDraft(conversationId: string, value: string): Promise<void>;
   messages(conversationId: string, before?: number, limit?: number): Promise<Message[]>;
   beginExchange(conversationId: string, requestId: string, content: string): Promise<{user: Message; assistant: Message}>;
   appendLocalUserMessage(conversationId: string, content: string): Promise<Message>;

@@ -49,9 +49,9 @@ export function AiToggle({label, detail, value, onChange}: {label: string; detai
   </SettingsPressable></SwipeBackBoundary>;
 }
 
-export function AiAction({label, onPress, primary = false}: {label: string; onPress: () => void; primary?: boolean}) {
+export function AiAction({label, onPress, primary = false, disabled = false}: {label: string; onPress: () => void; primary?: boolean; disabled?: boolean}) {
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <PressSurface accessibilityRole="button" accessibilityLabel={label} onPress={onPress} radius={radius} highlightColor={primary ? p.onPrimary : p.selected} highlightOpacity={primary ? 0.08 : 1} style={{marginTop: 16 * s}} contentStyle={{backgroundColor: primary ? p.primary : p.surface, minHeight: 82 * s, alignItems: 'center', justifyContent: 'center', padding: 18 * s}}><Text style={{color: primary ? p.onPrimary : p.text, fontSize: 26 * s}}>{label}</Text></PressSurface>;
+  return <PressSurface accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} radius={radius} highlightColor={primary ? p.onPrimary : p.selected} highlightOpacity={primary ? 0.08 : 1} style={{marginTop: 16 * s}} contentStyle={{backgroundColor: primary ? p.primary : p.surface, minHeight: 82 * s, alignItems: 'center', justifyContent: 'center', padding: 18 * s}}><Text style={{color: primary ? p.onPrimary : p.text, fontSize: 26 * s}}>{label}</Text></PressSurface>;
 }

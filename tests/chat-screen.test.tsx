@@ -29,6 +29,7 @@ vi.mock('react-native', async () => {
     }),
   };
 });
+vi.mock('../src/extensions/ChatSummaryAction', () => ({ChatSummaryAction: () => null}));
 vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})}));
 vi.mock('../src/layout/KeyboardMotion', () => ({useKeyboardFrame: () => ({height: 0})}));
 vi.mock('../src/features/appearance/AppAppearance', async () => {
@@ -36,9 +37,9 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
   return {useAppearance: () => ({colors: lightChatColors, chatDisplay: 'default'})};
 });
 vi.mock('../src/features/chat/ChatComposer', () => ({
-  ChatComposer: (props: {value: string; onChange: (value: string) => void; onSend: () => void; ready: boolean; sending: boolean}) => <>
+  ChatComposer: (props: {value: string; onChange: (value: string) => void; onSend: () => void; ready: boolean; action: {enabled: boolean; kind: string}}) => <>
     <textarea aria-label="메시지 입력" disabled={!props.ready} value={props.value} onChange={event => props.onChange(event.target.value)}/>
-    <button disabled={!props.ready || props.sending} onClick={props.onSend}>전송</button>
+    <button disabled={!props.action.enabled} onClick={props.onSend}>전송</button>
   </>,
 }));
 
@@ -135,7 +136,7 @@ it('keeps loaded older pages after sending and can still reach the beginning', a
 
 it('keeps the input when sending fails', async () => {
   const {workspace, storage} = await setup();
-  vi.spyOn(storage, 'appendLocalUserMessage').mockRejectedValueOnce(new Error('저장 실패'));
+  vi.spyOn(storage, 'acceptChatSubmission').mockRejectedValueOnce(new Error('저장 실패'));
   await type('실패해도 남아야 하는 문장');
   await act(async () => {button('전송')!.click();});
   await until(() => expect(workspace.error).toBe('저장 실패'));
@@ -151,8 +152,8 @@ function deferred() {
 it('preserves edits made while a send is being accepted, even if the text is retyped identically', async () => {
   const {storage, conversation} = await setup();
   const release = deferred();
-  const append = storage.appendLocalUserMessage.bind(storage);
-  vi.spyOn(storage, 'appendLocalUserMessage').mockImplementationOnce(async (...args) => {
+  const append = storage.acceptChatSubmission.bind(storage);
+  vi.spyOn(storage, 'acceptChatSubmission').mockImplementationOnce(async (...args) => {
     await release.promise;
     return append(...args);
   });
@@ -163,17 +164,17 @@ it('preserves edits made while a send is being accepted, even if the text is ret
   await act(async () => {release.resolve();});
   await until(() => expect(messages()).toHaveLength(1));
   expect(input().value).toBe('같은 문장');
-  await until(async () => expect(await storage.getSetting(`composer:${conversation.id}`)).toBe('같은 문장'));
+  await until(async () => expect((await storage.loadComposerDraft(conversation.id)).text).toBe('같은 문장'));
 });
 
-it('flushes each room draft and ignores an earlier room send completing after navigation', async () => {
+it('flushes each room draft and clears the accepted room after navigation', async () => {
   const {workspace, storage, conversation} = await setup();
   const other = await storage.createConversation(conversation.cardId, '다른 방');
-  await storage.setSetting(`composer:${other.id}`, '다른 방 초안');
+  await storage.writeComposerDraft(other.id, {text: '다른 방 초안', revision: 1});
   await act(async () => {await workspace.refresh();});
   const release = deferred();
-  const append = storage.appendLocalUserMessage.bind(storage);
-  vi.spyOn(storage, 'appendLocalUserMessage').mockImplementationOnce(async (...args) => {
+  const append = storage.acceptChatSubmission.bind(storage);
+  vi.spyOn(storage, 'acceptChatSubmission').mockImplementationOnce(async (...args) => {
     await release.promise;
     return append(...args);
   });
@@ -189,7 +190,8 @@ it('flushes each room draft and ignores an earlier room send completing after na
   expect(messages()).toHaveLength(0);
   await act(async () => {await workspace.openConversation(conversation);});
   await until(() => expect(input().disabled).toBe(false));
-  expect(await storage.getSetting(`composer:${other.id}`)).toBe('다른 방에서 새로 편집');
+  expect(input().value).toBe('');
+  expect((await storage.loadComposerDraft(other.id)).text).toBe('다른 방에서 새로 편집');
 });
 
 it('ignores a late draft restore after switching to another conversation', async () => {
@@ -198,9 +200,9 @@ it('ignores a late draft restore after switching to another conversation', async
   await type('현재 방 초안');
   await act(async () => {await workspace.refresh();});
   const release = deferred();
-  const read = storage.getSetting.bind(storage);
-  vi.spyOn(storage, 'getSetting').mockImplementation(async key => {
-    if (key === `composer:${slow.id}`) {await release.promise; return '늦게 도착한 다른 방 초안';}
+  const read = storage.loadComposerDraft.bind(storage);
+  vi.spyOn(storage, 'loadComposerDraft').mockImplementation(async key => {
+    if (key === slow.id) {await release.promise; return {text: '늦게 도착한 다른 방 초안', revision: 1, acceptedRevision: -1};}
     return read(key);
   });
   await act(async () => {await workspace.openConversation(slow);});

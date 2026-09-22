@@ -17,6 +17,18 @@ async function setup(provider = new FixtureProvider()) {
   return {repo, card, conversation, coordinator, service: new CreationService(repo, coordinator)};
 }
 describe('AI generation lifecycle without a live provider', () => {
+  it('accepts Babel async iterators on Hermes without Symbol.asyncIterator', async () => {
+    const provider = new FixtureProvider();
+    provider.stream = () => {
+      let index = 0;
+      const events: AiEvent[] = [{type: 'delta', text: '네이티브 응답'}, {type: 'done'}];
+      return {'@@asyncIterator': () => ({next: async () => index < events.length ? {value: events[index++]!, done: false} : {value: undefined, done: true}})} as unknown as AsyncIterable<AiEvent>;
+    };
+    const {coordinator} = await setup(provider);
+    const received: AiEvent[] = [];
+    await coordinator.run(request('hermes'), event => {received.push(event);});
+    expect(received).toEqual([{type: 'delta', text: '네이티브 응답'}, {type: 'done'}]);
+  });
   it('acknowledges composer input only after the user message is saved', async () => {
     const {repo, card, conversation, service} = await setup();
     let accepted = false;

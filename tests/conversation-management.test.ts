@@ -31,7 +31,7 @@ it('upgrades existing histories without changing titles, messages or drafts', as
   await migrate(db);
   expect((await repo.conversations())[0]).toMatchObject({id: chat.id, title: '기존 대화', pinnedAt: null});
   expect((await repo.messages(chat.id))[0]?.content).toBe('보존할 내용');
-  expect(await repo.getSetting(`composer:${chat.id}`)).toBe('초안');
+  expect((await repo.loadComposerDraft(chat.id)).text).toBe('초안');
 });
 
 it('persists pins and manual names across reopen, groups pinned first and restores recency on unpin', async () => {
@@ -64,7 +64,7 @@ it('bulk deletes only selected histories and messages, and rejects late draft fl
   const keep = await repo.createConversation(card.id);
   for (const item of [first, second, keep]) {
     await repo.appendLocalUserMessage(item.id, item.id);
-    await repo.saveComposerDraft(item.id, '초안');
+    await repo.writeComposerDraft(item.id, {text: '초안', revision: 1});
   }
   await workspace.ready(); await workspace.openConversation(first);
   await workspace.deleteConversations([first.id, second.id, first.id]);
@@ -72,9 +72,9 @@ it('bulk deletes only selected histories and messages, and rejects late draft fl
   expect(await repo.messages(first.id)).toEqual([]);
   expect(await repo.messages(second.id)).toEqual([]);
   expect(await repo.messages(keep.id)).toHaveLength(1);
-  await repo.saveComposerDraft(first.id, '화면이 닫히면서 도착한 초안');
-  expect(await repo.getSetting(`composer:${first.id}`)).toBeUndefined();
-  expect(await repo.getSetting(`composer:${keep.id}`)).toBe('초안');
+  await repo.writeComposerDraft(first.id, {text: '화면이 닫히면서 도착한 초안', revision: 2});
+  expect((await repo.loadComposerDraft(first.id)).text).toBe('');
+  expect((await repo.loadComposerDraft(keep.id)).text).toBe('초안');
   expect(await repo.getCard(card.id)).toMatchObject({id: card.id});
   await workspace.deleteConversations([keep.id]);
   expect(workspace.conversation).toBeNull();

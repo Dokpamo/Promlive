@@ -11,6 +11,8 @@ import {AiSettingsPreview} from './AiSettingsPreview';
 import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
 import {useSettingsSheetState} from './useSettingsSheetState';
 import {SettingsTextField} from './SettingsTextField';
+import {SummaryExtensionSettings} from '../../extensions/SummaryExtensionSettings';
+import type {SummaryExtensions} from '../../extensions/SummaryExtensions';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
@@ -26,8 +28,9 @@ const sheetCaptions: Partial<Record<Sheet, string>> = {
 const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
 
 /** Appearance, AI preferences and separately stored API keys persist; login remains a preview. */
-export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
+export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, extensions}: {
   onClose: () => void; ai: AiSettingsPreviewState; onAiChange: Dispatch<SetStateAction<AiSettingsPreviewState>>; aiReady: boolean; aiError: string;
+  extensions?: SummaryExtensions;
 }) {
   const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
@@ -70,7 +73,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
       </>}
       {page === 'persona' && <PersonaEditor value={persona} onApply={value => {setPersona(value); back();}}/>}
       {page === 'prompt' && <PromptEditor value={prompt} onApply={value => {setPrompt(value); back();}}/>}
-      {page === 'plugins' && <SettingsNote>등록된 플러그인이 없어요.</SettingsNote>}
+      {page === 'plugins' && (extensions ? <SummaryExtensionSettings extensions={extensions}/> : <SettingsNote>등록된 플러그인이 없어요.</SettingsNote>)}
       {page === 'about' && <View style={{marginHorizontal: 6 * s, marginTop: 24 * s, gap: 24 * s}}>
         <Text style={{color: p.text, fontSize: referenceTypography.logoFontSize * s, lineHeight: 58 * s, fontWeight: referenceTypography.logoWeight, letterSpacing: -s}}>Promlive</Text>
         <Text style={{color: p.secondary, fontSize: 26 * s, lineHeight: 38 * s}}>이야기가 시작되는 대화.</Text>

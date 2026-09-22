@@ -18,6 +18,18 @@ export const migrations = [
     'ALTER TABLE conversations ADD COLUMN title_edited INTEGER NOT NULL DEFAULT 0',
     'CREATE INDEX conversation_history ON conversations(card_id, pinned_at DESC, updated_at DESC)',
   ],
+  [
+    'CREATE TABLE composer_drafts (conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE, text TEXT NOT NULL, revision INTEGER NOT NULL, accepted_revision INTEGER NOT NULL DEFAULT -1)',
+    "INSERT INTO composer_drafts(conversation_id,text,revision) SELECT c.id,s.value,0 FROM conversations c JOIN settings s ON s.key='composer:'||c.id",
+    "DELETE FROM settings WHERE key LIKE 'composer:%'",
+    'CREATE TABLE chat_submissions (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, text TEXT NOT NULL, draft_revision INTEGER NOT NULL, generate INTEGER NOT NULL, user_message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE, assistant_message_id TEXT REFERENCES messages(id) ON DELETE CASCADE)',
+  ],
+  [
+    'CREATE TABLE personal_extensions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, execution_revision INTEGER NOT NULL DEFAULT 0, active_version INTEGER, draft_version INTEGER, enabled INTEGER NOT NULL DEFAULT 0, grants TEXT NOT NULL DEFAULT \'[]\')',
+    'CREATE TABLE personal_extension_versions (extension_id TEXT NOT NULL REFERENCES personal_extensions(id) ON DELETE CASCADE, version INTEGER NOT NULL, document TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(extension_id,version))',
+    'CREATE TABLE personal_extension_results (id TEXT PRIMARY KEY, extension_id TEXT NOT NULL REFERENCES personal_extensions(id) ON DELETE CASCADE, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, version INTEGER NOT NULL, content TEXT NOT NULL, through_sequence INTEGER NOT NULL, message_count INTEGER NOT NULL, created_at INTEGER NOT NULL)',
+    'CREATE INDEX extension_room_results ON personal_extension_results(extension_id,conversation_id,created_at DESC)',
+  ],
 ] as const;
 export const DATABASE_VERSION = migrations.length;
 export async function migrate(db: SqlDatabase, steps: readonly (readonly string[])[] = migrations) {

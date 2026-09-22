@@ -44,7 +44,7 @@ const locks = {current: 0};
 const change = vi.fn();
 async function render() {
   if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
-  await act(async () => root!.render(<DrawerModalLocks.Provider value={locks}><ChatComposer value="작성 중인 긴 메시지" onChange={change} onSend={() => {}} onCancel={() => {}} onHint={() => {}} width={412} bottom={24} ready sending={false} generating={false}/></DrawerModalLocks.Provider>));
+  await act(async () => root!.render(<DrawerModalLocks.Provider value={locks}><ChatComposer value="작성 중인 긴 메시지" onChange={change} onSend={() => {}} onCancel={() => {}} onHint={() => {}} width={412} bottom={24} ready action={{kind: 'send', enabled: true, label: '메시지 보내기'}}/></DrawerModalLocks.Provider>));
 }
 async function press(label: string) {
   await act(async () => (document.querySelector(`[aria-label="${label}"]`) as HTMLElement).click());

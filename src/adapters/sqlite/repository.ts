@@ -3,11 +3,17 @@ import type {SqlDatabase, SqlSession} from '../../ports/storage';
 import type {StoryRepository} from '../../ports/repository';
 import {cardSchema, draftSchema, newId, type Card, type Draft} from '../../features/cards/model';
 import {conversationSchema, messageSchema, type Conversation, type Message} from '../../features/chat/model';
+import {SqliteChatSessionStore} from './chatSessionStore';
+import type {ChatSubmission, ComposerDraft} from '../../features/chat/sessionStore';
 const bufferSchema = cardSchema.extend({title: z.string().max(120)});
 
 export class RevisionConflict extends Error { constructor() { super('원본 카드가 변경되었습니다. 최신 내용과 초안을 비교한 뒤 다시 적용해 주세요.'); this.name = 'RevisionConflict'; } }
 export class Repository implements StoryRepository {
-  constructor(readonly db: SqlDatabase) {}
+  private readonly chatStore: SqliteChatSessionStore;
+  constructor(readonly db: SqlDatabase) {this.chatStore = new SqliteChatSessionStore(db);}
+  loadComposerDraft(id: string) {return this.chatStore.loadComposerDraft(id);}
+  writeComposerDraft(id: string, draft: Pick<ComposerDraft, 'text' | 'revision'>) {return this.chatStore.writeComposerDraft(id, draft);}
+  acceptChatSubmission(submission: ChatSubmission) {return this.chatStore.acceptChatSubmission(submission);}
   async listCards() { return (await this.db.execute('SELECT document FROM cards ORDER BY updated_at DESC')).rows.map(row => cardSchema.parse(JSON.parse(String(row.document)))); }
   async getCard(id: string, tx: SqlSession = this.db) {
     const row = (await tx.execute('SELECT document FROM cards WHERE id = ?', [id])).rows[0];
@@ -102,10 +108,6 @@ export class Repository implements StoryRepository {
         await tx.execute('DELETE FROM settings WHERE key=?', [`composer:${id}`]);
       }
     });
-  }
-  async saveComposerDraft(conversationId: string, value: string) {
-    // A departing editor may flush after deletion; never recreate an orphan draft.
-    await this.db.execute('INSERT INTO settings(key,value) SELECT ?,? WHERE EXISTS(SELECT 1 FROM conversations WHERE id=?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [`composer:${conversationId}`, value, conversationId]);
   }
   async messages(conversationId: string, before = Number.MAX_SAFE_INTEGER, limit = 40) {
     const result = await this.db.execute('SELECT id,conversation_id AS conversationId,sequence,role,content,status,request_id AS requestId,error,created_at AS createdAt FROM messages WHERE conversation_id=? AND sequence<? ORDER BY sequence DESC LIMIT ?', [conversationId, before, Math.max(1, Math.min(limit, 200))]);

@@ -16,6 +16,7 @@ import {composerEditorHeight, expandedComposerFrame} from './composerGeometry';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
 import {settingsReference} from '../settings/settingsGeometry';
 import {useComposerPull} from './useComposerPull';
+import type {ComposerAction} from './ChatSession';
 
 interface Props {
   value: string;
@@ -28,8 +29,7 @@ interface Props {
   width: number;
   bottom: number;
   ready: boolean;
-  sending: boolean;
-  generating: boolean;
+  action: ComposerAction;
 }
 
 /** One permanently mounted editor and surface, from the bottom dock to the sheet. */
@@ -58,7 +58,8 @@ export function ChatComposer(p: Props) {
   const inputHeight = filled ? Math.min(measured, r.maxLines * line) : line;
   const height = filled ? inputHeight + (r.firstLineHeight - r.lineHeight) * s : r.compactHeight * s;
   const expandable = filled && Math.round(measured / line) >= 2;
-  const hasSend = !!p.value.trim() || p.generating;
+  const cancelling = p.action.kind === 'cancel';
+  const hasSend = !!p.value.trim() || cancelling;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
   const drag = useRef({x: new Animated.Value(0), y: new Animated.Value(0)}).current;
@@ -193,16 +194,16 @@ export function ChatComposer(p: Props) {
               <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={open}/>
             </Animated.View>
             <Animated.View pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'} style={{width: Animated.multiply(motion.send, button), marginLeft: Animated.multiply(Animated.multiply(motion.expand, motion.send), 13 * s), opacity: motion.send, overflow: 'hidden'}}>
-              <Circle label={p.generating ? '응답 중단' : '메시지 보내기'} icon={p.generating ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={p.sending || !p.ready || (!p.generating && !p.value.trim())} onPress={p.generating ? p.onCancel : p.onSend}/>
+              <Circle label={p.action.label} icon={cancelling ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={!p.action.enabled} onPress={cancelling ? p.onCancel : p.onSend}/>
             </Animated.View>
           </Animated.View>
         </Animated.View>
         <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: settingsReference.sheetHandle.top * s, width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: expandedOpacity}}/>
         <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', top: sheetInset, left: 0, right: 0, opacity: expandedOpacity}}>
-          <ScreenHeader width={p.width} testID="expanded-composer-header">
+          <ScreenHeader width={p.width} testID="expanded-composer-header" frosted={false}>
             <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
             <View style={{flex: 1}} pointerEvents="none"/>
-            <HeaderButton width={p.width} testID="expanded-composer-send" icon={p.generating ? 'stop' : 'send'} label={p.generating ? '응답 중단' : '메시지 보내기'} bright disabled={!p.ready || p.sending || (!p.value.trim() && !p.generating)} onPress={() => {if (p.generating) p.onCancel(); else {p.onSend(); close();}}}/>
+            <HeaderButton width={p.width} testID="expanded-composer-send" icon={cancelling ? 'stop' : 'send'} label={p.action.label} bright disabled={!p.action.enabled} onPress={() => {if (cancelling) p.onCancel(); else {p.onSend(); close();}}}/>
           </ScreenHeader>
         </Animated.View>
       </Animated.View>

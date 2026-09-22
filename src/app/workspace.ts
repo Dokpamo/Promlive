@@ -2,6 +2,7 @@ import type {Runtime} from './runtime';
 import {newCard, type Card, type Draft, type World} from '../features/cards/model';
 import type {Conversation} from '../features/chat/model';
 import {rebaseEditorChanges} from './editorState';
+import {ChatSessions} from '../features/chat/ChatSession';
 export type Page = 'library' | 'editor' | 'chat' | 'settings';
 export type LibraryFilter = 'all' | 'favorites' | 'archived';
 export interface Editor {card: Card; baseRevision: number; dirty: boolean; status: 'saved' | 'saving' | 'buffered' | 'error'}
@@ -17,7 +18,23 @@ export class Workspace {
   private bufferTimer: ReturnType<typeof setTimeout> | undefined;
   private saving: Promise<void> | undefined;
   private assistantForms = new Map<string, AssistantForm>();
-  constructor(readonly runtime: Runtime) {}
+  readonly chats: ChatSessions;
+  constructor(readonly runtime: Runtime) {
+    this.chats = new ChatSessions(runtime.repo, runtime.creation, (error, offline) => {
+      if (error) this.report(error);
+      else {
+        void this.refreshConversations().catch(failure => this.report(failure));
+        if (offline) this.inform('AI 연결 전이에요. 메시지는 이 기기에만 저장했어요.');
+      }
+    });
+  }
+  private conversationRefresh = 0;
+  async refreshConversations() {
+    const revision = ++this.conversationRefresh;
+    const conversations = await this.runtime.repo.conversations();
+    if (revision !== this.conversationRefresh) return;
+    this.conversations = conversations; this.emit();
+  }
   get conversation(): Conversation | null {
     return this.conversations.find(item => item.id === this.selectedConversationId) ?? null;
   }
@@ -40,12 +57,13 @@ export class Workspace {
   async newGeneralChat() { await this.startChat(await this.generalCard(), true); }
   async refresh() {
     const version = ++this.refreshVersion;
+    const conversationRevision = ++this.conversationRefresh;
     const [cards, conversations] = await Promise.all([
       this.runtime.repo.listCards(), this.runtime.repo.conversations(),
     ]);
     if (version !== this.refreshVersion) return;
     this.cards = cards;
-    this.conversations = conversations;
+    if (conversationRevision === this.conversationRefresh) this.conversations = conversations;
     this.emit();
   }
   report(error: unknown) { this.error = error instanceof Error ? error.message : '작업에 실패했습니다.'; this.emit(); }
@@ -174,15 +192,16 @@ export class Workspace {
   }
   async renameConversation(id: string, title: string) {
     await this.runtime.repo.renameConversation(id, title);
-    await this.refresh();
+    await this.refreshConversations();
   }
   async pinConversation(id: string, pinned: boolean) {
     await this.runtime.repo.pinConversation(id, pinned);
-    await this.refresh();
+    await this.refreshConversations();
   }
   async deleteConversations(ids: readonly string[]) {
     const previous = this.conversation;
     await this.runtime.creation.deleteConversations(ids);
+    this.chats.forget(ids);
     await this.refresh();
     // Do not interrupt a different room opened while the deletion was saving.
     if (previous && this.selectedConversationId === previous.id && ids.includes(previous.id)) {

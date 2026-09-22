@@ -25,7 +25,11 @@ export class GenerationCoordinator {
       controller.signal.addEventListener('abort', abortListener, {once: true});
     });
     try {
-      iterator = this.provider.stream(request, controller.signal)[Symbol.asyncIterator]();
+      const stream = this.provider.stream(request, controller.signal) as AsyncIterable<AiEvent> & {'@@asyncIterator'?: () => AsyncIterator<AiEvent>};
+      // Babel's async generators use this fallback on Hermes versions without Symbol.asyncIterator.
+      const iterate = stream[Symbol.asyncIterator] ?? stream['@@asyncIterator'];
+      if (!iterate) throw new Error('AI 응답 스트림을 열지 못했습니다.');
+      iterator = iterate.call(stream);
       while (true) {
         const next = await Promise.race([iterator.next(), aborted]);
         if (controller.signal.aborted) throw controller.signal.reason;

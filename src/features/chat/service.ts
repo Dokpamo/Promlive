@@ -24,11 +24,11 @@ export class CreationService {
   markDraftApplied(cardId: string, draftId: string) {const draft = this.drafts.get(cardId); if (draft?.id === draftId) {this.drafts.set(cardId, {...draft, status: 'applied'}); this.emit();}}
   lastError() { return this.error; }
   cancel(requestId: string) { this.cancelled.add(requestId); this.coordinator.cancel(requestId); }
-  send(card: Card, conversationId: string, input: string, requestId = newId('request'), onAccepted?: () => void) {
+  send(card: Card, conversationId: string, input: string, requestId = newId('request'), onAccepted?: () => void, draftRevision?: number) {
     if (this.deleting.has(conversationId)) return Promise.reject(new Error('삭제 중인 채팅입니다.'));
     const tasks = this.sends.get(conversationId) ?? new Set<Promise<void>>();
     this.sends.set(conversationId, tasks);
-    const task = this.sendMessage(card, conversationId, input, requestId, onAccepted).finally(() => {
+    const task = this.sendMessage(card, conversationId, input, requestId, onAccepted, draftRevision).finally(() => {
       tasks.delete(task);
       if (!tasks.size) this.sends.delete(conversationId);
     });
@@ -49,17 +49,25 @@ export class CreationService {
       unique.forEach(id => this.active.delete(id));
     } finally {unique.forEach(id => this.deleting.delete(id)); this.emit();}
   }
-  private async sendMessage(card: Card, conversationId: string, input: string, requestId: string, onAccepted?: () => void) {
+  private async sendMessage(card: Card, conversationId: string, input: string, requestId: string, onAccepted?: () => void, draftRevision?: number) {
     if (!input.trim()) return;
-    if (!this.coordinator.provider.connected) throw new AiUnavailableError();
+    if (!this.coordinator.provider.connected) {
+      if (draftRevision === undefined) throw new AiUnavailableError();
+      await this.repo.acceptChatSubmission({id: requestId, conversationId, text: input, draftRevision, generate: false});
+      onAccepted?.();
+      return;
+    }
     // Context reads are independent from the screen's 40-row page.
     const history = await this.repo.messages(conversationId, Number.MAX_SAFE_INTEGER, 200);
     if (this.deleting.has(conversationId)) return;
     const context = buildContext(card, history, input, this.coordinator.provider.inputCharacterLimit);
-    const {assistant} = await this.repo.beginExchange(conversationId, requestId, input.trim());
+    const receipt = draftRevision === undefined ? {...await this.repo.beginExchange(conversationId, requestId, input.trim()), replayed: false} : await this.repo.acceptChatSubmission({id: requestId, conversationId, text: input, draftRevision, generate: true});
     onAccepted?.();
-    if (this.deleting.has(conversationId)) {
+    const assistant = receipt.assistant;
+    if (receipt.replayed || !assistant) return;
+    if (this.deleting.has(conversationId) || this.cancelled.has(requestId)) {
       await this.repo.saveMessage({...assistant, status: 'cancelled'});
+      this.cancelled.delete(requestId);
       return;
     }
     let message: Message = {...assistant, status: 'generating'};

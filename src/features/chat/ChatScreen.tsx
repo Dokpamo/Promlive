@@ -10,31 +10,44 @@ import {useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {useStartupScreen} from '../../layout/StartupScreen';
 import {useAppearance} from '../appearance/AppAppearance';
 import {useChatMessages} from './useChatMessages';
-import {useComposerDraft} from './useComposerDraft';
-import {useChatSend} from './useChatSend';
+import {useChatSession} from './useChatSession';
+import type {ChatSession} from './ChatSession';
+import type {StoryRepository} from '../../ports/repository';
+import type {CreationService} from './service';
+import type {SummaryExtensions} from '../../extensions/SummaryExtensions';
+import {ChatSummaryAction} from '../../extensions/ChatSummaryAction';
 
 export function ChatScreen({workspace: w, width, header}: {workspace: Workspace; width: number; header?: ReactNode}) {
+  const report = useCallback((error: unknown) => w.report(error), [w]);
+  const inform = useCallback((message: string) => w.inform(message), [w]);
+  const conversation = w.conversation;
+  const card = w.cards.find(item => item.id === conversation?.cardId);
+  if (!conversation || !card) return <View style={{flex: 1}}>{header}</View>;
+  return <ChatSessionScreen session={w.chats.get(conversation.id, card)} repo={w.runtime.repo} creation={w.runtime.creation} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} width={width} header={header} report={report} inform={inform}/>;
+}
+
+function ChatSessionScreen({session, repo, creation, extensions, width, header, report, inform}: {
+  session: ChatSession; repo: StoryRepository; creation: CreationService; width: number; header?: ReactNode;
+  extensions?: SummaryExtensions;
+  report: (error: unknown) => void; inform: (message: string) => void;
+}) {
   const {colors: c, mode} = useAppearance();
   const s = composerScale(width);
-  const {repo, creation} = w.runtime;
   useSyncExternalStore(creation.subscribe, creation.snapshot);
-  const conversation = w.conversation;
+  const state = useChatSession(session);
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardFrame();
   const [composerHeight, setComposerHeight] = useState((referenceComposer.compactHeight + referenceComposer.bottom) * s + insets.bottom);
   const [expanded, setExpanded] = useState(false);
+  const [extensionHeight, setExtensionHeight] = useState(0);
   const [laidOut, setLaidOut] = useState(false);
   const list = useRef<FlatList<Message>>(null);
   const scrollNearBottom = useRef(true);
-  const live = conversation ? creation.live(conversation.id) : undefined;
-  const activeId = live?.requestId;
-  const report = useCallback((error: unknown) => w.report(error), [w]);
-  const history = useChatMessages(repo, conversation?.id, activeId, report);
-  const draft = useComposerDraft(repo, conversation?.id, report);
+  const live = creation.live(session.conversationId);
+  const history = useChatMessages(repo, session.conversationId, `${state.messageRevision}:${live?.requestId ?? ''}`, report);
   // Dismiss the native launch screen only after the chat and its saved input
   // have committed, so the placeholder does not flash before the draft.
-  useStartupScreen(laidOut && (draft.ready || !!w.error || !conversation), mode);
-  const {send, sending} = useChatSend(w, draft, history.refresh);
+  useStartupScreen(laidOut && (state.ready || !!state.error), mode);
   const {messages, hasMore, loadingOlder, loadOlder} = history;
   const visible = live ? messages.some(m => m.id === live.message.id) ? messages.map(m => m.id === live.message.id ? live.message : m) : [...messages, live.message] : messages;
   const previousMessages = hasMore ? <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => void loadOlder().catch(report)} style={{alignSelf: 'center', padding: 14, marginBottom: 14}}>
@@ -44,8 +57,9 @@ export function ChatScreen({workspace: w, width, header}: {workspace: Workspace;
   // floating control without a permanent top or bottom strip covering them.
   const keyboardOffset = Math.max(0, keyboard.height - insets.bottom);
   return <View style={{flex: 1}} onLayout={() => setLaidOut(true)}>
-    <FlatList ref={list} testID="chat-messages" data={visible} keyExtractor={item => item.id} initialNumToRender={20} maxToRenderPerBatch={12} windowSize={7} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" pointerEvents={expanded ? 'none' : 'auto'} aria-hidden={expanded} accessibilityElementsHidden={expanded} importantForAccessibility={expanded ? 'no-hide-descendants' : 'auto'} contentInsetAdjustmentBehavior="never" style={{flex: 1}} contentContainerStyle={{paddingHorizontal: r.inset * s, paddingTop: insets.top + referenceHeader.barHeight * headerScale(width) + r.top * s, paddingBottom: composerHeight + keyboardOffset + r.bottom * s, width: '100%', maxWidth: 800, alignSelf: 'center'}} onScroll={e => {const v = e.nativeEvent; scrollNearBottom.current = v.contentSize.height - v.layoutMeasurement.height - v.contentOffset.y < 130;}} scrollEventThrottle={16} onContentSizeChange={() => {if (scrollNearBottom.current) list.current?.scrollToEnd({animated: false});}} ListHeaderComponent={previousMessages} ListFooterComponent={live && live.omitted > 0 ? <Text style={{color: c.muted, fontSize: 11, paddingVertical: 10}}>입력 한도에 맞춰 이전 메시지 {live.omitted}개를 제외했어요. 기록은 유지됩니다.</Text> : null} renderItem={({item}) => <ChatMessage message={item} width={width}/>}/>
+    <FlatList ref={list} testID="chat-messages" data={visible} keyExtractor={item => item.id} initialNumToRender={20} maxToRenderPerBatch={12} windowSize={7} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" pointerEvents={expanded ? 'none' : 'auto'} aria-hidden={expanded} accessibilityElementsHidden={expanded} importantForAccessibility={expanded ? 'no-hide-descendants' : 'auto'} contentInsetAdjustmentBehavior="never" style={{flex: 1}} contentContainerStyle={{paddingHorizontal: r.inset * s, paddingTop: insets.top + referenceHeader.barHeight * headerScale(width) + r.top * s + extensionHeight, paddingBottom: composerHeight + keyboardOffset + r.bottom * s, width: '100%', maxWidth: 800, alignSelf: 'center'}} onScroll={e => {const v = e.nativeEvent; scrollNearBottom.current = v.contentSize.height - v.layoutMeasurement.height - v.contentOffset.y < 130;}} scrollEventThrottle={16} onContentSizeChange={() => {if (scrollNearBottom.current) list.current?.scrollToEnd({animated: false});}} ListHeaderComponent={previousMessages} ListFooterComponent={live && live.omitted > 0 ? <Text style={{color: c.muted, fontSize: 11, paddingVertical: 10}}>입력 한도에 맞춰 이전 메시지 {live.omitted}개를 제외했어요. 기록은 유지됩니다.</Text> : null} renderItem={({item}) => <ChatMessage message={item} width={width}/>}/>
     <View pointerEvents={expanded ? 'none' : 'box-none'} aria-hidden={expanded} accessibilityElementsHidden={expanded} importantForAccessibility={expanded ? 'no-hide-descendants' : 'auto'} style={{position: 'absolute', top: insets.top, left: 0, right: 0}}>{header}</View>
-    <ChatComposer value={draft.value} onChange={draft.change} onSend={() => void send()} onCancel={() => {if (live) creation.cancel(live.requestId);}} onHint={message => w.inform(message)} onHeight={setComposerHeight} onExpandedChange={setExpanded} width={width} bottom={insets.bottom} ready={draft.ready} sending={sending} generating={!!live}/>
+    {extensions && <ChatSummaryAction extensions={extensions} conversationId={session.conversationId} width={width} top={insets.top + referenceHeader.barHeight * headerScale(width)} hidden={expanded} onHeight={setExtensionHeight}/>}
+    <ChatComposer value={state.draft.text} onChange={state.change} onSend={() => void state.send()} onCancel={state.cancel} onHint={inform} onHeight={setComposerHeight} onExpandedChange={setExpanded} width={width} bottom={insets.bottom} ready={state.ready} action={state.action}/>
   </View>;
 }

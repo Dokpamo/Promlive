@@ -60,7 +60,7 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
   useSyncExternalStore(w.subscribe, w.snapshot);
   const catalogCache = useMemo(() => new AiCatalogCache(w.runtime.repo), [w.runtime.repo]);
   useEffect(() => {void catalogCache.load();}, [catalogCache]);
-  const aiPreferences = useMemo(() => new AiSettingsPreferences(w.runtime.repo, credentialStore), [w.runtime.repo]);
+  const aiPreferences = useMemo(() => w.runtime.aiPreferences ?? new AiSettingsPreferences(w.runtime.repo, credentialStore), [w.runtime]);
   const ai = useSyncExternalStore(aiPreferences.subscribe, aiPreferences.snapshot);
   useEffect(() => {void aiPreferences.load();}, [aiPreferences]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -76,6 +76,6 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
     <ChatScreen key={w.conversation?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.conversation?.title ?? '새로운 대화'} conversationId={w.conversation?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>}/>
     {(w.notice || w.error) && <Pressable accessibilityRole="button" accessibilityLabel="안내 닫기" onPress={() => w.clearMessage()} style={{position: 'absolute', top: 100 * s, alignSelf: 'center', maxWidth: '88%', paddingVertical: 12, paddingHorizontal: 18, backgroundColor: c.notice, borderRadius: 14, borderWidth: 1, borderColor: c.noticeBorder}}><Text style={{fontSize: 13, lineHeight: 20, color: w.error ? c.noticeError : c.text}}>{w.error ?? w.notice}</Text></Pressable>}
   </View>}</ChatDrawer>
-    {settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>}
+    {settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>}
   </>;
 }

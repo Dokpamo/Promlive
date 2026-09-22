@@ -116,7 +116,7 @@ function TextEditorBody({field, input, keyboardVisible, closing, close, motionSt
     <Animated.View testID="settings-text-editor" accessibilityViewIsModal style={[{position: 'absolute', left: sheet.x, top: sheet.y, width: sheet.width, height: sheet.height, borderRadius: sheet.radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <View testID="settings-text-editor-handle" pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: r.sheetHandle.top * s, width: r.sheetHandle.width * s, height: r.sheetHandle.height * s, borderRadius: r.sheetHandle.radius * s, backgroundColor: p.divider}}/>
       <View pointerEvents="box-none" style={{position: 'absolute', top: r.sheetInset * s, left: 0, right: 0}}>
-        <ScreenHeader width={window.width}>
+        <ScreenHeader width={window.width} frosted={false}>
           <HeaderButton width={window.width} icon="close" label="입력창 닫기" onPress={close}/>
           <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>{!field.secret && <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceTypography.titleFontSize * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{field.label}</Text>}</View>
           {field.secret ? <HeaderButton width={window.width} icon="check" label="입력 완료" onPress={close}/> : <View style={{width: referenceHeader.height * s}}/>}
