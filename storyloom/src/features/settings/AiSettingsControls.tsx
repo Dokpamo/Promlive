@@ -1,9 +1,10 @@
 import {useState, type ReactNode} from 'react';
-import {Switch, Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
+import {Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 import {PressSurface} from '../../layout/PressSurface';
 import {referenceTypography} from '../chat/chatAppearance';
 import {SettingsPressable} from './SettingsPressable';
+import {SettingsToggleIndicator} from './SettingsToggleIndicator';
 import {SwipeBackBoundary} from './SwipeBackModal';
 import {settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 
@@ -44,7 +45,7 @@ export function AiToggle({label, detail, value, onChange}: {label: string; detai
   const s = useSettingsScale();
   return <SwipeBackBoundary><SettingsPressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)} radius={useSettingsRadius('control')} highlightInset={r.highlightInset * s} contentStyle={{minHeight: r.rowHeight * s, paddingHorizontal: r.rowInset * s, paddingVertical: r.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 22 * s}}>
     <View style={{flex: 1, gap: 6 * s}}><Text style={{color: p.text, fontSize: r.rowFont * s, lineHeight: r.rowLine * s, fontWeight: referenceTypography.titleWeight}}>{label}</Text>{detail && <Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>{detail}</Text>}</View>
-    <View pointerEvents="none" accessible={false} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Switch value={value} trackColor={{false: p.divider, true: p.primary}} thumbColor={value ? p.onPrimary : p.surface} ios_backgroundColor={p.divider}/></View>
+    <SettingsToggleIndicator value={value}/>
   </SettingsPressable></SwipeBackBoundary>;
 }
 

@@ -1,4 +1,4 @@
-import {useEffect, useState, useSyncExternalStore} from 'react';
+import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Keyboard, Pressable, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {initialize} from './src/app/runtime';
@@ -9,6 +9,10 @@ import {ChatHeader} from './src/features/chat/ChatHeader';
 import {composerScale} from './src/features/chat/chatAppearance';
 import {chatDisplaySettingKey, storedChatDisplay, type ChatDisplayMode} from './src/features/chat/chatPresentation';
 import {SettingsPreview} from './src/features/settings/SettingsPreview';
+import {AiCatalogCache} from './src/features/settings/aiCatalogCache';
+import {AiCatalogContext} from './src/features/settings/AiCatalogContext';
+import {AiSettingsPreferences} from './src/features/settings/aiSettingsPreferences';
+import {credentialStore} from './src/adapters/credentials/store';
 import {AppearanceProvider, storedTheme, themeSettingKey, useAppearance, type ThemeMode} from './src/features/appearance/AppAppearance';
 
 export default function App() {
@@ -51,6 +55,11 @@ function AppContent({workspace, error}: {workspace: Workspace | null; error: str
 function ChatApp({workspace: w}: {workspace: Workspace}) {
   const {colors: c} = useAppearance();
   useSyncExternalStore(w.subscribe, w.snapshot);
+  const catalogCache = useMemo(() => new AiCatalogCache(w.runtime.repo), [w.runtime.repo]);
+  useEffect(() => {void catalogCache.load();}, [catalogCache]);
+  const aiPreferences = useMemo(() => new AiSettingsPreferences(w.runtime.repo, credentialStore), [w.runtime.repo]);
+  const ai = useSyncExternalStore(aiPreferences.subscribe, aiPreferences.snapshot);
+  useEffect(() => {void aiPreferences.load();}, [aiPreferences]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {Keyboard.dismiss(); setSettingsOpen(true);};
   const {width} = useWindowDimensions();
@@ -65,6 +74,6 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
     <ChatScreen key={w.conversation?.id ?? 'new'} workspace={w} width={width}/>
     {(w.notice || w.error) && <Pressable accessibilityRole="button" accessibilityLabel="안내 닫기" onPress={() => w.clearMessage()} style={{position: 'absolute', top: 100 * s, alignSelf: 'center', maxWidth: '88%', paddingVertical: 12, paddingHorizontal: 18, backgroundColor: c.notice, borderRadius: 14, borderWidth: 1, borderColor: c.noticeBorder}}><Text style={{fontSize: 13, lineHeight: 20, color: w.error ? c.noticeError : c.text}}>{w.error ?? w.notice}</Text></Pressable>}
   </SafeAreaView>}</ChatDrawer>
-    {settingsOpen && <SettingsPreview onClose={() => setSettingsOpen(false)}/>}
+    {settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>}
   </>;
 }

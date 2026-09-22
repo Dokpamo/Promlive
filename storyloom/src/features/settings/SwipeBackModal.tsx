@@ -2,7 +2,7 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useS
 import {AccessibilityInfo, Animated, Keyboard, Modal, PanResponder, Platform, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {selectionHaptic} from '../chat/selectionHaptic';
-import {panelSpring} from '../chat/usePanelMotion';
+import {panelSpringForDistance, stopAndRead} from '../chat/panelAnimation';
 import {useScreenCorners} from '../chat/useScreenCorners';
 import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 import {DragClickBoundary} from './DragClickBoundary';
@@ -37,10 +37,9 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
   const progress = useRef(new Animated.Value(1)).current;
   const pull = useRef(new Animated.Value(0)).current;
   const sideways = useRef(new Animated.Value(0)).current;
-  const pullPosition = useRef(0);
-  const sidewaysPosition = useRef(0);
   const sidewaysOrigin = useRef(0);
   const position = useRef(1);
+  const pullPosition = useRef({upward: 0, side: 0});
   const origin = useRef(1);
   const blocked = useRef(false);
   const scroller = useRef<RefObject<SheetScrollState> | null>(null);
@@ -51,7 +50,9 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
   const dragging = useRef(false);
   const multipleTouches = useRef(false);
   const closing = useRef(false);
-  const opening = useRef(true);
+  const finalized = useRef(false);
+  const generation = useRef(0);
+  const dragState = useRef({resumeClose: false, captured: {x: 0, y: 0}, delta: {x: 0, y: 0}, lastMoveAt: 0});
   const entered = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -66,84 +67,111 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
   }, []);
 
   useEffect(() => {
-    const listener = progress.addListener(({value}) => {position.current = value;});
-    const pullListener = pull.addListener(({value}) => {pullPosition.current = value;});
-    const sidewaysListener = sideways.addListener(({value}) => {sidewaysPosition.current = value;});
+    const listener = progress.addListener(({value}) => {if (!dragging.current) position.current = value;});
+    const upListener = pull.addListener(({value}) => {if (!dragging.current) pullPosition.current.upward = value;});
+    const sideListener = sideways.addListener(({value}) => {if (!dragging.current) pullPosition.current.side = value;});
     return () => {
+      generation.current++;
       progress.stopAnimation(); progress.removeListener(listener);
-      pull.stopAnimation(); pull.removeListener(pullListener);
-      sideways.stopAnimation(); sideways.removeListener(sidewaysListener);
+      pull.stopAnimation(); sideways.stopAnimation();
+      pull.removeListener(upListener); sideways.removeListener(sideListener);
     };
   }, [progress, pull, sideways]);
 
-  useEffect(() => {
-    if (!shown || (sheet && !sheetHeight) || reduceMotion === null || entered.current || closing.current) return;
-    entered.current = true;
-    if (reduceMotion) {
-      progress.setValue(0);
-      opening.current = false;
-      return;
-    }
-    Animated.spring(progress, {
-      ...panelSpring, toValue: 0,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(({finished}) => {if (finished) opening.current = false;});
-  }, [progress, reduceMotion, sheet, sheetHeight, shown]);
-
   const settle = useCallback((back: boolean) => {
-    if (closing.current) return;
+    if (finalized.current) return;
+    const attempt = ++generation.current;
+    dragging.current = false;
     progress.stopAnimation();
     pull.stopAnimation();
     sideways.stopAnimation();
+    closing.current = back;
     if (back) {
-      closing.current = true;
       Keyboard.dismiss();
       selectionHaptic();
     }
+    const finish = () => {
+      if (attempt !== generation.current || finalized.current) return;
+      position.current = back ? 1 : 0;
+      if (back) {finalized.current = true; onCloseRef.current();}
+    };
     if (reduceMotion) {
       progress.setValue(back ? 1 : 0);
       pull.setValue(0);
       sideways.setValue(0);
-      if (back) onCloseRef.current();
+      finish();
       return;
     }
     const slide = Animated.spring(progress, {
-      ...panelSpring,
+      ...panelSpringForDistance(travel),
       toValue: back ? 1 : 0,
       useNativeDriver: Platform.OS !== 'web',
     });
     const animation = sheet ? Animated.parallel([
       slide,
-      Animated.spring(pull, {...panelSpring, toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
-      Animated.spring(sideways, {...panelSpring, toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
+      Animated.spring(pull, {...panelSpringForDistance(), toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
+      Animated.spring(sideways, {...panelSpringForDistance(), toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
     ]) : slide;
-    animation.start(({finished}) => {if (finished && back) onCloseRef.current();});
-  }, [progress, pull, reduceMotion, sheet, sideways]);
-  const close = useCallback(() => settle(true), [settle]);
+    animation.start(({finished}) => {if (finished) finish();});
+  }, [progress, pull, reduceMotion, sheet, sideways, travel]);
+  const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
 
-  const beginDrag = useCallback((dx = 0, dy = 0) => {
-    progress.stopAnimation();
-    pull.stopAnimation();
-    sideways.stopAnimation();
-    origin.current = position.current + (sheet ? (dy - sheetPullOrigin(pullPosition.current, sheetPullLimits.upward)) / travel : 0);
-    sidewaysOrigin.current = sheetPullOrigin(sidewaysPosition.current, sheetPullLimits.sideways) + dx;
-    dragging.current = true;
-    if (sheet) cancelClick.current = true;
-    Keyboard.dismiss();
-  }, [progress, pull, sheet, sideways, travel]);
+  useEffect(() => {
+    if (!shown || (sheet && !sheetHeight) || reduceMotion === null || entered.current || closing.current) return;
+    entered.current = true;
+    settle(false);
+  }, [reduceMotion, settle, sheet, sheetHeight, shown]);
 
   const moveDrag = useCallback((dx: number, dy: number) => {
+    const m = dragState.current;
+    m.delta = {x: dx, y: dy}; m.lastMoveAt = Date.now();
     const distance = origin.current * travel + (sheet ? dy : dx);
     if (sheet) {
-      pull.setValue(sheetPullDistance(Math.max(0, -distance), sheetPullLimits.upward));
-      sideways.setValue(sheetPullDistance(sidewaysOrigin.current + dx, sheetPullLimits.sideways));
+      pullPosition.current.upward = sheetPullDistance(Math.max(0, -distance), sheetPullLimits.upward);
+      pullPosition.current.side = sheetPullDistance(sidewaysOrigin.current + dx, sheetPullLimits.sideways);
+      pull.setValue(pullPosition.current.upward);
+      sideways.setValue(pullPosition.current.side);
     }
-    progress.setValue(Math.max(0, Math.min(1, distance / travel)));
+    position.current = Math.max(0, Math.min(1, distance / travel));
+    progress.setValue(position.current);
   }, [progress, pull, sheet, sideways, travel]);
+
+  const releaseDrag = useCallback((dx: number, dy: number, vx: number, vy: number, cancelled: boolean) => {
+    const m = dragState.current;
+    const distance = Math.max(0, origin.current * travel + (sheet ? dy : dx));
+    const velocity = Date.now() - m.lastMoveAt > 100 ? 0 : sheet ? vy : vx;
+    const moved = Math.hypot(dx + m.captured.x, dy + m.captured.y) > 10;
+    const back = !moved ? m.resumeClose : sheet
+      ? shouldDismissSheet(sidewaysOrigin.current + dx, distance, velocity, travel)
+      : velocity > -0.45 && (distance >= travel * 0.3 || (distance >= 24 && velocity >= 0.45));
+    settle(!cancelled && back);
+  }, [settle, sheet, travel]);
+
+  const beginDrag = useCallback((dx = 0, dy = 0) => {
+    const attempt = ++generation.current;
+    const m = dragState.current;
+    m.resumeClose = closing.current; m.captured = {x: dx, y: dy}; m.delta = {x: 0, y: 0};
+    closing.current = false;
+    dragging.current = true;
+    cancelClick.current = true;
+    Keyboard.dismiss();
+    const setOrigin = (slide: number, upward: number, side: number) => {
+      origin.current = slide + (sheet ? dy - sheetPullOrigin(upward, sheetPullLimits.upward) : dx) / travel;
+      sidewaysOrigin.current = sheetPullOrigin(side, sheetPullLimits.sideways) + dx;
+    };
+    setOrigin(position.current, pullPosition.current.upward, pullPosition.current.side);
+    // A new touch takes ownership even during entrance, dismissal or recovery.
+    stopAndRead([progress, pull, sideways], ([slide, upward, side]) => {
+      if (attempt !== generation.current) return;
+      setOrigin(slide!, upward!, side!);
+      moveDrag(m.delta.x, m.delta.y);
+    });
+    moveDrag(0, 0);
+  }, [moveDrag, progress, pull, sheet, sideways, travel]);
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: (_, gesture) => {
-      if (!active || opening.current) return false;
+      if (!active || !entered.current || finalized.current) return false;
       if (gesture.numberActiveTouches > 1) {multipleTouches.current = true; return false;}
       blocked.current = false;
       scroller.current = null;
@@ -156,9 +184,9 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
       return false;
     },
     // Native Modal's wrapper otherwise takes unclaimed touches before move detection.
-    onStartShouldSetPanResponder: () => active && !opening.current && Platform.OS !== 'web' && !blocked.current && !closing.current,
+    onStartShouldSetPanResponder: () => active && entered.current && !finalized.current && Platform.OS !== 'web' && !blocked.current,
     onMoveShouldSetPanResponderCapture: (_, gesture) => {
-      if (!active || opening.current || blocked.current || scrolling.current || offAxis.current || dragging.current || closing.current || gesture.numberActiveTouches !== 1) return false;
+      if (!active || !entered.current || finalized.current || blocked.current || scrolling.current || offAxis.current || dragging.current || gesture.numberActiveTouches !== 1) return false;
       if (sheet) {
         if (Math.hypot(gesture.dx, gesture.dy) <= 10) return false;
         scrolling.current = shouldScrollSheet(scroller.current?.current, gesture.dx, gesture.dy);
@@ -172,20 +200,22 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
         offAxis.current = true;
         return false;
       }
-      return along > 10 && along > across * 1.5;
+      const canGrab = (along > 10 || (position.current > 0 && along < -10)) && Math.abs(along) > across * 1.5;
+      if (canGrab) capturedSheetDrag.current = {x: along, y: gesture.dy};
+      return canGrab;
     },
     onPanResponderGrant: () => {
       // PanResponder zeroes its deltas when taking over a child press. Preserve
       // the movement that claimed the sheet so short pulls do not have a dead zone.
-      if (sheet && capturedSheetDrag.current) {
+      if (capturedSheetDrag.current) {
         beginDrag(capturedSheetDrag.current.x, capturedSheetDrag.current.y);
         moveDrag(0, 0);
-      }
+      } else beginDrag();
     },
     onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) multipleTouches.current = true;},
     onPanResponderMove: (_, gesture) => {
       if (gesture.numberActiveTouches > 1) multipleTouches.current = true;
-      if (!active || blocked.current || scrolling.current || offAxis.current || multipleTouches.current || closing.current) return;
+      if (!active || finalized.current || blocked.current || scrolling.current || offAxis.current || multipleTouches.current) return;
       const along = sheet ? gesture.dy : gesture.dx;
       if (!dragging.current) {
         if (sheet) {
@@ -195,7 +225,7 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
         } else {
           const across = Math.abs(gesture.dy);
           if (across > 10 && across > Math.abs(along)) {offAxis.current = true; return;}
-          if (along <= 10 || along <= across * 1.5) return;
+          if ((along <= 10 && !(position.current > 0 && along < -10)) || Math.abs(along) <= across * 1.5) return;
         }
         beginDrag();
       }
@@ -203,17 +233,12 @@ export function SwipeBackModal({onClose, children, sheet = false, sheetHeight = 
     },
     onPanResponderRelease: (_, gesture) => {
       if (!dragging.current) return;
-      const distance = Math.max(0, origin.current * travel + (sheet ? gesture.dy : gesture.dx));
-      const velocity = sheet ? gesture.vy : gesture.vx;
-      const back = sheet
-        ? shouldDismissSheet(sidewaysOrigin.current + gesture.dx, distance, velocity, travel)
-        : velocity > -0.45 && (distance >= travel * 0.3 || (distance >= 24 && velocity >= 0.45));
-      settle(!multipleTouches.current && back);
+      releaseDrag(gesture.dx, gesture.dy, gesture.vx, gesture.vy, multipleTouches.current);
     },
     onPanResponderTerminate: () => settle(false),
     onPanResponderTerminationRequest: () => !dragging.current,
     onShouldBlockNativeResponder: () => false,
-  }), [active, beginDrag, moveDrag, settle, sheet, travel]);
+  }), [active, beginDrag, moveDrag, releaseDrag, settle, sheet]);
 
   const radius = (value: number) => progress.interpolate({inputRange: [0, 0.15, 1], outputRange: [0, value, value], extrapolate: 'clamp'});
   const sheetMotion: Animated.WithAnimatedObject<ViewStyle> = {transform: [

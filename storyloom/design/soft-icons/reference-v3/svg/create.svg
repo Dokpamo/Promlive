@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="create-title">
+  <title id="create-title">생성</title>
+  <path d="M15.2 5.1H10.8C6.5 5.1 4.4 7.2 4.4 11.5V21.2C4.4 25.5 6.5 27.6 10.8 27.6H20.5C24.8 27.6 26.9 25.5 26.9 21.2V17.1" />
+  <path d="M13.1 14.7L23.6 4.2Q25.3 2.5 27.1 4.2L28 5.1Q29.7 6.9 28 8.6L17.5 19.1Q17 19.6 16.3 19.8L11.4 21.2Q10.4 21.5 10.7 20.5L12.2 15.6Q12.4 15.1 13.1 14.7ZM21.6 6.2L26 10.6" />
+</svg>

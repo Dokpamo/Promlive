@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="info-title">
+  <title id="info-title">정보</title>
+  <path d="M16 5C8.85 5 5 8.85 5 16C5 23.15 8.85 27 16 27C23.15 27 27 23.15 27 16C27 8.85 23.15 5 16 5Z" />
+  <path d="M16 14.65V22.15" />
+  <circle cx="16" cy="9.9" r="1.2" fill="currentColor" stroke="none" />
+</svg>

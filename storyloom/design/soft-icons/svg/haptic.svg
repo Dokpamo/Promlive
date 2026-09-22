@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="haptic-title">
+  <title id="haptic-title">진동</title>
+  <path d="M13.35 5.2H18.65Q22.4 5.2 22.4 8.95V23.05Q22.4 26.8 18.65 26.8H13.35Q9.6 26.8 9.6 23.05V8.95Q9.6 5.2 13.35 5.2ZM14.5 23.2H17.5" />
+  <path d="M5.85 11.4Q3.7 16 5.85 20.6M26.15 11.4Q28.3 16 26.15 20.6" />
+</svg>

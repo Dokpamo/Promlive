@@ -1,0 +1,314 @@
+{
+  "name": "Yeobaek Round",
+  "version": 3,
+  "viewBox": "0 0 32 32",
+  "strokeWidth": 2.6,
+  "renderedStrokeAt24px": 1.95,
+  "primary": [
+    "settings",
+    "back",
+    "sidebar-open",
+    "send",
+    "collapse",
+    "search",
+    "expand",
+    "plus",
+    "create"
+  ],
+  "icons": [
+    {
+      "name": "settings",
+      "label": "설정",
+      "primary": true,
+      "file": "svg/settings.svg"
+    },
+    {
+      "name": "back",
+      "label": "뒤로가기",
+      "primary": true,
+      "file": "svg/back.svg"
+    },
+    {
+      "name": "sidebar-open",
+      "label": "목록 열기",
+      "primary": true,
+      "file": "svg/sidebar-open.svg"
+    },
+    {
+      "name": "send",
+      "label": "전송",
+      "primary": true,
+      "file": "svg/send.svg"
+    },
+    {
+      "name": "collapse",
+      "label": "축소",
+      "primary": true,
+      "file": "svg/collapse.svg"
+    },
+    {
+      "name": "search",
+      "label": "검색",
+      "primary": true,
+      "file": "svg/search.svg"
+    },
+    {
+      "name": "expand",
+      "label": "확대",
+      "primary": true,
+      "file": "svg/expand.svg"
+    },
+    {
+      "name": "plus",
+      "label": "추가",
+      "primary": true,
+      "file": "svg/plus.svg"
+    },
+    {
+      "name": "create",
+      "label": "생성",
+      "primary": true,
+      "file": "svg/create.svg"
+    },
+    {
+      "name": "new-chat",
+      "label": "새 대화",
+      "primary": false,
+      "file": "svg/new-chat.svg"
+    },
+    {
+      "name": "chat",
+      "label": "대화",
+      "primary": false,
+      "file": "svg/chat.svg"
+    },
+    {
+      "name": "voice",
+      "label": "음성",
+      "primary": false,
+      "file": "svg/voice.svg"
+    },
+    {
+      "name": "close",
+      "label": "닫기",
+      "primary": false,
+      "file": "svg/close.svg"
+    },
+    {
+      "name": "stop",
+      "label": "중지",
+      "primary": false,
+      "file": "svg/stop.svg"
+    },
+    {
+      "name": "more",
+      "label": "더 보기",
+      "primary": false,
+      "file": "svg/more.svg"
+    },
+    {
+      "name": "user",
+      "label": "사용자",
+      "primary": false,
+      "file": "svg/user.svg"
+    },
+    {
+      "name": "connection",
+      "label": "연결",
+      "primary": false,
+      "file": "svg/connection.svg"
+    },
+    {
+      "name": "model",
+      "label": "모델",
+      "primary": false,
+      "file": "svg/model.svg"
+    },
+    {
+      "name": "response",
+      "label": "응답",
+      "primary": false,
+      "file": "svg/response.svg"
+    },
+    {
+      "name": "text",
+      "label": "글자",
+      "primary": false,
+      "file": "svg/text.svg"
+    },
+    {
+      "name": "haptic",
+      "label": "진동",
+      "primary": false,
+      "file": "svg/haptic.svg"
+    },
+    {
+      "name": "bell",
+      "label": "알림",
+      "primary": false,
+      "file": "svg/bell.svg"
+    },
+    {
+      "name": "theme",
+      "label": "테마",
+      "primary": false,
+      "file": "svg/theme.svg"
+    },
+    {
+      "name": "info",
+      "label": "정보",
+      "primary": false,
+      "file": "svg/info.svg"
+    },
+    {
+      "name": "chevron",
+      "label": "다음",
+      "primary": false,
+      "file": "svg/chevron.svg"
+    },
+    {
+      "name": "edit",
+      "label": "편집",
+      "primary": false,
+      "file": "svg/edit.svg"
+    },
+    {
+      "name": "check",
+      "label": "확인",
+      "primary": false,
+      "file": "svg/check.svg"
+    },
+    {
+      "name": "library",
+      "label": "서재",
+      "primary": false,
+      "file": "svg/library.svg"
+    },
+    {
+      "name": "star",
+      "label": "즐겨찾기",
+      "primary": false,
+      "file": "svg/star.svg"
+    },
+    {
+      "name": "archive",
+      "label": "보관함",
+      "primary": false,
+      "file": "svg/archive.svg"
+    },
+    {
+      "name": "arrow",
+      "label": "바로가기",
+      "primary": false,
+      "file": "svg/arrow.svg"
+    },
+    {
+      "name": "code",
+      "label": "코드",
+      "primary": false,
+      "file": "svg/code.svg"
+    },
+    {
+      "name": "world",
+      "label": "세계관",
+      "primary": false,
+      "file": "svg/world.svg"
+    },
+    {
+      "name": "people",
+      "label": "등장인물",
+      "primary": false,
+      "file": "svg/people.svg"
+    },
+    {
+      "name": "spark",
+      "label": "AI 도움",
+      "primary": false,
+      "file": "svg/spark.svg"
+    },
+    {
+      "name": "leaf",
+      "label": "이야기",
+      "primary": false,
+      "file": "svg/leaf.svg"
+    },
+    {
+      "name": "copy",
+      "label": "복사",
+      "primary": false,
+      "file": "svg/copy.svg"
+    },
+    {
+      "name": "dots",
+      "label": "추가 메뉴",
+      "primary": false,
+      "file": "svg/dots.svg"
+    },
+    {
+      "name": "sliders",
+      "label": "조정",
+      "primary": false,
+      "file": "svg/sliders.svg"
+    },
+    {
+      "name": "panel-left",
+      "label": "목록 · 패널형",
+      "primary": false,
+      "file": "svg/panel-left.svg"
+    },
+    {
+      "name": "send-up",
+      "label": "전송 · 위쪽 화살표",
+      "primary": false,
+      "file": "svg/send-up.svg"
+    },
+    {
+      "name": "heart",
+      "label": "좋아요",
+      "primary": false,
+      "file": "svg/heart.svg"
+    },
+    {
+      "name": "bookmark",
+      "label": "저장",
+      "primary": false,
+      "file": "svg/bookmark.svg"
+    },
+    {
+      "name": "repost",
+      "label": "재게시",
+      "primary": false,
+      "file": "svg/repost.svg"
+    },
+    {
+      "name": "home",
+      "label": "홈",
+      "primary": false,
+      "file": "svg/home.svg"
+    },
+    {
+      "name": "reels",
+      "label": "동영상",
+      "primary": false,
+      "file": "svg/reels.svg"
+    },
+    {
+      "name": "mute",
+      "label": "음소거",
+      "primary": false,
+      "file": "svg/mute.svg"
+    },
+    {
+      "name": "music",
+      "label": "음악",
+      "primary": false,
+      "file": "svg/music.svg"
+    },
+    {
+      "name": "verified",
+      "label": "인증",
+      "primary": false,
+      "file": "svg/verified.svg"
+    }
+  ]
+}

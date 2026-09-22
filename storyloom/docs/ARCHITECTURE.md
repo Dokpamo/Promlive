@@ -54,9 +54,9 @@ app/runtime.ts → SQLite / AI / 플랫폼 어댑터 연결
 
 ## 제공자와 인증
 
-앱의 현재 제공자는 `DisconnectedProvider`입니다. 실제 네트워크 호출은 없습니다. Grok 어댑터는 비활성 상태이며 SSE 파서·정상 완료·취소 경로는 테스트용 전송으로만 확인했습니다. OS 보안 저장소, OAuth 로그인·갱신, 실제 검색 도구는 후속 구현 대상입니다.
+앱의 대화 제공자는 `DisconnectedProvider`입니다. AI 설정의 모델 목록 GET 요청만 연결했고, 대화용 Grok 어댑터는 비활성 상태입니다. SSE 파서·정상 완료·취소 경로는 테스트용 전송으로만 확인했습니다. OAuth 로그인·갱신과 실제 검색 도구는 후속 구현 대상입니다.
 
-UI와 코드 카드는 토큰을 보유하지 않습니다. 연결 시 `CredentialStore` 구현체가 인증 정보를 보관하고, 제공자 어댑터만 읽도록 설계했습니다. 참고한 [xAI 추론 API 문서](https://docs.x.ai/developers/rest-api-reference/inference)는 API 키 기반 Bearer 인증을 설명합니다. 사용자 OAuth 지원 여부를 대신 입증하지는 않습니다.
+`AiSettingsPreferences`는 비밀값을 제외한 설정과 `CredentialStore`의 API 키를 합쳐 설정 화면에 제공합니다. 키는 프로바이더·연결 방식별로 분리하고, 입력·수정·삭제를 순서대로 저장하며 다음 실행에 복원합니다. 일반 설정 DB·모델 캐시·코드 카드에는 키를 전달하지 않습니다. 네이티브는 OS 인증 저장소, 웹은 별도 IndexedDB의 AES-GCM 암호문과 추출 불가능한 로컬 CryptoKey를 사용합니다. 웹 저장소는 같은 출처에서 실행되는 앱 코드가 접근할 수 있으며 OS 키체인과 동일한 보호를 제공하지 않습니다. 참고한 [xAI 추론 API 문서](https://docs.x.ai/developers/rest-api-reference/inference)는 API 키 기반 Bearer 인증을 설명하며 사용자 OAuth 지원 여부를 대신 입증하지 않습니다.
 
 ## 플랫폼과 빌드
 

@@ -1,23 +1,26 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, View, useWindowDimensions} from 'react-native';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {Animated, BackHandler, Keyboard, Platform, Pressable, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
-import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
+import {useAppearance} from '../appearance/AppAppearance';
 import {ChatIcon} from './ChatIcon';
 import {composerScale, headerScale, referenceComposer as r, referenceHeader, typographyScale} from './chatAppearance';
-import {panelSpring} from './usePanelMotion';
+import {panelSpringForDistance} from './panelAnimation';
 import {DragClickBoundary} from '../settings/DragClickBoundary';
 import {useComposerPull} from './useComposerPull';
 import {settingsReference} from '../settings/settingsGeometry';
 import {ComposerInput} from './ComposerInput';
-import type {ComposerInputHandle} from './ComposerInput.types';
+import type {ComposerInputHandle, ComposerSelection} from './ComposerInput.types';
 import {useDrawerModalLock} from './DrawerGestureBoundary';
+import {composerEditorHeight, expandedComposerFrame, type ComposerFrame} from './composerGeometry';
+import {ChatOverlay} from './ChatOverlay';
 
-export interface ComposerFrame {x: number; y: number; width: number; height: number; radius: number}
-type SheetFrame = Pick<ComposerFrame, 'x' | 'y' | 'width' | 'height'>;
+export type {ComposerFrame} from './composerGeometry';
+const frameKeys = ['x', 'y', 'width', 'height', 'radius'] as const;
 
 interface Props {
   origin: ComposerFrame;
+  selection: ComposerSelection;
   measureOrigin: (done: (frame: ComposerFrame) => void) => void;
   sourceInputHeight: number;
   sourceExpandable: boolean;
@@ -25,7 +28,7 @@ interface Props {
   onChange: (value: string) => void;
   onSend: () => void;
   onCancel: () => void;
-  onClose: () => void;
+  onClose: (selection: ComposerSelection, keepFocus: boolean) => void;
   ready: boolean;
   sending: boolean;
   generating: boolean;
@@ -41,128 +44,169 @@ export function ExpandedComposer(p: Props) {
   const s = composerScale(window.width);
   const textScale = typographyScale(window.width);
   const progress = useRef(new Animated.Value(0)).current;
+  const bounds = useRef({
+    x: new Animated.Value(p.origin.x), y: new Animated.Value(p.origin.y),
+    width: new Animated.Value(p.origin.width), height: new Animated.Value(p.origin.height),
+    radius: new Animated.Value(p.origin.radius),
+  }).current;
   const drag = useRef({x: new Animated.Value(0), y: new Animated.Value(0)}).current;
+  const animation = useRef<Animated.CompositeAnimation | null>(null);
   const input = useRef<ComposerInputHandle>(null);
   const [contentHeight, setContentHeight] = useState(p.sourceInputHeight);
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
-  const [frame, setFrame] = useState(p.origin);
-  const [viewport, setViewport] = useState({width: window.width, height: window.height});
+  const [visibleHeight, setVisibleHeight] = useState(window.height);
+  const [keyboardTop, setKeyboardTop] = useState(() => Keyboard.metrics?.()?.screenY ?? Infinity);
   const [shown, setShown] = useState(false);
-  const [closingSheet, setClosingSheet] = useState<SheetFrame | null>(null);
-  const sheetSnapshot = useRef<SheetFrame>(p.origin);
-  const closing = closingSheet !== null;
+  const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const mounted = useRef(true);
-  const stopWaiting = useRef<(() => void) | null>(null);
   const entered = useRef(false);
-  const opening = useRef(true);
+  const gestureHeld = useRef(false);
+  const handingOff = useRef(false);
+  const generation = useRef(0);
   const callbacks = useRef(p);
   callbacks.current = p;
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      stopWaiting.current?.();
+      generation.current++;
+      animation.current?.stop();
       progress.stopAnimation();
     };
   }, [progress]);
 
   useEffect(() => {
-    if (!shown || entered.current) return;
-    entered.current = true;
-    const finish = () => {if (!closingRef.current && mounted.current) {opening.current = false; input.current?.focus();}};
-    if (p.reduceMotion) {progress.setValue(1); finish();}
-    else Animated.spring(progress, {...panelSpring, toValue: 1, useNativeDriver: false}).start(({finished}) => {if (finished) finish();});
-  }, [p.reduceMotion, progress, shown]);
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow', event => {if (!closingRef.current) setKeyboardTop(event.endCoordinates.screenY);});
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {if (!closingRef.current) setKeyboardTop(Infinity);});
+    return () => {show.remove(); hide.remove();};
+  }, []);
+
+  const animateTo = useCallback((frame: ComposerFrame, expanded: boolean, finish: () => void) => {
+    const attempt = ++generation.current;
+    animation.current?.stop();
+    const targets: [Animated.Value, number][] = [
+      ...frameKeys.map(key => [bounds[key], frame[key]] as [Animated.Value, number]),
+      [progress, expanded ? 1 : 0], [drag.x, 0], [drag.y, 0],
+    ];
+    if (callbacks.current.reduceMotion) {
+      for (const [value, target] of targets) value.setValue(target);
+      finish();
+    } else {
+      animation.current = Animated.parallel(targets.map(([value, toValue]) => Animated.spring(value, {
+        ...panelSpringForDistance(value === progress ? Math.max(window.width, window.height) : 1),
+        toValue, useNativeDriver: false,
+      })));
+      animation.current.start(({finished}) => {if (finished && mounted.current && attempt === generation.current) finish();});
+    }
+  }, [bounds, drag, progress, window.width, window.height]);
+
+  const sheet = expandedComposerFrame(window, insets);
+  useLayoutEffect(() => {
+    if (!shown || closingRef.current || gestureHeld.current) return;
+    animateTo(sheet, true, () => {});
+    if (!entered.current) {
+      entered.current = true;
+      input.current?.focus(callbacks.current.selection);
+    }
+  }, [animateTo, shown, sheet.x, sheet.y, sheet.width, sheet.height, sheet.radius]);
 
   const close = useCallback(() => {
-    if (closingRef.current) return;
+    if (closingRef.current || handingOff.current) return;
+    const attempt = ++generation.current;
+    gestureHeld.current = false;
     closingRef.current = true;
-    progress.stopAnimation();
+    setClosing(true);
+    animation.current?.stop();
     drag.x.stopAnimation();
     drag.y.stopAnimation();
-    // Keyboard dismissal must not move/resize the sheet before the return animation starts.
-    setClosingSheet(sheetSnapshot.current);
-    const collapse = () => {
-      stopWaiting.current?.();
-      stopWaiting.current = null;
-      // Keyboard dismissal changes the original composer's position and safe-area padding.
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (!mounted.current) return;
-        callbacks.current.measureOrigin(next => {
-          if (!mounted.current) return;
-          setFrame(next);
-          requestAnimationFrame(() => {
-            if (!mounted.current) return;
-            if (callbacks.current.reduceMotion) {progress.setValue(0); drag.x.setValue(0); drag.y.setValue(0); callbacks.current.onClose();}
-            else Animated.parallel([progress, drag.x, drag.y].map(value => Animated.spring(value, {...panelSpring, toValue: 0, useNativeDriver: false}))).start(({finished}) => {if (finished) callbacks.current.onClose();});
-          });
-        });
-      }));
-    };
-    if (Platform.OS !== 'web' && Keyboard.isVisible()) {
-      let finished = false;
-      const finish = () => {if (!finished) {finished = true; collapse();}};
-      const listener = Keyboard.addListener('keyboardDidHide', finish);
-      const timer = setTimeout(finish, 350);
-      stopWaiting.current = () => {listener.remove(); clearTimeout(timer);};
-      Keyboard.dismiss();
-    } else collapse();
-  }, [drag, progress]);
+    // Keep editing throughout the morph. The hidden composer tracks the live
+    // keyboard inset, so its measured bounds are already the right destination.
+    callbacks.current.measureOrigin(frame => {
+      if (mounted.current && attempt === generation.current) animateTo(frame, false, () => {
+        handingOff.current = true;
+        callbacks.current.onClose(input.current?.getSelection() ?? callbacks.current.selection, Platform.OS === 'web' || Keyboard.isVisible());
+      });
+    });
+  }, [animateTo, drag]);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const listener = BackHandler.addEventListener('hardwareBackPress', () => {close(); return true;});
+      return () => listener.remove();
+    }
+    if (Platform.OS === 'web') {
+      const escape = (event: KeyboardEvent) => {if (event.key === 'Escape') {event.preventDefault(); close();}};
+      document.addEventListener('keydown', escape);
+      return () => document.removeEventListener('keydown', escape);
+    }
+    return undefined;
+  }, [close]);
 
   const sheetInset = settingsReference.sheetInset * s;
-  const sheetBottom = Math.max(insets.bottom, sheetInset);
-  const sheetWidth = Math.min(settingsReference.contentMaxWidth, viewport.width - insets.left - insets.right - 2 * sheetInset);
-  // Keep the normal height when the keyboard fits below it; only clamp when space runs out.
-  const sheetHeight = Math.max(0, Math.min(window.height * 0.9, viewport.height - insets.top - sheetInset - sheetBottom));
-  const sheet = closingSheet ?? {x: insets.left + (viewport.width - insets.left - insets.right - sheetWidth) / 2, y: viewport.height - sheetBottom - sheetHeight, width: sheetWidth, height: sheetHeight};
-  sheetSnapshot.current = sheet;
-  const pull = useComposerPull(drag, {travel: sheet.height, opening, closing: closingRef, reduceMotion: p.reduceMotion, close});
+  const pull = useComposerPull(drag, {
+    travel: sheet.height,
+    ready: () => entered.current && !handingOff.current,
+    grab: () => {
+      generation.current++;
+      animation.current?.stop();
+      gestureHeld.current = true;
+      closingRef.current = false;
+      setClosing(false);
+    },
+    restore: () => {
+      gestureHeld.current = false;
+      animateTo(sheet, true, () => {});
+    },
+    close,
+  });
   const tween = (from: number, to: number) => progress.interpolate({inputRange: [0, 1], outputRange: [from, to]});
   const inputTop = sheetInset + referenceHeader.barHeight * headerScale(window.width) + 16 * s;
   const filled = p.value.length > 0;
   const line = r.lineHeight * textScale * window.fontScale;
   const measured = filled ? Math.max(line, contentHeight) : line;
-  const inputHeight = Math.min(measured, Math.max(line, sheet.height - inputTop - 26 * s));
+  const inputHeight = composerEditorHeight(sheet, inputTop, measured, line, 26 * s, Math.min(visibleHeight, keyboardTop));
   const overflowing = measured > inputHeight + 1;
   const canSend = p.ready && !p.sending && (!!p.value.trim() || p.generating);
   const ghostOpacity = progress.interpolate({inputRange: [0, 0.25, 1], outputRange: [1, 0, 0], extrapolate: 'clamp'});
   const controlsOpacity = progress.interpolate({inputRange: [0, 0.45, 1], outputRange: [0, 0, 1], extrapolate: 'clamp'});
+  const surfaceColor = progress.interpolate({inputRange: [0, 1], outputRange: [c.composer, settings.sheet]});
+  const surfaceShadow = progress.interpolate({inputRange: [0, 1], outputRange: isDark
+    ? ['0px 4px 28px rgba(0, 0, 0, 0)', '0px 4px 28px rgba(0, 0, 0, 0.4)']
+    : ['0px 6px 26px rgba(0, 0, 0, 0.08)', '0px 4px 28px rgba(0, 0, 0, 0.12)']});
 
-  return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onShow={() => {syncSystemBars(isDark); setShown(true);}} onRequestClose={close}>
+  return <ChatOverlay onRequestClose={close}>
     <DragClickBoundary cancelClick={pull.cancelClick}>
-    <KeyboardAvoidingView style={{flex: 1}} behavior="padding">
-      <View testID="expanded-composer-root" style={{flex: 1}} onLayout={event => {
-        const {width, height} = event.nativeEvent.layout;
-        setViewport(old => old.width === width && old.height === height ? old : {width, height});
-      }}>
+      <View testID="expanded-composer-root" style={{flex: 1}} onLayout={event => {setVisibleHeight(event.nativeEvent.layout.height); setShown(true);}}>
+        {/* A fixed canvas lets the native keyboard cover the sheet without moving its corners. */}
+        <View style={{width: window.width, height: window.height}}>
         <Pressable accessibilityRole="button" accessibilityLabel="입력창 바깥 눌러 접기" onPress={close} style={{position: 'absolute', inset: 0}}/>
         <Animated.View testID="expanded-composer-surface" accessibilityViewIsModal onAccessibilityEscape={close} {...pull.panHandlers} style={{
-          position: 'absolute', left: tween(frame.x, sheet.x), top: tween(frame.y, sheet.y), width: tween(frame.width, sheet.width), height: tween(frame.height, sheet.height),
-          borderRadius: tween(frame.radius, settingsReference.radius * s), borderWidth: tween(s, 0), borderColor: c.border, backgroundColor: settings.sheet, overflow: 'hidden',
-          boxShadow: isDark ? '0px 4px 28px rgba(0, 0, 0, 0.4)' : '0px 4px 28px rgba(0, 0, 0, 0.12)',
+          position: 'absolute', left: bounds.x, top: bounds.y, width: bounds.width, height: bounds.height,
+          borderRadius: bounds.radius, borderWidth: tween(s, 0), borderColor: c.border, backgroundColor: surfaceColor, overflow: 'hidden',
+          boxShadow: surfaceShadow,
           transform: [{translateX: drag.x}, {translateY: drag.y}],
         }}>
           <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: settingsReference.sheetHandle.top * s, width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: controlsOpacity}}/>
           {/* Only the text block owns editing gestures; the unused sheet area stays draggable. */}
-          <Animated.View onStartShouldSetResponderCapture={pull.blockInput} style={{position: 'absolute', left: tween((filled ? 26 : 116) * s, 26 * s), right: 26 * s, top: tween(filled ? 25 * s : (r.compactHeight * s - line) / 2, inputTop), height: tween(p.sourceInputHeight, inputHeight), overflow: 'hidden'}}>
-            <ComposerInput focusRef={input} testID="expanded-composer-input" label="확장 메시지 입력" value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={inputHeight} scroll={overflowing} ready={p.ready && !closing}/>
+          <Animated.View pointerEvents={closing ? 'none' : 'auto'} onStartShouldSetResponderCapture={pull.blockInput} style={{position: 'absolute', left: tween((filled ? 26 : 116) * s, 26 * s), right: 26 * s, top: tween(filled ? 25 * s : (r.compactHeight * s - line) / 2, inputTop), height: tween(p.sourceInputHeight, inputHeight), overflow: 'hidden'}}>
+            <ComposerInput focusRef={input} testID="expanded-composer-input" label="확장 메시지 입력" value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={inputHeight} fillHeight={closing} scroll={overflowing} ready={p.ready}/>
           </Animated.View>
           <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', left: (filled ? 12 : 20) * s, right: (filled ? 13 : 20) * s, bottom: (filled ? 14 : (r.compactHeight - r.button) / 2) * s, flexDirection: 'row', alignItems: 'center', opacity: ghostOpacity}}>
             <GhostAction icon="plus" scale={s}/><View style={{flex: 1}}/>{p.sourceExpandable && <GhostAction icon="expand" scale={s}/>}{(!!p.value.trim() || p.generating) && <><View style={{width: p.sourceExpandable ? 13 * s : 0}}/><GhostAction icon="send" scale={s} bright/></>}
           </Animated.View>
           <Animated.View pointerEvents={closing ? 'none' : 'auto'} style={{position: 'absolute', top: sheetInset, left: 0, right: 0, opacity: controlsOpacity}}>
-            <ScreenHeader width={viewport.width} testID="expanded-composer-header">
-              <HeaderButton width={viewport.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
+            <ScreenHeader width={window.width} testID="expanded-composer-header">
+              <HeaderButton width={window.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
               <View style={{flex: 1}}/>
-              <HeaderButton width={viewport.width} testID="expanded-composer-send" icon={p.generating ? 'stop' : 'send'} label={p.generating ? '응답 중단' : '메시지 보내기'} bright disabled={!canSend} onPress={() => {if (p.generating) p.onCancel(); else {p.onSend(); close();}}}/>
+              <HeaderButton width={window.width} testID="expanded-composer-send" icon={p.generating ? 'stop' : 'send'} label={p.generating ? '응답 중단' : '메시지 보내기'} bright disabled={!canSend} onPress={() => {if (p.generating) p.onCancel(); else {p.onSend(); close();}}}/>
             </ScreenHeader>
           </Animated.View>
         </Animated.View>
+        </View>
       </View>
-    </KeyboardAvoidingView>
     </DragClickBoundary>
-  </Modal>;
+  </ChatOverlay>;
 }
 
 function GhostAction({icon, scale: s, bright = false}: {icon: 'plus' | 'expand' | 'send'; scale: number; bright?: boolean}) {

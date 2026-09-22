@@ -63,7 +63,7 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   </SettingsPressable>;
 }
 
-export function SettingsSheet({title, caption, onClose, children}: {title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode}) {
+export function SettingsSheet({title, caption, onClose, children, fillHeight = false}: {title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode; fillHeight?: boolean}) {
   const {settings: p} = useAppearance();
   const insets = useSafeAreaInsets();
   const s = useSettingsScale();
@@ -72,7 +72,9 @@ export function SettingsSheet({title, caption, onClose, children}: {title: strin
   const [bodyHeight, setBodyHeight] = useState(0);
   const bottom = Math.max(insets.bottom, settingsReference.sheetInset * s);
   const handleHeight = 58 * s;
-  const height = Math.min(bodyHeight + handleHeight, (windowHeight - bottom) * 0.85);
+  const maximumHeight = (windowHeight - bottom) * 0.85;
+  // A live catalog keeps its viewport still while arriving rows expand inside it.
+  const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   scroll.current.canScroll = bodyHeight > height - handleHeight + 1;
   return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose}>{(close, motionStyle) => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>

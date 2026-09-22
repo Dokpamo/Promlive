@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="search-title">
+  <title id="search-title">검색</title>
+  <path d="M23.1 14C23.1 8.15 19.85 4.8 14 4.8C8.15 4.8 4.8 8.15 4.8 14C4.8 19.85 8.15 23.2 14 23.2C19.85 23.2 23.1 19.85 23.1 14Z" />
+  <path d="M21.05 21.1C23.15 22.5 25.45 24.75 27.2 27.2" />
+</svg>

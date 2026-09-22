@@ -1,14 +1,13 @@
-import {useEffect, useMemo, useRef, type RefObject} from 'react';
+import {useEffect, useMemo, useRef} from 'react';
 import {Animated, PanResponder, Platform} from 'react-native';
 import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../settings/sheetMotion';
-import {panelSpring} from './usePanelMotion';
 
 /** Blank space follows the settings sheet's drag physics; text keeps editing/scrolling. */
 export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, options: {
   travel: number;
-  opening: RefObject<boolean>;
-  closing: RefObject<boolean>;
-  reduceMotion: boolean;
+  ready: () => boolean;
+  grab: () => void;
+  restore: () => void;
   close: () => void;
 }) {
   const config = useRef(options);
@@ -26,10 +25,11 @@ export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, op
   }, [drag]);
 
   const pan = useMemo(() => {
-    const ready = () => !config.current.opening.current && !config.current.closing.current;
+    const ready = () => config.current.ready();
     const canPull = (dx: number, dy: number) => ready() && !motion.current.input && !motion.current.multiple && Math.hypot(dx, dy) > 10;
     const begin = (dx = 0, dy = 0) => {
       const m = motion.current;
+      config.current.grab();
       drag.x.stopAnimation(); drag.y.stopAnimation();
       m.travel = Math.max(160, config.current.travel);
       m.origin = {
@@ -46,10 +46,7 @@ export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, op
       drag.x.setValue(sheetPullDistance(m.origin.x + dx, sheetPullLimits.sideways));
       drag.y.setValue(down < 0 ? sheetPullDistance(down, sheetPullLimits.upward) : Math.min(m.travel, down));
     };
-    const restore = () => {
-      if (config.current.reduceMotion) {drag.x.setValue(0); drag.y.setValue(0);}
-      else Animated.parallel([drag.x, drag.y].map(value => Animated.spring(value, {...panelSpring, toValue: 0, useNativeDriver: false}))).start();
-    };
+    const restore = () => config.current.restore();
     return PanResponder.create({
       onStartShouldSetPanResponderCapture: (_, gesture) => {
         const m = motion.current;
@@ -59,7 +56,7 @@ export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, op
         cancelClick.current = false;
         return false;
       },
-      // Keep blank sheet touches out of Native Modal's wrapper responder.
+      // Blank sheet touches belong to the sheet; the editor retains selection and scrolling.
       onStartShouldSetPanResponder: () => ready() && !motion.current.input && Platform.OS !== 'web',
       onMoveShouldSetPanResponderCapture: (_, gesture) => {
         if (motion.current.dragging || gesture.numberActiveTouches !== 1 || !canPull(gesture.dx, gesture.dy)) return false;
@@ -69,7 +66,7 @@ export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, op
       onPanResponderGrant: () => {
         const {x, y} = motion.current.captured;
         // Capture resets PanResponder's deltas; retain the movement already made.
-        if (x || y) {begin(x, y); move(0, 0);}
+        begin(x, y); move(0, 0);
       },
       onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) motion.current.multiple = true;},
       onPanResponderMove: (_, gesture) => {

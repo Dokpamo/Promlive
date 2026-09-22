@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Keyboard, Platform} from 'react-native';
 import {historyDragOrigin, historyDragPosition, shouldDismissHistory} from './drawerMotion';
 import {selectionHaptic} from './selectionHaptic';
-import {panelSpring} from './usePanelMotion';
+import {panelSpringForDistance, stopAndRead} from './panelAnimation';
 
 /** A floating side sheet: mount offscreen, animate both axes, then unmount. */
 export function useHistoryPull(travel: number, reduceMotion: boolean) {
@@ -13,16 +13,21 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
   config.current = {travel, reduceMotion};
   const motion = useRef({
     mounted: false, laidOut: false, generation: 0, frame: 0,
-    origin: {x: 0, y: 0}, delta: {x: 0, y: 0},
-    dragging: false, dragReady: false, lastMoveAt: 0,
+    position: {x: -travel, y: 0}, origin: {x: 0, y: 0}, delta: {x: 0, y: 0},
+    dragging: false, lastMoveAt: 0,
   });
   // Keep the native animated nodes attached across unrelated React renders.
   const transform = useMemo(() => offset.getTranslateTransform(), [offset]);
 
-  useEffect(() => () => {
-    motion.current.generation++;
-    cancelAnimationFrame(motion.current.frame);
-    offset.stopAnimation();
+  useEffect(() => {
+    const x = offset.x.addListener(({value}) => {if (!motion.current.dragging) motion.current.position.x = value;});
+    const y = offset.y.addListener(({value}) => {if (!motion.current.dragging) motion.current.position.y = value;});
+    return () => {
+      motion.current.generation++;
+      cancelAnimationFrame(motion.current.frame);
+      offset.stopAnimation();
+      offset.x.removeListener(x); offset.y.removeListener(y);
+    };
   }, [offset]);
 
   const animate = useCallback((open: boolean) => {
@@ -34,15 +39,13 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
     const toValue = {x: open ? 0 : -config.current.travel, y: 0};
     const finish = () => {
       if (generation !== m.generation || target.current !== open) return;
+      m.position = toValue;
       if (!open) {m.mounted = false; m.laidOut = false; setVisible(false);}
     };
     if (config.current.reduceMotion) {offset.setValue(toValue); finish(); return;}
     // ValueXY completes only after horizontal travel AND vertical recovery finish.
     Animated.spring(offset, {
-      ...panelSpring, toValue,
-      // These values are now pixels, rather than a normalized 0–1 progress.
-      restDisplacementThreshold: panelSpring.restDisplacementThreshold * config.current.travel,
-      restSpeedThreshold: panelSpring.restSpeedThreshold * config.current.travel,
+      ...panelSpringForDistance(), toValue,
       useNativeDriver: Platform.OS !== 'web',
     }).start(({finished}) => {if (finished) finish();});
   }, [offset]);
@@ -56,7 +59,8 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
       if (!open) return;
       m.generation++;
       offset.stopAnimation();
-      offset.setValue({x: -config.current.travel, y: 0});
+      m.position = {x: -config.current.travel, y: 0};
+      offset.setValue(m.position);
       m.mounted = true; m.laidOut = false;
       setVisible(true);
       return; // Settings also waits for the surface to be laid out before entering.
@@ -79,45 +83,45 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
     m.generation++; m.mounted = false; m.laidOut = false; m.dragging = false;
     target.current = false;
     cancelAnimationFrame(m.frame);
-    offset.stopAnimation(); offset.setValue({x: -config.current.travel, y: 0});
+    m.position = {x: -config.current.travel, y: 0};
+    offset.stopAnimation(); offset.setValue(m.position);
     setVisible(false);
   }, [offset]);
 
   const move = useCallback((dx: number, dy: number) => {
     const m = motion.current;
     m.delta = {x: dx, y: dy}; m.lastMoveAt = Date.now();
-    if (!m.dragReady || !m.dragging) return;
-    offset.setValue(historyDragPosition({x: m.origin.x + dx, y: m.origin.y + dy}, config.current.travel));
+    if (!m.dragging) return;
+    m.position = historyDragPosition({x: m.origin.x + dx, y: m.origin.y + dy}, config.current.travel);
+    offset.setValue(m.position);
   }, [offset]);
 
   const begin = useCallback((dx: number, dy: number) => {
     const m = motion.current;
     const generation = ++m.generation;
     cancelAnimationFrame(m.frame);
-    m.dragging = true; m.dragReady = false; m.delta = {x: 0, y: 0};
+    m.dragging = true; m.delta = {x: 0, y: 0};
     Keyboard.dismiss();
-    // Grab the actual displayed position, including an interrupted spring.
-    const position = {x: 0, y: 0};
-    let remaining = 2;
-    const receive = (axis: 'x' | 'y', value: number) => {
-      position[axis] = value;
-      if (--remaining) return;
-      if (generation !== m.generation || !m.dragging) return;
+    const setOrigin = (position: {x: number; y: number}) => {
       const origin = historyDragOrigin(position);
       m.origin = {x: origin.x + dx, y: origin.y + dy};
-      m.dragReady = true;
-      move(m.delta.x, m.delta.y);
     };
+    setOrigin(m.position);
     // ValueXY's callback only reads JS's cached values; query each native axis.
-    offset.x.stopAnimation(value => receive('x', value));
-    offset.y.stopAnimation(value => receive('y', value));
+    // Follow new touches immediately while those reads are in flight.
+    stopAndRead([offset.x, offset.y], ([x, y]) => {
+      if (generation !== m.generation) return;
+      setOrigin({x: x!, y: y!});
+      move(m.delta.x, m.delta.y);
+    });
+    move(0, 0);
   }, [move, offset]);
 
   const release = useCallback((dx: number, dy: number, vx: number, cancelled: boolean) => {
     const m = motion.current;
     const velocity = Date.now() - m.lastMoveAt > 100 ? 0 : vx;
     const dismiss = shouldDismissHistory(m.origin.x + dx, m.origin.y + dy, velocity, config.current.travel);
-    settle(cancelled || !m.dragReady ? target.current : !dismiss);
+    settle(cancelled ? target.current : !dismiss);
   }, [settle]);
 
   return {visible, target, reset, begin, move, release, settle, transform, onLayout};

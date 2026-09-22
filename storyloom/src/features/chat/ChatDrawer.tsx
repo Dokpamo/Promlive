@@ -5,7 +5,7 @@ import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {CardConversationHeader, CardConversationList, ChatHistory} from './ChatHistory';
 import {useAppearance} from '../appearance/AppAppearance';
-import {drawerProgress, navigationPanel, shouldOpenDrawer, type NavigationPanel} from './drawerMotion';
+import {navigationPanel, type NavigationPanel} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
 import {DrawerGestureGuard, DrawerModalLocks} from './DrawerGestureBoundary';
 import {headerScale, referenceSidebar as r, sidebarWidth} from './chatAppearance';
@@ -14,6 +14,7 @@ import {DragClickBoundary} from '../settings/DragClickBoundary';
 import type {SheetScrollState} from '../settings/sheetMotion';
 import {useHistoryPull} from './useHistoryPull';
 import {settingsGroupScale, settingsReference} from '../settings/settingsGeometry';
+import {ChatOverlayHost} from './ChatOverlay';
 
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
@@ -38,11 +39,11 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const historyPadding = settingsReference.groupPadding * historyScale;
   const corners = useScreenCorners();
   const [reduceMotion, setReduceMotion] = useState(false);
-  const cards = usePanelMotion(reduceMotion);
+  const cards = usePanelMotion(reduceMotion, drawerWidth);
   const history = useHistoryPull((r.searchLeft + r.searchWidth) * sidebarScale + 32, reduceMotion);
   const historyPullRef = useRef(history);
   historyPullRef.current = history;
-  const pocket = usePanelMotion(reduceMotion);
+  const pocket = usePanelMotion(reduceMotion, width);
   const panels = useRef({cards, history, pocket});
   panels.current = {cards, history, pocket};
   const [historyCardId, setHistoryCardId] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const vertical = useRef(false);
   const multiTouch = useRef(false);
   const gesturePanel = useRef<NavigationPanel | null>(null);
-  const origin = useRef(0);
+  const capturedPanelDrag = useRef(0);
   const historyOwnsGesture = useRef(false);
   const historyListTouched = useRef(false);
   const historyScroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
@@ -112,6 +113,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       cancelClick.current = false;
       vertical.current = false;
       gesturePanel.current = null;
+      capturedPanelDrag.current = 0;
       historyOwnsGesture.current = panels.current.cards.visible && panels.current.history.visible;
       historyListTouched.current = false;
       capturedHistoryDrag.current = {x: 0, y: 0};
@@ -137,6 +139,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       if (y > 10 && y > x) {vertical.current = true; return false;}
       if (x < 10 || x < y * 1.5) return false;
       gesturePanel.current = nextPanel;
+      capturedPanelDrag.current = gesture.dx;
       return gesturePanel.current !== null;
     },
     onPanResponderGrant: () => {
@@ -146,7 +149,10 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
         if (gesturePanel.current === 'history') {
           historyPullRef.current.begin(capturedHistoryDrag.current.x, capturedHistoryDrag.current.y);
           historyPullRef.current.move(0, 0);
-        } else origin.current = panels.current[gesturePanel.current].begin();
+        } else {
+          const isPocket = gesturePanel.current === 'pocket';
+          panels.current[gesturePanel.current].begin(capturedPanelDrag.current * (isPocket ? -1 : 1) / (isPocket ? width : drawerWidth));
+        }
       }
     },
     onPanResponderStart: (_, gesture) => {if (gesture.numberActiveTouches > 1) multiTouch.current = true;},
@@ -157,7 +163,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       if (!key || multiTouch.current) return;
       if (key === 'history') {historyPullRef.current.move(gesture.dx, gesture.dy); return;}
       const direction = key === 'pocket' ? -1 : 1;
-      panels.current[key].move(drawerProgress(origin.current, gesture.dx * direction, key === 'pocket' ? width : drawerWidth));
+      panels.current[key].move(gesture.dx * direction / (key === 'pocket' ? width : drawerWidth));
     },
     onPanResponderRelease: (_, gesture) => {
       if (modalLocks.current) {gesturePanel.current = null; return;}
@@ -170,8 +176,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       }
       const panel = panels.current[key];
       const direction = key === 'pocket' ? -1 : 1;
-      const next = drawerProgress(origin.current, gesture.dx * direction, key === 'pocket' ? width : drawerWidth);
-      panel.settle(multiTouch.current ? panel.target.current : shouldOpenDrawer(next, gesture.vx * direction));
+      panel.release(gesture.dx * direction / (key === 'pocket' ? width : drawerWidth), gesture.vx * direction, multiTouch.current);
       gesturePanel.current = null;
     },
     onPanResponderTerminate: () => {
@@ -188,6 +193,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const historyTop = insets.top + (r.searchTop + r.searchHeight + r.listGap) * sidebarScale - r.historyPadding * surfaceScale;
   const historyBottom = insets.bottom + (r.footerHeight + r.footerBottom + r.historyBottomGap) * sidebarScale;
   return <DrawerModalLocks.Provider value={modalLocks}><DrawerGestureGuard.Provider value={blocked}>
+    <ChatOverlayHost>
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
@@ -243,6 +249,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       </Animated.View>
     </View>
     </DragClickBoundary>
+    </ChatOverlayHost>
   </DrawerGestureGuard.Provider></DrawerModalLocks.Provider>;
 }
 

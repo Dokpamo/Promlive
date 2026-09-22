@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="new-chat-title">
+  <title id="new-chat-title">새 대화</title>
+  <path d="M16 5C8.2 5 4.6 8.1 4.6 15.2C4.6 18.2 5.15 20.4 6.55 22.15L5.15 26.55Q4.85 27.5 5.85 27.2L11.35 25.55C12.75 25.9 14.35 26.1 16 26.1C23.8 26.1 27.4 22.8 27.4 15.45C27.4 8.1 23.8 5 16 5Z" />
+  <path d="M11.55 15.4H20.45M16 10.95V19.85" />
+</svg>

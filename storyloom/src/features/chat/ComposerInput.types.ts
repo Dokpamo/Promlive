@@ -1,6 +1,13 @@
 import type {Ref} from 'react';
 
-export interface ComposerInputHandle {focus: () => void}
+export interface ComposerSelection {start: number; end: number}
+
+export interface ComposerInputHandle {
+  focus: (selection?: ComposerSelection) => void;
+  isFocused: () => boolean;
+  getSelection: () => ComposerSelection;
+  setSelection: (selection: ComposerSelection) => void;
+}
 
 export interface ComposerInputProps {
   focusRef?: Ref<ComposerInputHandle>;
@@ -13,6 +20,7 @@ export interface ComposerInputProps {
   fontSize: number;
   lineHeight: number;
   height: number;
+  fillHeight?: boolean;
   scroll: boolean;
   ready: boolean;
 }

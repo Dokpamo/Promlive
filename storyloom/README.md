@@ -117,9 +117,9 @@ npm run windows -- --release
 
 ## AI 연결은 나중에
 
-`src/app/runtime.ts`는 `DisconnectedProvider`만 연결합니다. API 키, OAuth 토큰, 기존 환경의 비밀값을 읽거나 저장하지 않습니다. 테스트용 응답은 `tests/`에만 존재합니다.
+`src/app/runtime.ts`의 대화 제공자는 `DisconnectedProvider`입니다. AI 설정에서는 모델 목록만 조회하며, 입력한 API 키는 즉시 별도의 기기 인증 저장소에 저장해 다음 실행에서 복원합니다. iOS·macOS는 Keychain, Android는 Keystore, Windows는 Credential Manager를 사용합니다. 웹은 브라우저 출처별 IndexedDB에 암호화해 보관하며 OS 키체인과는 다릅니다. 일반 설정 DB와 카드에는 키를 포함하지 않고, 환경의 비밀값을 자동으로 읽지 않습니다.
 
-`GrokProvider`에는 호스트가 보관한 Bearer 인증 정보와 선택한 모델을 주입할 수 있는 스트림 어댑터가 준비되어 있습니다. **Bearer 헤더 구현은 OAuth 로그인 구현을 뜻하지 않습니다.** OAuth 지원 경로·권한·토큰 갱신을 확인한 뒤 OS 보안 저장소 어댑터를 연결해야 합니다. 검색 제공자도 아직 연결하지 않았습니다.
+`GrokProvider`에는 호스트가 보관한 Bearer 인증 정보와 선택한 모델을 주입할 수 있는 스트림 어댑터가 준비되어 있습니다. **Bearer 헤더 구현은 OAuth 로그인 구현을 뜻하지 않습니다.** OAuth 로그인·갱신과 실제 대화·검색 제공자 연결은 아직 구현하지 않았습니다.
 
 연결 시 모델의 실제 입력 한도와 비용, 설정·대화의 전송 범위를 확인하고, 네 플랫폼에서 스트림·취소·시간 초과·네트워크 단절을 검증해야 합니다. 현재 문자 수 기반 컨텍스트 예산은 토큰 수 계산을 대체하지 않습니다.
 

@@ -1,0 +1,31 @@
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; margin: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; }
+button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+button:active { transform: scale(.97); }
+button { transition: background-color 180ms ease, transform 180ms ease; }
+.preview {
+  --surface: #fff; --text: #1a1a1a; --secondary: #777; --selected: #eee;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 64px;
+  padding: 28px 20px 24px; background: #f5f5f5; color: var(--text);
+}
+.preview[data-theme="dark"] { --surface: #262626; --text: #e4e4e4; --secondary: #929292; --selected: #333; background: #1f1f1f; color-scheme: dark; }
+.preview-panel { width: 100%; max-width: 320px; }
+.preview-heading { width: 100%; max-width: 412px; margin-bottom: 22px; }
+.preview-brand { font-size: 14px; color: var(--secondary); }
+.preview-heading h1 { font-size: 25px; font-weight: 400; line-height: 1.4; margin: 10px 0 8px; letter-spacing: -.7px; }
+.preview-heading p { font-size: 14px; color: var(--secondary); margin: 0; line-height: 1.6; }
+.preview-controls { width: 100%; max-width: 412px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.preview-segment { display: flex; background: var(--surface); padding: 4px; border-radius: 22px; gap: 2px; }
+.preview-segment button, .preview-theme { border: 0; border-radius: 18px; padding: 10px 13px; font-size: 12px; color: var(--secondary); background: transparent; }
+.preview-segment button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.preview-theme { color: var(--text); }
+.preview-stage { display: block; width: 100%; max-width: 412px; height: 600px; border: 0; margin: 6px 0; }
+.preview-replay { width: 100%; max-width: 390px; border: 0; border-radius: 24px; background: var(--text); color: var(--surface); min-height: 48px; font-size: 15px; margin-top: 24px; }
+.preview-note { margin: 13px 0 0; font-size: 12px; color: var(--secondary); }
+.arrival-stage, .arrival-stage body, .arrival-stage #root { width: 100%; height: 100%; overflow: hidden; }
+.arrival-stage #root { display: flex; flex-direction: column; }
+@media (max-width: 800px) { .preview { flex-direction: column; gap: 18px; } .preview-panel { max-width: 412px; } }
+@media (max-width: 390px) { .preview { padding-inline: 12px; } .preview-segment button, .preview-theme { padding-inline: 10px; } }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }

@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <symbol id="ys-settings" viewBox="0 0 32 32" data-label="설정" data-primary="true">
+      <path d="M13.05 5.3Q13.4 4.15 14.65 4.15H17.35Q18.6 4.15 18.95 5.3L19.6 7.25Q20.8 7.8 21.9 8.65L23.9 8.3Q25.15 8.05 25.8 9.15L27.2 11.55Q27.85 12.65 27 13.6L25.7 15.15Q25.8 16 25.7 16.85L27 18.4Q27.85 19.35 27.2 20.45L25.8 22.85Q25.15 23.95 23.9 23.7L21.9 23.35Q20.8 24.2 19.6 24.75L18.95 26.7Q18.6 27.85 17.35 27.85H14.65Q13.4 27.85 13.05 26.7L12.4 24.75Q11.2 24.2 10.1 23.35L8.1 23.7Q6.85 23.95 6.2 22.85L4.8 20.45Q4.15 19.35 5 18.4L6.3 16.85Q6.2 16 6.3 15.15L5 13.6Q4.15 12.65 4.8 11.55L6.2 9.15Q6.85 8.05 8.1 8.3L10.1 8.65Q11.2 7.8 12.4 7.25Z" />
+      <circle cx="16" cy="16" r="4.65" />
+    </symbol>
+    <symbol id="ys-back" viewBox="0 0 32 32" data-label="뒤로가기" data-primary="true">
+      <path d="M14.1 5.8L5.5 14.4Q3.9 16 5.5 17.6L14.1 26.2M5 16H27.3" />
+    </symbol>
+    <symbol id="ys-sidebar-open" viewBox="0 0 32 32" data-label="목록 열기" data-primary="true">
+      <path d="M4.3 10.6H27.7M4.3 21.4H20.7" />
+    </symbol>
+    <symbol id="ys-send" viewBox="0 0 32 32" data-label="전송" data-primary="true">
+      <path d="M5.2 8.3C11.6 6.7 18.7 5.1 25.9 4.2C28.25 3.9 28.8 4.9 27.9 6.85L18.3 27.1Q17.25 29.35 16.25 27.15L12.8 19.6Q12.45 18.85 11.75 18.45L4.6 14.3C1.95 12.75 2.25 9.05 5.2 8.3ZM12.5 18.8L21.7 10.45" />
+    </symbol>
+    <symbol id="ys-collapse" viewBox="0 0 32 32" data-label="축소" data-primary="true">
+      <path d="M27.6 4.4L18.1 13.9M18.1 6.9V12.9Q18.1 13.9 19.1 13.9H25.1M4.4 27.6L13.9 18.1M6.9 18.1H12.9Q13.9 18.1 13.9 19.1V25.1" />
+    </symbol>
+    <symbol id="ys-search" viewBox="0 0 32 32" data-label="검색" data-primary="true">
+      <path d="M23.35 13.55C23.35 18.97 18.97 23.35 13.55 23.35C8.13 23.35 3.75 18.97 3.75 13.55C3.75 8.13 8.13 3.75 13.55 3.75C18.97 3.75 23.35 8.13 23.35 13.55Z" />
+      <path d="M20.55 20.55L28.2 28.2" />
+    </symbol>
+    <symbol id="ys-expand" viewBox="0 0 32 32" data-label="확대" data-primary="true">
+      <path d="M18.2 13.8L27.4 4.6M19.9 4.6H26.4Q27.4 4.6 27.4 5.6V12.1M13.8 18.2L4.6 27.4M12.1 27.4H5.6Q4.6 27.4 4.6 26.4V19.9" />
+    </symbol>
+    <symbol id="ys-plus" viewBox="0 0 32 32" data-label="추가" data-primary="true">
+      <path d="M5.3 16H26.7M16 5.3V26.7" />
+    </symbol>
+    <symbol id="ys-create" viewBox="0 0 32 32" data-label="생성" data-primary="true">
+      <path d="M15.2 5.1H10.8C6.5 5.1 4.4 7.2 4.4 11.5V21.2C4.4 25.5 6.5 27.6 10.8 27.6H20.5C24.8 27.6 26.9 25.5 26.9 21.2V17.1" />
+      <path d="M13.1 14.7L23.6 4.2Q25.3 2.5 27.1 4.2L28 5.1Q29.7 6.9 28 8.6L17.5 19.1Q17 19.6 16.3 19.8L11.4 21.2Q10.4 21.5 10.7 20.5L12.2 15.6Q12.4 15.1 13.1 14.7ZM21.6 6.2L26 10.6" />
+    </symbol>
+    <symbol id="ys-new-chat" viewBox="0 0 32 32" data-label="새 대화" data-primary="false">
+      <path d="M27.9 15.6C27.9 8.65 22.95 3.9 16.15 3.9C9.1 3.9 4.1 8.7 4.1 15.65C4.1 22.6 9.1 27.3 16.15 27.3C18.65 27.3 20.7 26.85 22.4 25.95L27.45 27.8Q28.5 28.2 28.1 27.1L26.3 22.2C27.35 20.25 27.9 18.15 27.9 15.6ZM11.2 15.6H20.8M16 10.8V20.4" />
+    </symbol>
+    <symbol id="ys-chat" viewBox="0 0 32 32" data-label="대화" data-primary="false">
+      <path d="M27.9 15.6C27.9 8.65 22.95 3.9 16.15 3.9C9.1 3.9 4.1 8.7 4.1 15.65C4.1 22.6 9.1 27.3 16.15 27.3C18.65 27.3 20.7 26.85 22.4 25.95L27.45 27.8Q28.5 28.2 28.1 27.1L26.3 22.2C27.35 20.25 27.9 18.15 27.9 15.6Z" />
+    </symbol>
+    <symbol id="ys-voice" viewBox="0 0 32 32" data-label="음성" data-primary="false">
+      <path d="M5.5 13V19M10.75 8.5V23.5M16 5.5V26.5M21.25 10.5V21.5M26.5 13V19" />
+    </symbol>
+    <symbol id="ys-close" viewBox="0 0 32 32" data-label="닫기" data-primary="false">
+      <path d="M8.5 8.5L23.5 23.5M23.5 8.5L8.5 23.5" />
+    </symbol>
+    <symbol id="ys-stop" viewBox="0 0 32 32" data-label="중지" data-primary="false">
+      <path d="M12.9 6.8H19.1C23.6 6.8 25.2 8.4 25.2 12.9V19.1C25.2 23.6 23.6 25.2 19.1 25.2H12.9C8.4 25.2 6.8 23.6 6.8 19.1V12.9C6.8 8.4 8.4 6.8 12.9 6.8Z" />
+    </symbol>
+    <symbol id="ys-more" viewBox="0 0 32 32" data-label="더 보기" data-primary="false">
+      <g fill="currentColor" stroke="none">
+        <circle cx="16" cy="7.5" r="1.5" />
+        <circle cx="16" cy="16" r="1.5" />
+        <circle cx="16" cy="24.5" r="1.5" />
+      </g>
+    </symbol>
+    <symbol id="ys-user" viewBox="0 0 32 32" data-label="사용자" data-primary="false">
+      <path d="M20.7 10.4C20.7 13.2 19 15 16 15C13 15 11.3 13.2 11.3 10.4C11.3 7.6 13 5.8 16 5.8C19 5.8 20.7 7.6 20.7 10.4Z" />
+      <path d="M5.8 26.1C6.4 20.9 9.8 18.4 16 18.4C22.2 18.4 25.6 20.9 26.2 26.1" />
+    </symbol>
+    <symbol id="ys-connection" viewBox="0 0 32 32" data-label="연결" data-primary="false">
+      <path d="M15.2 9.35L17.9 6.65C20.6 3.95 24.1 4.5 26.35 6.75C28.6 9 28.35 12.5 25.75 15.1L23.2 17.65M16.8 22.65L14.1 25.35C11.4 28.05 7.9 27.5 5.65 25.25C3.4 23 3.65 19.5 6.25 16.9L8.8 14.35M11.1 20.9L20.9 11.1" />
+    </symbol>
+    <symbol id="ys-model" viewBox="0 0 32 32" data-label="모델" data-primary="false">
+      <path d="M12.2 8.1H19.8Q23.9 8.1 23.9 12.2V19.8Q23.9 23.9 19.8 23.9H12.2Q8.1 23.9 8.1 19.8V12.2Q8.1 8.1 12.2 8.1Z" />
+      <path d="M12.5 4.7V8.1M19.5 4.7V8.1M12.5 23.9V27.3M19.5 23.9V27.3M4.7 12.5H8.1M4.7 19.5H8.1M23.9 12.5H27.3M23.9 19.5H27.3" />
+      <path d="M14.65 12.6H17.35Q19.4 12.6 19.4 14.65V17.35Q19.4 19.4 17.35 19.4H14.65Q12.6 19.4 12.6 17.35V14.65Q12.6 12.6 14.65 12.6Z" />
+    </symbol>
+    <symbol id="ys-response" viewBox="0 0 32 32" data-label="응답" data-primary="false">
+      <path d="M27.9 15.6C27.9 8.65 22.95 3.9 16.15 3.9C9.1 3.9 4.1 8.7 4.1 15.65C4.1 22.6 9.1 27.3 16.15 27.3C18.65 27.3 20.7 26.85 22.4 25.95L27.45 27.8Q28.5 28.2 28.1 27.1L26.3 22.2C27.35 20.25 27.9 18.15 27.9 15.6ZM10.7 12.7H21.3M10.7 18.2H17.6" />
+    </symbol>
+    <symbol id="ys-text" viewBox="0 0 32 32" data-label="글자" data-primary="false">
+      <path d="M4.75 25L10.15 7.5Q10.65 6 11.2 7.5L16.6 25M7 18.05H14.4M26.9 15.4V25M26.9 20.2C26.9 17 25.55 15.4 22.7 15.4C19.85 15.4 18.5 17 18.5 20.2C18.5 23.4 19.85 25 22.7 25C25.55 25 26.9 23.4 26.9 20.2" />
+    </symbol>
+    <symbol id="ys-haptic" viewBox="0 0 32 32" data-label="진동" data-primary="false">
+      <path d="M13.35 5.2H18.65Q22.4 5.2 22.4 8.95V23.05Q22.4 26.8 18.65 26.8H13.35Q9.6 26.8 9.6 23.05V8.95Q9.6 5.2 13.35 5.2ZM14.5 23.2H17.5" />
+      <path d="M5.85 11.4Q3.7 16 5.85 20.6M26.15 11.4Q28.3 16 26.15 20.6" />
+    </symbol>
+    <symbol id="ys-bell" viewBox="0 0 32 32" data-label="알림" data-primary="false">
+      <path d="M16 5.2C11.45 5.2 8.7 8.6 8.5 13.15L8.3 16.8Q8.2 19.05 6.15 21.6Q5.4 22.8 7.25 23.05Q16 24.35 24.75 23.05Q26.6 22.8 25.85 21.6Q23.8 19.05 23.7 16.8L23.5 13.15C23.3 8.6 20.55 5.2 16 5.2ZM16 3.8V5.1M12.8 27Q16 29.4 19.2 27" />
+    </symbol>
+    <symbol id="ys-theme" viewBox="0 0 32 32" data-label="테마" data-primary="false">
+      <path d="M16 5C8.85 5 5 8.85 5 16C5 23.15 8.85 27 16 27C23.15 27 27 23.15 27 16C27 8.85 23.15 5 16 5Z" />
+      <path d="M16 5C8.85 5 5 8.85 5 16C5 23.15 8.85 27 16 27Z" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="ys-info" viewBox="0 0 32 32" data-label="정보" data-primary="false">
+      <path d="M16 5C8.85 5 5 8.85 5 16C5 23.15 8.85 27 16 27C23.15 27 27 23.15 27 16C27 8.85 23.15 5 16 5Z" />
+      <path d="M16 14.65V22.15" />
+      <circle cx="16" cy="9.9" r="1.2" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="ys-chevron" viewBox="0 0 32 32" data-label="다음" data-primary="false">
+      <path d="M12.4 7.3L19.4 14.25Q21.1 16 19.4 17.75L12.4 24.7" />
+    </symbol>
+    <symbol id="ys-edit" viewBox="0 0 32 32" data-label="편집" data-primary="false">
+      <path d="M8.45 19.5L21.4 6.55Q23.3 4.65 25.1 6.45L26.05 7.4Q27.85 9.2 25.95 11.1L13 24.05L6.75 25.3ZM19.35 8.6L23.9 13.15M8.45 19.5L13 24.05M17.2 27.4H27.2" />
+    </symbol>
+    <symbol id="ys-check" viewBox="0 0 32 32" data-label="확인" data-primary="false">
+      <path d="M5.5 16.7L11.8 22.45Q12.8 23.4 13.85 22.25L26.5 8.6" />
+    </symbol>
+    <symbol id="ys-library" viewBox="0 0 32 32" data-label="서재" data-primary="false">
+      <path d="M16 8.15C12.9 6.1 9.6 5.6 5.2 6.2Q4.4 6.3 4.4 7.4V24.1Q4.4 25.4 5.7 25.2C10.1 24.4 13.2 24.9 16 27C18.8 24.9 21.9 24.4 26.3 25.2Q27.6 25.4 27.6 24.1V7.4Q27.6 6.3 26.8 6.2C22.4 5.6 19.1 6.1 16 8.15ZM16 8.15V27" />
+    </symbol>
+    <symbol id="ys-star" viewBox="0 0 32 32" data-label="즐겨찾기" data-primary="false">
+      <path d="M16 4.95Q16.5 4.95 17 6.05L19.35 11.05Q19.65 11.7 20.4 11.8L25.95 12.45Q27.2 12.6 26.25 13.65L22.15 17.6Q21.65 18.05 21.75 18.8L22.75 24.5Q23 25.95 21.7 25.25L16.7 22.5Q16 22.15 15.3 22.5L10.3 25.25Q9 25.95 9.25 24.5L10.25 18.8Q10.35 18.05 9.85 17.6L5.75 13.65Q4.8 12.6 6.05 12.45L11.6 11.8Q12.35 11.7 12.65 11.05L15 6.05Q15.5 4.95 16 4.95Z" />
+    </symbol>
+    <symbol id="ys-archive" viewBox="0 0 32 32" data-label="보관함" data-primary="false">
+      <path d="M6.65 5.65H25.35Q27.6 5.65 27.6 7.9V10.35Q27.6 12.6 25.35 12.6H6.65Q4.4 12.6 4.4 10.35V7.9Q4.4 5.65 6.65 5.65ZM7 12.6V22.5Q7 26.6 11.1 26.6H20.9Q25 26.6 25 22.5V12.6M12.5 17.65H19.5" />
+    </symbol>
+    <symbol id="ys-arrow" viewBox="0 0 32 32" data-label="바로가기" data-primary="false">
+      <path d="M7.4 24.6L24.1 7.9M13.15 7.4H23.4Q24.6 7.4 24.6 8.6V18.85" />
+    </symbol>
+    <symbol id="ys-code" viewBox="0 0 32 32" data-label="코드" data-primary="false">
+      <path d="M11.2 7.85L4.95 14.25Q3.35 16 4.95 17.75L11.2 24.15M20.8 7.85L27.05 14.25Q28.65 16 27.05 17.75L20.8 24.15" />
+    </symbol>
+    <symbol id="ys-world" viewBox="0 0 32 32" data-label="세계관" data-primary="false">
+      <path d="M16 5C8.85 5 5 8.85 5 16C5 23.15 8.85 27 16 27C23.15 27 27 23.15 27 16C27 8.85 23.15 5 16 5Z" />
+      <path d="M5.1 15.8Q16 18.4 26.9 15.8M16 5C12.8 8.1 11.6 11.7 11.6 16C11.6 20.3 12.8 23.9 16 27M16 5C19.2 8.1 20.4 11.7 20.4 16C20.4 20.3 19.2 23.9 16 27" />
+    </symbol>
+    <symbol id="ys-people" viewBox="0 0 32 32" data-label="등장인물" data-primary="false">
+      <path d="M16.4 10.55C16.4 13.1 14.95 14.85 12.3 14.85C9.65 14.85 8.2 13.1 8.2 10.55C8.2 8 9.65 6.25 12.3 6.25C14.95 6.25 16.4 8 16.4 10.55ZM3.8 26.15C4.25 21.45 7 18.9 12.3 18.9C17.6 18.9 20.35 21.45 20.8 26.15M21.3 7.6C24.6 7.6 26.2 9.4 26.2 12C26.2 14.6 24.7 16.25 21.5 16.25M24 20.15C27.65 21 29 23.1 29.3 26.15" />
+    </symbol>
+    <symbol id="ys-spark" viewBox="0 0 32 32" data-label="AI 도움" data-primary="false">
+      <path d="M15.8 4.9C15.8 12.6 13.3 15.25 5.45 15.65C13.3 16.05 15.8 18.7 15.8 26.4C16.2 18.7 18.75 16.05 26.5 15.65C18.75 15.25 16.2 12.6 15.8 4.9Z" />
+    </symbol>
+    <symbol id="ys-leaf" viewBox="0 0 32 32" data-label="이야기" data-primary="false">
+      <path d="M26.6 5.4C18.2 4.8 9.2 6.65 6.05 12.55C3.1 18.1 5.2 25.7 12.05 26.1C22.1 26.7 26.9 17.9 26.6 5.4ZM6.05 27.1C9.8 19.2 15.8 13.9 22.3 10.1" />
+    </symbol>
+    <symbol id="ys-copy" viewBox="0 0 32 32" data-label="복사" data-primary="false">
+      <path d="M13.9 4.7H23.1Q26.3 4.7 26.3 7.9V18.1Q26.3 21.3 23.1 21.3H13.9Q10.7 21.3 10.7 18.1V7.9Q10.7 4.7 13.9 4.7ZM7.1 11.3Q5.7 11.3 5.7 13.9V24.1Q5.7 27.3 8.9 27.3H18.1Q21.3 27.3 21.3 23.9" />
+    </symbol>
+    <symbol id="ys-dots" viewBox="0 0 32 32" data-label="추가 메뉴" data-primary="false">
+      <g fill="currentColor" stroke="none">
+        <circle cx="7.5" cy="16" r="1.5" />
+        <circle cx="16" cy="16" r="1.5" />
+        <circle cx="24.5" cy="16" r="1.5" />
+      </g>
+    </symbol>
+    <symbol id="ys-sliders" viewBox="0 0 32 32" data-label="조정" data-primary="false">
+      <path d="M5 10.4H9.85M16.55 10.4H27M5 21.6H16.85M23.55 21.6H27" />
+      <path d="M16.55 10.4C16.55 12.65 15.45 13.75 13.2 13.75C10.95 13.75 9.85 12.65 9.85 10.4C9.85 8.15 10.95 7.05 13.2 7.05C15.45 7.05 16.55 8.15 16.55 10.4ZM23.55 21.6C23.55 23.85 22.45 24.95 20.2 24.95C17.95 24.95 16.85 23.85 16.85 21.6C16.85 19.35 17.95 18.25 20.2 18.25C22.45 18.25 23.55 19.35 23.55 21.6Z" />
+    </symbol>
+    <symbol id="ys-panel-left" viewBox="0 0 32 32" data-label="목록 · 패널형" data-primary="false">
+      <path d="M10.2 4.95H21.8C26.1 4.95 28.1 6.95 28.1 11.25V20.75C28.1 25.05 26.1 27.05 21.8 27.05H10.2C5.9 27.05 3.9 25.05 3.9 20.75V11.25C3.9 6.95 5.9 4.95 10.2 4.95ZM11.9 5.05V26.95" />
+    </symbol>
+    <symbol id="ys-send-up" viewBox="0 0 32 32" data-label="전송 · 위쪽 화살표" data-primary="false">
+      <path d="M5.8 14.1L14.4 5.5Q16 3.9 17.6 5.5L26.2 14.1M16 5V27.3" />
+    </symbol>
+    <symbol id="ys-heart" viewBox="0 0 32 32" data-label="좋아요" data-primary="false">
+      <path d="M16 27.4C13.9 25.95 4.05 18.9 3.85 12.15C3.7 7.5 6.5 4.55 10.35 4.55C12.85 4.55 14.9 5.9 16 8.05C17.1 5.9 19.15 4.55 21.65 4.55C25.5 4.55 28.3 7.5 28.15 12.15C27.95 18.9 18.1 25.95 16 27.4Z" />
+    </symbol>
+    <symbol id="ys-bookmark" viewBox="0 0 32 32" data-label="저장" data-primary="false">
+      <path d="M7.9 4.35H24.1Q25.35 4.35 25.35 5.6V27.25Q25.35 28.25 24.55 27.6L16.8 21.25Q16 20.55 15.2 21.25L7.45 27.6Q6.65 28.25 6.65 27.25V5.6Q6.65 4.35 7.9 4.35Z" />
+    </symbol>
+    <symbol id="ys-repost" viewBox="0 0 32 32" data-label="재게시" data-primary="false">
+      <path d="M6.2 16.2V12.15C6.2 8.3 8.45 6.45 12.2 6.45H25.25M20.65 2.9L25.1 6.1Q25.7 6.5 25.1 7.05L20.65 11.3M25.8 15.8V19.85C25.8 23.7 23.55 25.55 19.8 25.55H6.75M11.35 20.7L6.9 24.95Q6.3 25.5 6.9 25.9L11.35 29.1" />
+    </symbol>
+    <symbol id="ys-home" viewBox="0 0 32 32" data-label="홈" data-primary="false">
+      <path d="M5.45 13.05L13.95 5.3Q16 3.45 18.05 5.3L26.55 13.05Q27.8 14.2 27.8 16.1V25.4Q27.8 28 25.2 28H21.8Q20 28 20 26.2V20.65C20 17.65 18.6 16.4 16 16.4C13.4 16.4 12 17.65 12 20.65V26.2Q12 28 10.2 28H6.8Q4.2 28 4.2 25.4V16.1Q4.2 14.2 5.45 13.05Z" />
+    </symbol>
+    <symbol id="ys-reels" viewBox="0 0 32 32" data-label="동영상" data-primary="false">
+      <path d="M11 4.25H21C25.65 4.25 27.75 6.35 27.75 11V21C27.75 25.65 25.65 27.75 21 27.75H11C6.35 27.75 4.25 25.65 4.25 21V11C4.25 6.35 6.35 4.25 11 4.25Z" />
+      <path d="M12.45 10.1Q12.45 8.75 13.6 9.45L22.05 14.9Q23.55 15.9 22.05 16.9L13.6 22.35Q12.45 23.05 12.45 21.7Z" />
+    </symbol>
+    <symbol id="ys-mute" viewBox="0 0 32 32" data-label="음소거" data-primary="false">
+      <path d="M11.3 9.4L16.2 5.6Q17.45 4.65 17.45 6.3V15.5M17.45 22.45V25.7Q17.45 27.35 16.2 26.4L9.9 21.55H6.2Q4.5 21.55 4.5 19.85V12.15Q4.5 10.45 6.2 10.45H6.8M22.1 9.65Q26.75 14 24.15 20.5M4.35 3.9L27.65 28.1" />
+    </symbol>
+    <symbol id="ys-music" viewBox="0 0 32 32" data-label="음악" data-primary="false">
+      <path d="M12.1 22.45V7.3Q12.1 6.15 13.2 5.95L25.2 3.8Q26.5 3.6 26.5 4.95V20.05M12.1 11.3L26.5 8.8" />
+      <path d="M12.1 22.45C12.1 24.6 10.2 26.35 7.65 26.35C5.1 26.35 3.7 25.25 3.7 23.5C3.7 21.35 5.65 19.7 8.25 19.7C10.85 19.7 12.1 20.75 12.1 22.45ZM26.5 20.05C26.5 22.2 24.6 23.95 22.05 23.95C19.5 23.95 18.1 22.85 18.1 21.1C18.1 18.95 20.05 17.3 22.65 17.3C25.25 17.3 26.5 18.35 26.5 20.05Z" />
+    </symbol>
+    <symbol id="ys-verified" viewBox="0 0 32 32" data-label="인증" data-primary="false">
+      <path d="M16 3.8L19.6 6.25L23.9 6.5L25.05 10.7L28.1 13.7L26.55 17.75L26.65 22.05L22.5 23.5L19.9 27L16 25.8L12.1 27L9.5 23.5L5.35 22.05L5.45 17.75L3.9 13.7L6.95 10.7L8.1 6.5L12.4 6.25Z" />
+      <path d="M10.45 15.75L14.1 19.15Q14.65 19.7 15.3 19L21.65 12.2" />
+    </symbol>
+  </defs>
+</svg>

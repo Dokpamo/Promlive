@@ -37,7 +37,7 @@ describe('AI preset separation', () => {
     expect(modelPresetCapabilities(deepseek, connection)).toMatchObject({efforts: [], sampling: true, reasoningTopP: false});
 
     const anthropic = aiServices.find(item => item.id === 'anthropic')!;
-    const claude = state.connections.anthropic;
+    const claude = choosePreviewModel('anthropic', state.connections.anthropic, previewModel(anthropic, 'claude-opus-5'));
     claude.modelPresets[claude.model] = {...modelPresetFor('anthropic', claude), thinking: 'disabled'};
     expect(modelPresetCapabilities(anthropic, claude).efforts).toEqual(['low', 'medium', 'high']);
     expect(modelPresetFor('anthropic', claude).maxTokens).not.toBe('');
@@ -58,7 +58,7 @@ describe('provider connection previews', () => {
     expect(connectionRoutes(aiServices.find(item => item.id === 'anthropic')!).map(route => route.auth)).toEqual(['apiKey']);
   });
 
-  it('keeps keys, endpoints and model presets separate between API regions and OAuth', () => {
+  it('keeps keys, endpoints and model presets separate between API regions', () => {
     const service = aiServices.find(item => item.id === 'minimax')!;
     const api = createAiSettingsPreview().connections.minimax;
     api.key = 'global-preview-key';
@@ -69,11 +69,7 @@ describe('provider connection previews', () => {
     expect(modelPresetFor('minimax', china).maxTokens).toBe('');
     china.key = 'china-preview-key';
 
-    const oauth = chooseConnectionRoute(service, china, 'oauth');
-    expect(oauth).toMatchObject({key: '', model: '', url: 'https://api.minimax.io/anthropic'});
-    expect(connectionModels(service, oauth)).toEqual([]);
-    expect(modelPresetCapabilities(service, oauth)).toMatchObject({reasoning: false, output: false, tools: false, advanced: false});
-    const restored = chooseConnectionRoute(service, oauth, 'api');
+    const restored = chooseConnectionRoute(service, china, 'api');
     expect(restored).toMatchObject({key: 'global-preview-key', url: api.url, model: api.model});
     expect(modelPresetFor('minimax', restored).maxTokens).toBe('8192');
     expect(chooseConnectionRoute(service, restored, 'api-cn').key).toBe('china-preview-key');
@@ -82,7 +78,7 @@ describe('provider connection previews', () => {
 
   it('does not copy API model capabilities into an account-only catalog', () => {
     const state = createAiSettingsPreview();
-    for (const id of ['openai', 'xai', 'google', 'minimax', 'qwen'] as const) {
+    for (const id of ['openai', 'google', 'xai'] as const) {
       const service = aiServices.find(item => item.id === id)!;
       const oauthRoute = connectionRoutes(service).find(route => route.auth === 'oauth')!;
       const oauth = chooseConnectionRoute(service, state.connections[id], oauthRoute.id);
@@ -116,8 +112,9 @@ describe('provider connection previews', () => {
     const glm = aiServices.find(item => item.id === 'zai')!;
     const glmConnection = state.connections.zai;
     expect(modelPresetCapabilities(glm, glmConnection).efforts).toEqual(['low', 'high', 'max']);
+    expect(previewModel(glm, 'glm-5.3').thinking).toBeUndefined(); // Forced thinking: no off switch.
     glmConnection.modelPresets[glmConnection.model] = {...modelPresetFor('zai', glmConnection), thinking: 'disabled'};
-    expect(modelPresetCapabilities(glm, glmConnection).efforts).toEqual([]);
+    expect(modelPresetCapabilities(glm, glmConnection).efforts).toEqual(['low', 'high', 'max']);
 
     const minimax = aiServices.find(item => item.id === 'minimax')!;
     expect(previewModel(minimax, 'MiniMax-M3').adaptiveThinking).toBe(true);

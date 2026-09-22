@@ -1745,6 +1745,28 @@ PODS:
     - React-utils (= 0.81.6)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.81.6)
+  - RNKeychain (10.0.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -1818,6 +1840,7 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RNKeychain (from `../node_modules/react-native-keychain`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
@@ -1960,6 +1983,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNKeychain:
+    :path: "../node_modules/react-native-keychain"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -2033,6 +2058,7 @@ SPEC CHECKSUMS:
   ReactCodegen: 5ef36122dce8d29cbfe5e84f1406f0a86bbfeb48
   ReactCommon: a6d92d1cfe02ed622d05194d3592c87626ed14cd
   ReactNativeDependencies: 3854fa4300cf7659f4c5b788765cd47a0feb657a
+  RNKeychain: 667b7bd224f14055ae4cb52b41a82ad0ad70574f
   Yoga: 786fa7d9d2ff6060b4e688062243fa69c323d140
 
 PODFILE CHECKSUM: 879a765c1ecad82151ef72aefd5f44b90334c560

@@ -1,12 +1,28 @@
 import {useImperativeHandle, useRef} from 'react';
 import {TextInput} from 'react-native';
-import type {ComposerInputProps} from './ComposerInput.types';
+import type {ComposerInputProps, ComposerSelection} from './ComposerInput.types';
 import {useAppearance} from '../appearance/AppAppearance';
 
 export function ComposerInput(p: ComposerInputProps) {
   const {colors: c} = useAppearance();
   const input = useRef<TextInput>(null);
-  useImperativeHandle(p.focusRef, () => ({focus: () => input.current?.focus()}), []);
+  const selection = useRef<ComposerSelection>({start: p.value.length, end: p.value.length});
+  const length = useRef(p.value.length);
+  length.current = p.value.length;
+  useImperativeHandle(p.focusRef, () => {
+    const setSelection = (next: ComposerSelection) => {
+      const start = Math.max(0, Math.min(next.start, length.current));
+      const end = Math.max(start, Math.min(next.end, length.current));
+      selection.current = {start, end};
+      input.current?.setSelection(start, end);
+    };
+    return {
+      focus: next => {if (next) setSelection(next); input.current?.focus();},
+      isFocused: () => input.current?.isFocused() ?? false,
+      getSelection: () => selection.current,
+      setSelection,
+    };
+  }, []);
   return <TextInput
     ref={input}
     testID={p.testID ?? 'chat-input'}
@@ -15,6 +31,7 @@ export function ComposerInput(p: ComposerInputProps) {
     editable={p.ready}
     onChangeText={p.onChange}
     onFocus={p.onFocus}
+    onSelectionChange={event => {selection.current = event.nativeEvent.selection;}}
     onContentSizeChange={e => p.onHeight(e.nativeEvent.contentSize.height)}
     placeholder="무엇이든 물어보세요."
     placeholderTextColor={c.placeholder}
@@ -24,6 +41,6 @@ export function ComposerInput(p: ComposerInputProps) {
     scrollEnabled={p.scroll}
     maxLength={8000}
     textAlignVertical="top"
-    style={{height: p.height, width: '100%', padding: 0, margin: 0, borderWidth: 0, color: c.text, fontSize: p.fontSize, lineHeight: p.lineHeight, includeFontPadding: false}}
+    style={{height: p.fillHeight ? '100%' : p.height, width: '100%', padding: 0, margin: 0, borderWidth: 0, color: c.text, fontSize: p.fontSize, lineHeight: p.lineHeight, includeFontPadding: false}}
   />;
 }

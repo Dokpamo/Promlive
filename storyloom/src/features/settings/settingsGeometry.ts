@@ -6,6 +6,7 @@ export const settingsReference = {
   inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
   rowHeight: 82, rowInset: 34, rowPadding: 17, rowFont: referenceTypography.titleFontSize, rowLine: 40, valueFont: 26,
   highlightInset: 8,
+  toggle: {width: 76, height: 44, inset: 4},
   profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,
   sheetInset: 17, sheetPadding: 42,
   sheetHandle: {width: 82, height: 7, radius: 4, top: 21},

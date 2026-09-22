@@ -37,9 +37,14 @@ export function ChatScreen({workspace: w, width}: {workspace: Workspace; width: 
   const previousMessages = hasMore ? <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => void loadOlder().catch(report)} style={{alignSelf: 'center', padding: 14, marginBottom: 14}}>
     <Text style={{color: c.muted, fontSize: 13}}>{loadingOlder ? '불러오는 중…' : '이전 대화 보기'}</Text>
   </Pressable> : null;
-  return <KeyboardAvoidingView style={{flex: 1}} behavior="padding" enabled={Platform.OS !== 'android' || keyboard} keyboardVerticalOffset={insets.top}>
+  // Keep the hidden composer above the keyboard too: it is the sheet's return
+  // target. The overlay lives outside this view and keeps its full-window frame.
+  const avoidKeyboard = keyboard;
+  // The parent SafeAreaView already includes the top inset in this layout.
+  // Adding it as a keyboard offset lifts the composer by that amount again.
+  return <KeyboardAvoidingView style={{flex: 1}} behavior="padding" enabled={avoidKeyboard}>
     <FlatList ref={list} testID="chat-messages" data={visible} keyExtractor={item => item.id} initialNumToRender={20} maxToRenderPerBatch={12} windowSize={7} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{flex: 1}} contentContainerStyle={{paddingHorizontal: r.inset * s, paddingTop: r.top * s, paddingBottom: r.bottom * s, width: '100%', maxWidth: 800, alignSelf: 'center'}} onScroll={e => {const v = e.nativeEvent; scrollNearBottom.current = v.contentSize.height - v.layoutMeasurement.height - v.contentOffset.y < 130;}} scrollEventThrottle={100} onContentSizeChange={() => {if (scrollNearBottom.current) list.current?.scrollToEnd({animated: false});}} ListHeaderComponent={previousMessages} renderItem={({item}) => <ChatMessage message={item} width={width}/>}/>
     {live && live.omitted > 0 && <Text style={{color: c.muted, fontSize: 11, paddingHorizontal: 22, paddingBottom: 10}}>입력 한도에 맞춰 이전 메시지 {live.omitted}개를 제외했어요. 기록은 유지됩니다.</Text>}
-    <ChatComposer value={draft.value} onChange={draft.change} onSend={() => void send()} onCancel={() => {if (live) creation.cancel(live.requestId);}} onHint={message => w.inform(message)} width={width} bottom={keyboard ? 0 : insets.bottom} ready={draft.ready} sending={sending} generating={!!live}/>
+    <ChatComposer value={draft.value} onChange={draft.change} onSend={() => void send()} onCancel={() => {if (live) creation.cancel(live.requestId);}} onHint={message => w.inform(message)} width={width} bottom={avoidKeyboard ? 0 : insets.bottom} ready={draft.ready} sending={sending} generating={!!live}/>
   </KeyboardAvoidingView>;
 }

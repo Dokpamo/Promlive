@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="model-title">
+  <title id="model-title">모델</title>
+  <path d="M12.2 8.1H19.8Q23.9 8.1 23.9 12.2V19.8Q23.9 23.9 19.8 23.9H12.2Q8.1 23.9 8.1 19.8V12.2Q8.1 8.1 12.2 8.1Z" />
+  <path d="M12.5 4.7V8.1M19.5 4.7V8.1M12.5 23.9V27.3M19.5 23.9V27.3M4.7 12.5H8.1M4.7 19.5H8.1M23.9 12.5H27.3M23.9 19.5H27.3" />
+  <path d="M14.65 12.6H17.35Q19.4 12.6 19.4 14.65V17.35Q19.4 19.4 17.35 19.4H14.65Q12.6 19.4 12.6 17.35V14.65Q12.6 12.6 14.65 12.6Z" />
+</svg>

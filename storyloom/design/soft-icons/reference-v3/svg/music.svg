@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="music-title">
+  <title id="music-title">음악</title>
+  <path d="M12.1 22.45V7.3Q12.1 6.15 13.2 5.95L25.2 3.8Q26.5 3.6 26.5 4.95V20.05M12.1 11.3L26.5 8.8" />
+  <path d="M12.1 22.45C12.1 24.6 10.2 26.35 7.65 26.35C5.1 26.35 3.7 25.25 3.7 23.5C3.7 21.35 5.65 19.7 8.25 19.7C10.85 19.7 12.1 20.75 12.1 22.45ZM26.5 20.05C26.5 22.2 24.6 23.95 22.05 23.95C19.5 23.95 18.1 22.85 18.1 21.1C18.1 18.95 20.05 17.3 22.65 17.3C25.25 17.3 26.5 18.35 26.5 20.05Z" />
+</svg>

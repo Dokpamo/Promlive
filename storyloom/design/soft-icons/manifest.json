@@ -1,0 +1,190 @@
+{
+  "name": "Yeobaek Soft",
+  "version": 1,
+  "viewBox": "0 0 32 32",
+  "strokeWidth": 2.2,
+  "renderedStrokeAt24px": 1.65,
+  "source": "icons.svg",
+  "icons": [
+    {
+      "name": "search",
+      "label": "검색",
+      "file": "svg/search.svg"
+    },
+    {
+      "name": "new-chat",
+      "label": "새 대화",
+      "file": "svg/new-chat.svg"
+    },
+    {
+      "name": "chat",
+      "label": "대화",
+      "file": "svg/chat.svg"
+    },
+    {
+      "name": "back",
+      "label": "뒤로",
+      "file": "svg/back.svg"
+    },
+    {
+      "name": "send",
+      "label": "보내기",
+      "file": "svg/send.svg"
+    },
+    {
+      "name": "plus",
+      "label": "추가",
+      "file": "svg/plus.svg"
+    },
+    {
+      "name": "voice",
+      "label": "음성",
+      "file": "svg/voice.svg"
+    },
+    {
+      "name": "expand",
+      "label": "확대",
+      "file": "svg/expand.svg"
+    },
+    {
+      "name": "close",
+      "label": "닫기",
+      "file": "svg/close.svg"
+    },
+    {
+      "name": "stop",
+      "label": "중지",
+      "file": "svg/stop.svg"
+    },
+    {
+      "name": "more",
+      "label": "더 보기",
+      "file": "svg/more.svg"
+    },
+    {
+      "name": "user",
+      "label": "사용자",
+      "file": "svg/user.svg"
+    },
+    {
+      "name": "settings",
+      "label": "설정",
+      "file": "svg/settings.svg"
+    },
+    {
+      "name": "connection",
+      "label": "연결",
+      "file": "svg/connection.svg"
+    },
+    {
+      "name": "model",
+      "label": "모델",
+      "file": "svg/model.svg"
+    },
+    {
+      "name": "response",
+      "label": "응답",
+      "file": "svg/response.svg"
+    },
+    {
+      "name": "text",
+      "label": "글자",
+      "file": "svg/text.svg"
+    },
+    {
+      "name": "haptic",
+      "label": "진동",
+      "file": "svg/haptic.svg"
+    },
+    {
+      "name": "bell",
+      "label": "알림",
+      "file": "svg/bell.svg"
+    },
+    {
+      "name": "theme",
+      "label": "테마",
+      "file": "svg/theme.svg"
+    },
+    {
+      "name": "info",
+      "label": "정보",
+      "file": "svg/info.svg"
+    },
+    {
+      "name": "chevron",
+      "label": "다음",
+      "file": "svg/chevron.svg"
+    },
+    {
+      "name": "edit",
+      "label": "편집",
+      "file": "svg/edit.svg"
+    },
+    {
+      "name": "check",
+      "label": "확인",
+      "file": "svg/check.svg"
+    },
+    {
+      "name": "library",
+      "label": "서재",
+      "file": "svg/library.svg"
+    },
+    {
+      "name": "star",
+      "label": "즐겨찾기",
+      "file": "svg/star.svg"
+    },
+    {
+      "name": "archive",
+      "label": "보관함",
+      "file": "svg/archive.svg"
+    },
+    {
+      "name": "arrow",
+      "label": "바로가기",
+      "file": "svg/arrow.svg"
+    },
+    {
+      "name": "code",
+      "label": "코드",
+      "file": "svg/code.svg"
+    },
+    {
+      "name": "world",
+      "label": "세계관",
+      "file": "svg/world.svg"
+    },
+    {
+      "name": "people",
+      "label": "등장인물",
+      "file": "svg/people.svg"
+    },
+    {
+      "name": "spark",
+      "label": "AI 도움",
+      "file": "svg/spark.svg"
+    },
+    {
+      "name": "leaf",
+      "label": "이야기",
+      "file": "svg/leaf.svg"
+    },
+    {
+      "name": "copy",
+      "label": "복사",
+      "file": "svg/copy.svg"
+    },
+    {
+      "name": "dots",
+      "label": "추가 메뉴",
+      "file": "svg/dots.svg"
+    },
+    {
+      "name": "sliders",
+      "label": "조정",
+      "file": "svg/sliders.svg"
+    }
+  ]
+}

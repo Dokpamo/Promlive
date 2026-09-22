@@ -8,6 +8,7 @@
 
 #include "NativeModules.h"
 #include "StoryloomSqlite.h"
+#include "PromliveCredentials.h"
 
 // A PackageProvider containing any turbo modules you define within this app project
 struct CompReactPackageProvider

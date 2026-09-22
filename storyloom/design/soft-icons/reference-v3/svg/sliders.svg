@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="sliders-title">
+  <title id="sliders-title">조정</title>
+  <path d="M5 10.4H9.85M16.55 10.4H27M5 21.6H16.85M23.55 21.6H27" />
+  <path d="M16.55 10.4C16.55 12.65 15.45 13.75 13.2 13.75C10.95 13.75 9.85 12.65 9.85 10.4C9.85 8.15 10.95 7.05 13.2 7.05C15.45 7.05 16.55 8.15 16.55 10.4ZM23.55 21.6C23.55 23.85 22.45 24.95 20.2 24.95C17.95 24.95 16.85 23.85 16.85 21.6C16.85 19.35 17.95 18.25 20.2 18.25C22.45 18.25 23.55 19.35 23.55 21.6Z" />
+</svg>

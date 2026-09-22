@@ -1,5 +1,5 @@
-import {useState} from 'react';
-import {Keyboard, Text, TextInput, View} from 'react-native';
+import {useState, type Dispatch, type SetStateAction} from 'react';
+import {ActivityIndicator, Keyboard, Text, TextInput, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../chat/chatAppearance';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
@@ -8,7 +8,7 @@ import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 import {AiSettingsPreview} from './AiSettingsPreview';
-import {createAiSettingsPreview} from './aiSettingsModel';
+import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
@@ -23,20 +23,21 @@ const sheetCaptions: Partial<Record<Sheet, string>> = {
 // Keep this order fixed. Usage frequency never rearranges the settings.
 const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
 
-/** Appearance choices are applied and persisted; other settings remain previews. */
-export function SettingsPreview({onClose}: {onClose: () => void}) {
+/** Appearance, AI preferences and separately stored API keys persist; login remains a preview. */
+export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
+  onClose: () => void; ai: AiSettingsPreviewState; onAiChange: Dispatch<SetStateAction<AiSettingsPreviewState>>; aiReady: boolean; aiError: string;
+}) {
   const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
   const [page, setPage] = useState<Page | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [name, setName] = useState('사용자');
-  const [ai, setAi] = useState(createAiSettingsPreview);
   const [language, setLanguage] = useState('한국어');
   const [persona, setPersona] = useState<Persona>({name: '기본', description: ''});
   const [prompt, setPrompt] = useState('');
   const closeSheet = () => {Keyboard.dismiss(); setSheet(null);};
   const choose = (setter: (value: string) => void, value: string, close: () => void) => {setter(value); close();};
-  const values = {ai: '연결 안 됨', persona: persona.name, prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
+  const values = {ai: aiServices.find(service => service.id === ai.service)?.name, persona: persona.name, prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
 
   return <SwipeBackModal onClose={onClose} active={page === null && sheet === null}>{close => <>
     <SettingsPage home onBack={close}>
@@ -54,7 +55,7 @@ export function SettingsPreview({onClose}: {onClose: () => void}) {
       <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
     </SettingsPage>
 
-    {page === 'ai' && <AiSettingsPreview value={ai} onChange={setAi} onClose={() => setPage(null)}/>}
+    {page === 'ai' && (aiReady ? <AiSettingsPreview value={ai} onChange={onAiChange} saveError={aiError} onClose={() => setPage(null)}/> : <SwipeBackModal onClose={() => setPage(null)}>{back => <SettingsPage title="AI" onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
     {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => setPage(null)} active={sheet === null}>{back => <SettingsPage title={pageTitles[page]} onBack={back}>
       {page === 'theme' && <>
         <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>

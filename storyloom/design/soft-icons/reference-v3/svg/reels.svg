@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="reels-title">
+  <title id="reels-title">동영상</title>
+  <path d="M11 4.25H21C25.65 4.25 27.75 6.35 27.75 11V21C27.75 25.65 25.65 27.75 21 27.75H11C6.35 27.75 4.25 25.65 4.25 21V11C4.25 6.35 6.35 4.25 11 4.25Z" />
+  <path d="M12.45 10.1Q12.45 8.75 13.6 9.45L22.05 14.9Q23.55 15.9 22.05 16.9L13.6 22.35Q12.45 23.05 12.45 21.7Z" />
+</svg>
