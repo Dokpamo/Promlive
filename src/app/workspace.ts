@@ -154,7 +154,9 @@ export class Workspace {
     if (this.editor?.card.id === card.id && this.editor.dirty) await this.save();
     else await this.flush();
     const conversations = await this.runtime.repo.conversations(card.id);
-    const conversation = (!forceNew && conversations[0]) || await this.runtime.repo.createConversation(card.id);
+    // Pinning controls list order, not which recent room opens on startup.
+    const recent = conversations.reduce<Conversation | undefined>((latest, item) => !latest || item.updatedAt > latest.updatedAt ? item : latest, undefined);
+    const conversation = (!forceNew && recent) || await this.runtime.repo.createConversation(card.id);
     this.selectConversation(conversation);
     this.page = 'chat'; await this.refresh();
   }
@@ -169,5 +171,24 @@ export class Workspace {
     this.selectConversation(conversation);
     this.page = 'chat';
     this.emit();
+  }
+  async renameConversation(id: string, title: string) {
+    await this.runtime.repo.renameConversation(id, title);
+    await this.refresh();
+  }
+  async pinConversation(id: string, pinned: boolean) {
+    await this.runtime.repo.pinConversation(id, pinned);
+    await this.refresh();
+  }
+  async deleteConversations(ids: readonly string[]) {
+    const previous = this.conversation;
+    await this.runtime.creation.deleteConversations(ids);
+    await this.refresh();
+    // Do not interrupt a different room opened while the deletion was saving.
+    if (previous && this.selectedConversationId === previous.id && ids.includes(previous.id)) {
+      const next = this.conversations.find(item => item.cardId === previous.cardId) ?? this.conversations[0];
+      this.selectedConversationId = next?.id ?? null;
+      this.emit();
+    }
   }
 }

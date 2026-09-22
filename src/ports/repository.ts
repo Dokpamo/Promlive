@@ -15,6 +15,10 @@ export interface StoryRepository {
   applyDraft(draft: Draft, next: Card): Promise<Card>;
   createConversation(cardId: string, title?: string): Promise<Conversation>;
   conversations(cardId?: string): Promise<Conversation[]>;
+  renameConversation(id: string, title: string): Promise<void>;
+  pinConversation(id: string, pinned: boolean): Promise<void>;
+  deleteConversations(ids: readonly string[]): Promise<void>;
+  saveComposerDraft(conversationId: string, value: string): Promise<void>;
   messages(conversationId: string, before?: number, limit?: number): Promise<Message[]>;
   beginExchange(conversationId: string, requestId: string, content: string): Promise<{user: Message; assistant: Message}>;
   appendLocalUserMessage(conversationId: string, content: string): Promise<Message>;

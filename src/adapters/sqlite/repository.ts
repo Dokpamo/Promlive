@@ -79,12 +79,33 @@ export class Repository implements StoryRepository {
   }
   async conversations(cardId?: string) {
     const result = await this.db.execute(`
-      SELECT c.id,c.card_id AS cardId,c.title,c.created_at AS createdAt,c.updated_at AS updatedAt,
+      SELECT c.id,c.card_id AS cardId,c.title,c.created_at AS createdAt,c.updated_at AS updatedAt,c.pinned_at AS pinnedAt,
         COALESCE((SELECT substr(m.content,1,180) FROM messages m
           WHERE m.conversation_id=c.id AND m.content<>'' ORDER BY m.sequence DESC LIMIT 1),'') AS preview
-      FROM conversations c${cardId ? ' WHERE c.card_id=?' : ''} ORDER BY c.updated_at DESC
+      FROM conversations c${cardId ? ' WHERE c.card_id=?' : ''} ORDER BY c.pinned_at DESC,c.updated_at DESC,c.id
     `, cardId ? [cardId] : []);
     return result.rows.map(row => conversationSchema.parse(row));
+  }
+  async renameConversation(id: string, title: string) {
+    const text = z.string().trim().min(1, '이름을 입력해 주세요.').max(120, '이름은 120자까지 입력할 수 있어요.').parse(title);
+    const result = await this.db.execute('UPDATE conversations SET title=?,title_edited=1 WHERE id=?', [text, id]);
+    if (result.changes !== 1) throw new Error('채팅내역을 찾을 수 없습니다.');
+  }
+  async pinConversation(id: string, pinned: boolean) {
+    const result = await this.db.execute('UPDATE conversations SET pinned_at=? WHERE id=?', [pinned ? Date.now() : null, id]);
+    if (result.changes !== 1) throw new Error('채팅내역을 찾을 수 없습니다.');
+  }
+  async deleteConversations(ids: readonly string[]) {
+    await this.db.transaction(async tx => {
+      for (const id of new Set(ids)) {
+        await tx.execute('DELETE FROM conversations WHERE id=?', [id]);
+        await tx.execute('DELETE FROM settings WHERE key=?', [`composer:${id}`]);
+      }
+    });
+  }
+  async saveComposerDraft(conversationId: string, value: string) {
+    // A departing editor may flush after deletion; never recreate an orphan draft.
+    await this.db.execute('INSERT INTO settings(key,value) SELECT ?,? WHERE EXISTS(SELECT 1 FROM conversations WHERE id=?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [`composer:${conversationId}`, value, conversationId]);
   }
   async messages(conversationId: string, before = Number.MAX_SAFE_INTEGER, limit = 40) {
     const result = await this.db.execute('SELECT id,conversation_id AS conversationId,sequence,role,content,status,request_id AS requestId,error,created_at AS createdAt FROM messages WHERE conversation_id=? AND sequence<? ORDER BY sequence DESC LIMIT ?', [conversationId, before, Math.max(1, Math.min(limit, 200))]);
@@ -101,7 +122,7 @@ export class Repository implements StoryRepository {
       const user = messageSchema.parse({id: newId('msg'), conversationId, sequence, role: 'user', content, status: 'completed', requestId, error: null, createdAt: now});
       const assistant = messageSchema.parse({...user, id: newId('msg'), sequence: sequence + 1, role: 'assistant', content: '', status: 'pending'});
       for (const msg of [user, assistant]) await this.insertMessage(msg, tx);
-      await tx.execute('UPDATE conversations SET updated_at=?,title=CASE WHEN title=\'새로운 대화\' THEN ? ELSE title END WHERE id=?', [now, content.slice(0, 40), conversationId]);
+      await tx.execute('UPDATE conversations SET updated_at=?,title=CASE WHEN title_edited=0 AND title=\'새로운 대화\' THEN ? ELSE title END WHERE id=?', [now, content.slice(0, 40), conversationId]);
       return {user, assistant};
     });
   }
@@ -114,7 +135,7 @@ export class Repository implements StoryRepository {
       const sequence = Number((await tx.execute('SELECT COALESCE(MAX(sequence),0) AS value FROM messages WHERE conversation_id=?', [conversationId])).rows[0]?.value) + 1;
       const message = messageSchema.parse({id: newId('msg'), conversationId, sequence, role: 'user', content: text, status: 'completed', requestId: null, error: null, createdAt: Date.now()});
       await this.insertMessage(message, tx);
-      await tx.execute("UPDATE conversations SET updated_at=?,title=CASE WHEN title='새로운 대화' THEN ? ELSE title END WHERE id=?", [message.createdAt, text.slice(0, 40), conversationId]);
+      await tx.execute("UPDATE conversations SET updated_at=?,title=CASE WHEN title_edited=0 AND title='새로운 대화' THEN ? ELSE title END WHERE id=?", [message.createdAt, text.slice(0, 40), conversationId]);
       return message;
     });
   }

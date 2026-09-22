@@ -1,12 +1,30 @@
 import {Text, View} from 'react-native';
 
-export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check';
+export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete';
 
 export function SettingsIcon({name, color, size = 22}: {name: SettingsIconName; color: string; size?: number}) {
   const s = size / 24;
   const line = {position: 'absolute' as const, backgroundColor: color, height: 1.7 * s, borderRadius: 2 * s};
   const outline = {position: 'absolute' as const, borderWidth: 1.7 * s, borderColor: color};
   return <View pointerEvents="none" accessible={false} style={{width: size, height: size}}>
+    {name === 'pin' && <>
+      <View style={[outline, {left: 7 * s, top: 2 * s, width: 10 * s, height: 11 * s, borderBottomWidth: 0, borderRadius: 2 * s}]}/>
+      <View style={[outline, {left: 4 * s, top: 12 * s, width: 16 * s, height: 5 * s, borderRadius: 2 * s}]}/>
+      <View style={[line, {left: 11 * s, top: 17 * s, width: 1.7 * s, height: 6 * s}]}/>
+    </>}
+    {name === 'delete' && <>
+      <View style={[outline, {left: 6 * s, top: 7 * s, width: 12 * s, height: 15 * s, borderBottomLeftRadius: 3 * s, borderBottomRightRadius: 3 * s}]}/>
+      <View style={[line, {left: 3 * s, top: 5 * s, width: 18 * s}]}/>
+      <View style={[line, {left: 9 * s, top: 2 * s, width: 6 * s}]}/>
+      {[10, 14].map(x => <View key={x} style={[line, {left: x * s, top: 10 * s, width: 1.7 * s, height: 8 * s}]}/>)}
+    </>}
+    {name === 'select' && <>
+      {[5, 12, 19].map(y => <View key={y}>
+        <View style={[line, {left: 10 * s, top: y * s, width: 12 * s}]}/>
+        <View style={[line, {left: s, top: y * s, width: 3 * s, transform: [{rotate: '45deg'}]}]}/>
+        <View style={[line, {left: 3 * s, top: (y - 1) * s, width: 5 * s, transform: [{rotate: '-45deg'}]}]}/>
+      </View>)}
+    </>}
     {name === 'connection' && <>
       {[0, 1].map(i => <View key={i} style={[outline, {width: 13 * s, height: 9 * s, borderRadius: 5 * s, left: (1 + i * 9) * s, top: (12 - i * 9) * s, transform: [{rotate: '-45deg'}]}]}/>)}
       <View style={[line, {width: 10 * s, left: 7 * s, top: 11 * s, transform: [{rotate: '-45deg'}]}]}/>

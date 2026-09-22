@@ -1,4 +1,4 @@
-import {useRef, useState, type RefObject} from 'react';
+import {useRef, useState} from 'react';
 import {Animated, FlatList, Keyboard, Platform, Pressable, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
@@ -11,7 +11,6 @@ import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
-import type {SheetScrollState} from '../settings/sheetMotion';
 import {rowPressedScale, SettingsPressable} from '../settings/SettingsPressable';
 import {settingsReference} from '../settings/settingsGeometry';
 
@@ -19,6 +18,7 @@ interface Props {
   workspace: Workspace;
   width: number;
   historyCard: Card | undefined;
+  historyProgress: Animated.AnimatedInterpolation<number>;
   historySearch: string;
   onHistorySearch: (value: string) => void;
   openCard: (card: Card) => void;
@@ -26,8 +26,8 @@ interface Props {
   openSettings: () => void;
 }
 
-/** Brand, contextual search/create controls and account stay outside the history popup. */
-export function ChatHistory({workspace: w, width, historyCard, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
+/** Shared search/create controls stay above the card history popup. */
+export function ChatHistory({workspace: w, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
   const {colors: c} = useAppearance();
   const [cardSearch, setCardSearch] = useState('');
   const insets = useSafeAreaInsets();
@@ -48,7 +48,7 @@ export function ChatHistory({workspace: w, width, historyCard, historySearch, on
       </View>
       <View testID="sidebar-toolbar" style={{position: 'absolute', left: r.searchLeft * s, top: r.searchTop * s, width: r.searchWidth * s, height: r.searchHeight * s, flexDirection: 'row', alignItems: 'center', gap: r.searchActionGap * s}}>
         <View style={{flex: 1, minWidth: 0}}>
-          <DrawerGestureBoundary><SidebarSearch scale={s} history={!!historyCard} value={historyCard ? historySearch : cardSearch} onChange={historyCard ? onHistorySearch : setCardSearch}/></DrawerGestureBoundary>
+          <DrawerGestureBoundary><SidebarSearch scale={s} history={!!historyCard} historyProgress={historyProgress} value={historyCard ? historySearch : cardSearch} onChange={historyCard ? onHistorySearch : setCardSearch}/></DrawerGestureBoundary>
         </View>
         <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : '새 채팅'} onPress={() => {void start().catch(error => w.report(error));}}/>
       </View>
@@ -69,7 +69,7 @@ export function ChatHistory({workspace: w, width, historyCard, historySearch, on
   </View>;
 }
 
-export function CardConversationHeader({card, scale: s, onClose}: {card: Card; scale: number; onClose: () => void}) {
+export function CardConversationHeader({card, scale: s, onClose, closeLabel = '채팅내역 닫기'}: {card: Card; scale: number; onClose: () => void; closeLabel?: string}) {
   const {colors: c} = useAppearance();
   // Center the circular close button on the popup's outer corner arc.
   const inset = settingsReference.radius - referenceHeader.height / 2;
@@ -78,74 +78,59 @@ export function CardConversationHeader({card, scale: s, onClose}: {card: Card; s
   return <View testID="card-history-header" style={{height: referenceHeader.height * s, flexShrink: 0, marginTop: top * s, marginBottom: bottom * s, paddingLeft: settingsReference.rowInset * s, paddingRight: inset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
     <CardThumbnail testID="card-history-image" cover={card.cover} size={r.cardImage * s}/>
     <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
-    <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label="채팅내역 닫기" onPress={onClose} variant="plain"/>
+    <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label={closeLabel} onPress={onClose} variant="plain"/>
   </View>;
 }
 
-export function CardConversationList({workspace: w, scale, card, search, close, scroll}: {workspace: Workspace; scale: number; card: Card; search: string; close: () => void; scroll: RefObject<SheetScrollState>}) {
-  const query = search.trim().toLocaleLowerCase();
-  const conversations = w.conversations.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query));
-  const select = async (id: string) => {
-    Keyboard.dismiss();
-    const conversation = conversations.find(item => item.id === id);
-    if (conversation) {await w.openConversation(conversation); close();}
-  };
-  return <SidebarRows items={conversations} scale={scale} variant="history" selectedId={w.conversation?.id} testID="card-conversation-list" label={title => `${title} 채팅 열기`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'} scroll={scroll} onSelect={id => {void select(id).catch(error => w.report(error));}}/>;
-}
-
-function SidebarRows({items, scale: s, variant = 'cards', selectedId, testID, label, empty, onSelect, scroll}: {
+function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelect}: {
   items: {id: string; title: string; cover?: Card['cover']}[];
-  scale: number;
-  variant?: 'cards' | 'history';
-  selectedId: string | undefined;
-  testID: string;
-  label: (title: string) => string;
-  empty: string;
-  onSelect: (id: string) => void;
-  scroll?: RefObject<SheetScrollState>;
+  scale: number; selectedId: string | undefined; testID: string;
+  label: (title: string) => string; empty: string; onSelect: (id: string) => void;
 }) {
   const {colors: c} = useAppearance();
-  const history = variant === 'history';
-  const listInset = history ? 0 : r.rowInset * s;
-  const contentInset = (history ? settingsReference.rowInset : r.textInset - r.rowInset) * s;
-  const highlightRadius = (history ? settingsReference.controlRadius : r.rowRadius) * s;
-  const dimensions = useRef({content: 0, viewport: 0});
-  const measure = (kind: 'content' | 'viewport', height: number) => {
-    dimensions.current[kind] = height;
-    if (scroll) scroll.current.canScroll = dimensions.current.content > dimensions.current.viewport + 1;
-  };
   return <FlatList testID={testID} data={items} keyExtractor={item => item.id} style={{flex: 1}}
-    onLayout={event => measure('viewport', event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => measure('content', height)}
-    onScroll={event => {if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16}
-    contentContainerStyle={{paddingHorizontal: listInset, paddingBottom: history ? 0 : 12 * s}}
+    contentContainerStyle={{paddingHorizontal: r.rowInset * s, paddingBottom: 12 * s}}
     keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: contentInset, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} selectedHighlight={history ? 'pressed' : 'full'} radius={highlightRadius} highlightInset={history ? settingsReference.highlightInset * s : 0} onPress={() => onSelect(item.id)} style={history ? undefined : {height: r.rowHeight * s}} contentStyle={{...(history ? {minHeight: settingsReference.rowHeight * s, paddingVertical: settingsReference.rowPadding * s, justifyContent: 'center'} : {height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}), paddingHorizontal: contentInset}}>
-      {!history && item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
-      <Text numberOfLines={1} style={{...(!history ? {flex: 1, minWidth: 0} : {}), color: c.text, fontSize: (history ? settingsReference.rowFont : r.fontSize) * s, lineHeight: (history ? settingsReference.rowLine : r.lineHeight) * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{item.title}</Text>
+    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: (r.textInset - r.rowInset) * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
+    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} radius={r.rowRadius * s} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s, paddingHorizontal: (r.textInset - r.rowInset) * s}}>
+      {item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
+      <Text numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{item.title}</Text>
     </SettingsPressable>}/>;
 }
 
-function SidebarSearch({scale: s, history, value, onChange}: {scale: number; history: boolean; value: string; onChange: (value: string) => void}) {
+export function SidebarSearch({scale: s, history, historyProgress, value, onChange}: {scale: number; history: boolean; historyProgress: Animated.AnimatedInterpolation<number>; value: string; onChange: (value: string) => void}) {
   const {colors: c, settings: p, isDark} = useAppearance();
   const input = useRef<TextInput>(null);
   const {progress, onPressIn, onPressOut} = usePressFeedback();
   const size = r.searchHeight * s;
+  const labelTravel = 144 * s;
   // The input keeps its native selection gestures; only its visual surface reacts.
   const mouseFeedback = Platform.OS === 'web' ? {onMouseDown: onPressIn, onMouseUp: onPressOut, onMouseLeave: onPressOut} : {};
-  return <Pressable testID="sidebar-search" accessible={false} onPress={() => input.current?.focus()} onPressIn={onPressIn} onPressOut={onPressOut} style={{height: size}}>
+  return <Pressable testID={history ? 'history-search' : 'sidebar-search'} accessible={false} onPress={() => input.current?.focus()} onPressIn={onPressIn} onPressOut={onPressOut} style={{height: size}}>
     <Animated.View testID="sidebar-search-surface" style={{height: size, borderRadius: size / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 27 * s, gap: 14 * s, transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]})}]}}>
       <Animated.View testID="sidebar-search-tint" pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, backgroundColor: p.selected, opacity: progress}}/>
       <ChatIcon name="search" size={29 * s} color={c.text}/>
-      <TextInput ref={input} testID="sidebar-search-input" accessibilityLabel={history ? '이 카드의 채팅 검색' : '카드 검색'} value={value} onChangeText={onChange} placeholder={history ? '채팅 검색' : '검색'} placeholderTextColor={c.placeholder} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut} onBlur={onPressOut} {...mouseFeedback} style={{flex: 1, minWidth: 0, padding: 0, color: c.text, height: size, fontSize: 27 * s, includeFontPadding: false}}/>
+      <View style={{flex: 1, minWidth: 0, height: size, overflow: 'hidden'}}>
+        {/* Keep one native input for focus/selection; only the empty-field labels move.
+            The popup's own progress also reverses these labels during a back drag. */}
+        <TextInput ref={input} testID={history ? 'history-search-input' : 'sidebar-search-input'} accessibilityLabel={history ? '이 카드의 채팅 검색' : '카드 검색'} value={value} onChangeText={onChange} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut} onBlur={onPressOut} {...mouseFeedback} style={{width: '100%', padding: 0, color: c.text, height: size, fontSize: 27 * s, includeFontPadding: false}}/>
+        <View pointerEvents="none" accessible={false} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', inset: 0, opacity: value ? 0 : 1}}>
+          <Animated.View testID="search-card-placeholder" style={{position: 'absolute', inset: 0, justifyContent: 'center', opacity: historyProgress.interpolate({inputRange: [0, 0.8, 1], outputRange: [1, 0, 0]}), transform: [{translateX: historyProgress.interpolate({inputRange: [0, 1], outputRange: [0, labelTravel]})}]}}>
+            <Text numberOfLines={1} style={{color: c.placeholder, fontSize: 27 * s, includeFontPadding: false}}>검색</Text>
+          </Animated.View>
+          <Animated.View testID="search-history-placeholder" style={{position: 'absolute', inset: 0, justifyContent: 'center', opacity: historyProgress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, 0, 1]}), transform: [{translateX: historyProgress.interpolate({inputRange: [0, 1], outputRange: [-labelTravel, 0]})}]}}>
+            <Text numberOfLines={1} style={{color: c.placeholder, fontSize: 27 * s, includeFontPadding: false}}>채팅 검색</Text>
+          </Animated.View>
+        </View>
+      </View>
     </Animated.View>
   </Pressable>;
 }
 
-function CreateChatButton({scale: s, label, onPress}: {scale: number; label: string; onPress: () => void}) {
+export function CreateChatButton({scale: s, label, onPress, testID = 'sidebar-create'}: {scale: number; label: string; onPress: () => void; testID?: string}) {
   const {colors: c, settings: p, isDark} = useAppearance();
   const size = r.searchHeight * s;
-  return <PressSurface compact testID="sidebar-create" surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+  return <PressSurface compact testID={testID} surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     radius={size / 2} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
     contentStyle={{backgroundColor: c.search, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
     <ChatIcon name="new-chat" size={35 * s} color={c.text}/>

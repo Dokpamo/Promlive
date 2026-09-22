@@ -28,7 +28,7 @@ export function useComposerDraft(repo: StoryRepository, conversationId: string |
     return () => {
       current.active = false;
       clearTimeout(current.timer);
-      if (current.ready) void repo.setSetting(`composer:${current.id}`, current.value).catch(onError);
+      if (current.ready) void repo.saveComposerDraft(current.id, current.value).catch(onError);
     };
   }, [repo, conversationId, onError]);
 
@@ -40,7 +40,7 @@ export function useComposerDraft(repo: StoryRepository, conversationId: string |
     setState({id: current.id, value, ready: true});
     clearTimeout(current.timer);
     current.timer = setTimeout(() => {
-      void repo.setSetting(`composer:${current.id}`, current.value).catch(onError);
+      void repo.saveComposerDraft(current.id, current.value).catch(onError);
     }, 300);
   };
 
@@ -57,7 +57,7 @@ export function useComposerDraft(repo: StoryRepository, conversationId: string |
         current.value = '';
         current.revision++;
         setState({id: current.id, value: '', ready: true});
-        void repo.setSetting(`composer:${current.id}`, '').catch(onError);
+        void repo.saveComposerDraft(current.id, '').catch(onError);
       },
     };
   };

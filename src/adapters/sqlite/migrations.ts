@@ -13,6 +13,11 @@ export const migrations = [
     'CREATE TABLE editor_buffers (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, base_revision INTEGER NOT NULL, document TEXT NOT NULL, updated_at INTEGER NOT NULL)',
     'CREATE INDEX card_library ON cards(archived, updated_at DESC)',
   ],
+  [
+    'ALTER TABLE conversations ADD COLUMN pinned_at INTEGER',
+    'ALTER TABLE conversations ADD COLUMN title_edited INTEGER NOT NULL DEFAULT 0',
+    'CREATE INDEX conversation_history ON conversations(card_id, pinned_at DESC, updated_at DESC)',
+  ],
 ] as const;
 export const DATABASE_VERSION = migrations.length;
 export async function migrate(db: SqlDatabase, steps: readonly (readonly string[])[] = migrations) {

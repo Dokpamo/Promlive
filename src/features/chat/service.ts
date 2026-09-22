@@ -9,6 +9,8 @@ export interface LiveGeneration { requestId: string; conversationId: string; mes
 export class CreationService {
   private readonly listeners = new Set<() => void>();
   private readonly active = new Map<string, LiveGeneration>();
+  private readonly sends = new Map<string, Set<Promise<void>>>();
+  private readonly deleting = new Set<string>();
   private revision = 0;
   private readonly cancelled = new Set<string>();
   private readonly drafts = new Map<string, Draft>();
@@ -22,14 +24,44 @@ export class CreationService {
   markDraftApplied(cardId: string, draftId: string) {const draft = this.drafts.get(cardId); if (draft?.id === draftId) {this.drafts.set(cardId, {...draft, status: 'applied'}); this.emit();}}
   lastError() { return this.error; }
   cancel(requestId: string) { this.cancelled.add(requestId); this.coordinator.cancel(requestId); }
-  async send(card: Card, conversationId: string, input: string, requestId = newId('request'), onAccepted?: () => void) {
+  send(card: Card, conversationId: string, input: string, requestId = newId('request'), onAccepted?: () => void) {
+    if (this.deleting.has(conversationId)) return Promise.reject(new Error('삭제 중인 채팅입니다.'));
+    const tasks = this.sends.get(conversationId) ?? new Set<Promise<void>>();
+    this.sends.set(conversationId, tasks);
+    const task = this.sendMessage(card, conversationId, input, requestId, onAccepted).finally(() => {
+      tasks.delete(task);
+      if (!tasks.size) this.sends.delete(conversationId);
+    });
+    tasks.add(task);
+    return task;
+  }
+  async deleteConversations(ids: readonly string[]) {
+    const unique = [...new Set(ids)];
+    unique.forEach(id => this.deleting.add(id));
+    try {
+      for (const id of unique) {
+        const live = this.active.get(id);
+        if (live) this.cancel(live.requestId);
+      }
+      // Let cancellation finish its last write before cascading the messages away.
+      await Promise.allSettled(unique.flatMap(id => [...this.sends.get(id) ?? []]));
+      await this.repo.deleteConversations(unique);
+      unique.forEach(id => this.active.delete(id));
+    } finally {unique.forEach(id => this.deleting.delete(id)); this.emit();}
+  }
+  private async sendMessage(card: Card, conversationId: string, input: string, requestId: string, onAccepted?: () => void) {
     if (!input.trim()) return;
     if (!this.coordinator.provider.connected) throw new AiUnavailableError();
     // Context reads are independent from the screen's 40-row page.
     const history = await this.repo.messages(conversationId, Number.MAX_SAFE_INTEGER, 200);
+    if (this.deleting.has(conversationId)) return;
     const context = buildContext(card, history, input, this.coordinator.provider.inputCharacterLimit);
     const {assistant} = await this.repo.beginExchange(conversationId, requestId, input.trim());
     onAccepted?.();
+    if (this.deleting.has(conversationId)) {
+      await this.repo.saveMessage({...assistant, status: 'cancelled'});
+      return;
+    }
     let message: Message = {...assistant, status: 'generating'};
     let lastSave = 0; let lastRender = 0;
     const publish = () => { this.active.set(conversationId, {requestId, conversationId, message: {...message}, omitted: context.omitted}); this.emit(); };

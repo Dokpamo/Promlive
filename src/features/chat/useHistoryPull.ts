@@ -18,6 +18,9 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
   });
   // Keep the native animated nodes attached across unrelated React renders.
   const transform = useMemo(() => offset.getTranslateTransform(), [offset]);
+  const progress = useMemo(() => offset.x.interpolate({
+    inputRange: [-travel, 0], outputRange: [0, 1], extrapolate: 'clamp',
+  }), [offset, travel]);
 
   useEffect(() => {
     const x = offset.x.addListener(({value}) => {if (!motion.current.dragging) motion.current.position.x = value;});
@@ -124,5 +127,5 @@ export function useHistoryPull(travel: number, reduceMotion: boolean) {
     settle(cancelled ? target.current : !dismiss);
   }, [settle]);
 
-  return {visible, target, reset, begin, move, release, settle, transform, onLayout};
+  return {visible, target, reset, begin, move, release, settle, transform, progress, onLayout};
 }

@@ -3,7 +3,8 @@ import {AccessibilityInfo, Animated, BackHandler, PanResponder, Platform, Pressa
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
-import {CardConversationHeader, CardConversationList, ChatHistory} from './ChatHistory';
+import {ChatHistory} from './ChatHistory';
+import {CardConversationPanel} from './CardConversationPanel';
 import {useAppearance} from '../appearance/AppAppearance';
 import {navigationPanel, type NavigationPanel} from './drawerMotion';
 import {useScreenCorners} from './useScreenCorners';
@@ -74,9 +75,9 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   }, [historyCard, historyCardId, history.reset]);
   useEffect(() => {if (!pocketEnabled) pocket.reset();}, [pocketEnabled, pocket.reset]);
 
-  const closeCards = useCallback(() => cards.settle(false), [cards.settle]);
+  const closeCards = useCallback(() => {if (!modalLocks.current) cards.settle(false);}, [cards.settle]);
   const openCards = useCallback(() => {if (!modalLocks.current) {pocket.reset(); cards.settle(true);}}, [cards.settle, pocket.reset]);
-  const backToCards = useCallback(() => history.settle(false), [history.settle]);
+  const backToCards = useCallback(() => {if (!modalLocks.current) history.settle(false);}, [history.settle]);
   const openCard = (card: Card) => {
     if (card.id !== historyCardId) setHistorySearch('');
     setHistoryCardId(card.id); history.settle(true);
@@ -195,7 +196,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
-        <ChatHistory workspace={workspace} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
+        <ChatHistory workspace={workspace} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
         {historyCard && history.visible && <>
           <Pressable testID="card-history-backdrop" accessibilityRole="button" accessibilityLabel="채팅 기록 바깥 눌러 닫기" onPress={backToCards} style={{position: 'absolute', top: historyTop, bottom: historyBottom, left: 0, right: 0}}/>
           <Animated.View testID="card-history-panel" onLayout={history.onLayout} style={{
@@ -210,10 +211,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
             transform: history.transform,
           }}>
             <View testID="card-conversations-popup" style={{flex: 1, borderRadius: historyRadius, overflow: 'hidden', paddingVertical: historyPadding}}>
-              <CardConversationHeader card={historyCard} scale={historyScale} onClose={backToCards}/>
-              <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {historyListTouched.current = true; return false;}}>
-                <CardConversationList key={historyCard.id} workspace={workspace} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} scroll={historyScroll}/>
-              </View>
+              <CardConversationPanel key={historyCard.id} workspace={workspace} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} onClose={backToCards} scroll={historyScroll} onListTouch={() => {historyListTouched.current = true;}}/>
               <Pressable testID="card-history-handle" accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" accessibilityHint="누르거나 왼쪽으로 밀면 채팅내역을 닫습니다." onPress={backToCards} style={{position: 'absolute', top: '50%', right: 0, width: (r.textInset - r.rowInset) * historyScale, height: 82 * historyScale, transform: [{translateY: -41 * historyScale}], alignItems: 'center', justifyContent: 'center'}}>
                 <View pointerEvents="none" style={{width: 7 * historyScale, height: 82 * historyScale, borderRadius: 4 * historyScale, backgroundColor: c.divider}}/>
               </Pressable>
