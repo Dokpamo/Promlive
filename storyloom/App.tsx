@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Keyboard, Pressable, Text, View, useWindowDimensions} from 'react-native';
-import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {KeyboardMotionProvider} from './src/layout/KeyboardMotion';
 import {initialize} from './src/app/runtime';
 import {Workspace} from './src/app/workspace';
 import {ChatScreen} from './src/features/chat/ChatScreen';
@@ -39,7 +40,7 @@ export default function App() {
     if (workspace) void workspace.runtime.repo.setSetting(chatDisplaySettingKey, mode).catch(e => workspace.report(e));
   };
   return <SafeAreaProvider style={{flex: 1}}><AppearanceProvider mode={theme} setMode={changeTheme} chatDisplay={chatDisplay} setChatDisplay={changeChatDisplay}>
-    <AppContent workspace={workspace} error={error}/>
+    <KeyboardMotionProvider><AppContent workspace={workspace} error={error}/></KeyboardMotionProvider>
   </AppearanceProvider></SafeAreaProvider>;
 }
 
@@ -69,11 +70,10 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
     const timer = setTimeout(() => {w.notice = null; w.emit();}, 3500);
     return () => clearTimeout(timer);
   }, [w, w.notice]);
-  return <><ChatDrawer workspace={w} openSettings={openSettings} active={!settingsOpen}>{openHistory => <SafeAreaView edges={['top', 'left', 'right']} style={{flex: 1}}>
-    <ChatHeader width={width} title={w.conversation?.title ?? '새로운 대화'} conversationId={w.conversation?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>
-    <ChatScreen key={w.conversation?.id ?? 'new'} workspace={w} width={width}/>
+  return <><ChatDrawer workspace={w} openSettings={openSettings} active={!settingsOpen}>{openHistory => <View style={{flex: 1}}>
+    <ChatScreen key={w.conversation?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.conversation?.title ?? '새로운 대화'} conversationId={w.conversation?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>}/>
     {(w.notice || w.error) && <Pressable accessibilityRole="button" accessibilityLabel="안내 닫기" onPress={() => w.clearMessage()} style={{position: 'absolute', top: 100 * s, alignSelf: 'center', maxWidth: '88%', paddingVertical: 12, paddingHorizontal: 18, backgroundColor: c.notice, borderRadius: 14, borderWidth: 1, borderColor: c.noticeBorder}}><Text style={{fontSize: 13, lineHeight: 20, color: w.error ? c.noticeError : c.text}}>{w.error ?? w.notice}</Text></Pressable>}
-  </SafeAreaView>}</ChatDrawer>
+  </View>}</ChatDrawer>
     {settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>}
   </>;
 }

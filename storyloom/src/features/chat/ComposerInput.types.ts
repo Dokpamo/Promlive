@@ -4,6 +4,7 @@ export interface ComposerSelection {start: number; end: number}
 
 export interface ComposerInputHandle {
   focus: (selection?: ComposerSelection) => void;
+  focusForExpansion: (onKeyboardStart: () => void) => void;
   isFocused: () => boolean;
   getSelection: () => ComposerSelection;
   setSelection: (selection: ComposerSelection) => void;

@@ -30,6 +30,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})}));
+vi.mock('../src/layout/KeyboardMotion', () => ({useKeyboardFrame: () => ({height: 0})}));
 vi.mock('../src/features/appearance/AppAppearance', async () => {
   const {lightChatColors} = await import('../src/features/chat/chatAppearance');
   return {useAppearance: () => ({colors: lightChatColors, chatDisplay: 'default'})};

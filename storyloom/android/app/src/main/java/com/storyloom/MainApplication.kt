@@ -19,6 +19,7 @@ class MainApplication : Application(), ReactApplication {
               add(ScreenCornersPackage())
               add(PromliveHapticsPackage())
               add(SystemBarsPackage())
+              add(KeyboardMotionPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

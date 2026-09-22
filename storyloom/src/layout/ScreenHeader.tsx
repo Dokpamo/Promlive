@@ -8,7 +8,7 @@ import {PressSurface} from './PressSurface';
 /** Place inside the screen's safe area; width is the viewport, including in a drawer. */
 export function ScreenHeader({width, testID, children}: {width: number; testID?: string; children: ReactNode}) {
   const s = headerScale(width);
-  return <View testID={testID} style={{height: r.barHeight * s, flexShrink: 0, flexDirection: 'row', alignItems: 'flex-start', paddingTop: r.top * s, paddingHorizontal: r.inset * s, gap: r.gap * s}}>{children}</View>;
+  return <View testID={testID} pointerEvents="box-none" style={{height: r.barHeight * s, flexShrink: 0, flexDirection: 'row', alignItems: 'flex-start', paddingTop: r.top * s, paddingHorizontal: r.inset * s, gap: r.gap * s}}>{children}</View>;
 }
 
 /** The outline overlays the surface so it never changes button height or icon centers. */

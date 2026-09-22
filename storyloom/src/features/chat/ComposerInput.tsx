@@ -1,5 +1,5 @@
 import {useImperativeHandle, useRef} from 'react';
-import {TextInput} from 'react-native';
+import {findNodeHandle, NativeModules, Platform, TextInput} from 'react-native';
 import type {ComposerInputProps, ComposerSelection} from './ComposerInput.types';
 import {useAppearance} from '../appearance/AppAppearance';
 
@@ -17,7 +17,22 @@ export function ComposerInput(p: ComposerInputProps) {
       input.current?.setSelection(start, end);
     };
     return {
-      focus: next => {if (next) setSelection(next); input.current?.focus();},
+      focus: next => {
+        if (next) setSelection(next);
+        const focused = input.current?.isFocused();
+        input.current?.focus();
+        if (focused && Platform.OS === 'android') NativeModules.PromliveKeyboard?.show();
+      },
+      focusForExpansion: onKeyboardStart => {
+        const tag = findNodeHandle(input.current);
+        const keyboard = Platform.OS === 'android' ? NativeModules.PromliveKeyboard : undefined;
+        // Arm the native IME-start callback before focus requests the keyboard.
+        // An already-visible keyboard (and web/iOS) needs no preparation wait.
+        const ready: Promise<void> | undefined = tag && keyboard?.prepareExpansion ? keyboard.prepareExpansion(tag) : undefined;
+        input.current?.focus();
+        if (ready) void ready.then(onKeyboardStart, onKeyboardStart);
+        else onKeyboardStart();
+      },
       isFocused: () => input.current?.isFocused() ?? false,
       getSelection: () => selection.current,
       setSelection,

@@ -14,6 +14,7 @@ export function ComposerInput(p: ComposerInputProps) {
     };
     return {
       focus: next => {element.current?.focus({preventScroll: true}); if (next) setSelection(next);},
+      focusForExpansion: onKeyboardStart => {element.current?.focus({preventScroll: true}); onKeyboardStart();},
       isFocused: () => element.current === document.activeElement,
       getSelection: () => ({start: element.current?.selectionStart ?? 0, end: element.current?.selectionEnd ?? 0}),
       setSelection,
@@ -32,7 +33,15 @@ export function ComposerInput(p: ComposerInputProps) {
       p.onHeight(height);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    // Height changes every frame during the morph. Only a width change can
+    // rewrap the text; repeatedly resetting height would disturb scrolling.
+    let width = node.getBoundingClientRect().width;
+    const observer = new ResizeObserver(entries => {
+      const next = entries[0]?.contentRect.width ?? width;
+      if (Math.abs(next - width) < 0.5) return;
+      width = next;
+      measure();
+    });
     observer.observe(node);
     return () => observer.disconnect();
   }, [p.value, p.fontSize, p.lineHeight, p.onHeight]);

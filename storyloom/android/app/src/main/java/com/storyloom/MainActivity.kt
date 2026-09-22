@@ -1,12 +1,23 @@
 package com.storyloom
 
 import android.view.KeyEvent
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= 30) {
+      // Keep the canvas fixed. KeyboardMotionView moves only the floating dock.
+      window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+    }
+  }
 
   override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
     // RN forwards dialog key-ups here, but currentFocus belongs to the activity.

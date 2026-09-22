@@ -4,7 +4,7 @@ import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceTypography} from '../chat/chatAppearance';
+import {headerScale, referenceHeader, referenceTypography} from '../chat/chatAppearance';
 import {SettingsIcon} from './SettingsIcon';
 import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
@@ -31,17 +31,18 @@ export function SettingsPage({children, onBack, title, home = false}: {
   const {width} = useWindowDimensions();
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
-  return <SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right', 'bottom']} style={{flex: 1, backgroundColor: p.background}}>
-    <View style={{height: insets.top}}/>
-    <ScreenHeader width={width} testID={home ? 'settings-header' : 'settings-detail-header'}>
-      <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
-    </ScreenHeader>
-    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: settingsReference.top * s, paddingBottom: 36 * s}}>
+  return <SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
+    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{marginTop: insets.top}} contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: referenceHeader.barHeight * s + settingsReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
       <SwipeBackScrollContent>
         {title && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
         {children}
       </SwipeBackScrollContent>
     </ScrollView>
+    <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}>
+      <ScreenHeader width={width} testID={home ? 'settings-header' : 'settings-detail-header'}>
+        <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
+      </ScreenHeader>
+    </View>
   </SafeAreaView>;
 }
 

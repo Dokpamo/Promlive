@@ -14,7 +14,6 @@ import {DragClickBoundary} from '../settings/DragClickBoundary';
 import type {SheetScrollState} from '../settings/sheetMotion';
 import {useHistoryPull} from './useHistoryPull';
 import {settingsGroupScale, settingsReference} from '../settings/settingsGeometry';
-import {ChatOverlayHost} from './ChatOverlay';
 
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
@@ -193,7 +192,6 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const historyTop = insets.top + (r.searchTop + r.searchHeight + r.listGap) * sidebarScale - r.historyPadding * surfaceScale;
   const historyBottom = insets.bottom + (r.footerHeight + r.footerBottom + r.historyBottomGap) * sidebarScale;
   return <DrawerModalLocks.Provider value={modalLocks}><DrawerGestureGuard.Provider value={blocked}>
-    <ChatOverlayHost>
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
@@ -249,7 +247,6 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
       </Animated.View>
     </View>
     </DragClickBoundary>
-    </ChatOverlayHost>
   </DrawerGestureGuard.Provider></DrawerModalLocks.Provider>;
 }
 
