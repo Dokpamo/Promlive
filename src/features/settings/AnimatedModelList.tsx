@@ -63,7 +63,7 @@ export function AnimatedModelList({models, selected, onSelect, timing = catalogA
     animation.start();
     return () => animation.stop();
   }, [batch, duration, measurement, progress, reduceMotion]);
-  const row = (model: AiModelPreview) => <SettingsChoice key={model.id} label={model.name} detail={model.detail} selected={selected === model.id} onPress={() => onSelect(model)}/>;
+  const row = (model: AiModelPreview) => <SettingsChoice key={model.id} label={model.name} selected={selected === model.id} onPress={() => onSelect(model)}/>;
   const height = measurement.revision === batch.revision ? measurement.height : 0;
   const shift = phaseProgress(progress, 0, timing.shiftDuration, duration, Easing.bezier(0.22, 1, 0.36, 1));
   const reveal = phaseProgress(progress, timing.revealDelay, timing.revealDuration, duration, Easing.bezier(0.25, 0.1, 0.25, 1));

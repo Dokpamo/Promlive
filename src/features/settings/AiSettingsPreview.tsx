@@ -136,7 +136,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
     </SettingsPage>
 
-    {sheet && <SettingsSheet key={sheetKey} fillHeight={sheet.kind === 'models'} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
+    {sheet && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
       {aiServices.map(item => <SettingsChoice key={item.id} label={item.name} selected={service.id === item.id} onPress={() => {
         onChange(old => ({...old, service: item.id, connections: {...old.connections, [item.id]: old.connections[item.id] ?? createConnectionPreview(item)}}));
         setNotice(''); close();

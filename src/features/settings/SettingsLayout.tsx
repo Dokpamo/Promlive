@@ -91,7 +91,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const bottom = Math.max(insets.bottom, panelReference.sheetInset * s);
   const handleHeight = 58 * s;
   const maximumHeight = (windowHeight - bottom) * 0.85;
-  // A live catalog keeps its viewport still while arriving rows expand inside it.
+  // Choice lists fit their content; reading surfaces may reserve the full height.
   const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   scroll.current.canScroll = bodyHeight > height - handleHeight + 1;

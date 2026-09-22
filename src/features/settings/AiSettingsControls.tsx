@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import {Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
+import {Text, View, type KeyboardTypeOptions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 import {PressSurface} from '../../layout/PressSurface';
 import {referenceTypography} from '../../layout/metrics';
@@ -25,19 +25,6 @@ export function AiField({label, value, onChange, placeholder, secret = false, ke
   secret?: boolean; keyboard?: KeyboardTypeOptions; detail?: string; multiline?: boolean;
 }) {
   return <SettingsTextField testID={`ai-field-${label}`} label={label} value={value} onChange={onChange} placeholder={placeholder} secret={secret} keyboard={keyboard} multiline={multiline} {...(detail ? {detail} : {})}/>;
-}
-
-/** Search stays beside its results; it does not edit a saved setting. */
-export function AiSearchField({label, value, onChange, placeholder}: {label: string; value: string; onChange: (value: string) => void; placeholder: string}) {
-  const {settings: p} = useAppearance();
-  const s = useSettingsScale();
-  const radius = useSettingsRadius('control');
-  return <View style={{marginBottom: r.groupGap * s}}>
-    <SettingsSubtitle>{label}</SettingsSubtitle>
-    <SwipeBackBoundary>
-      <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.faint} autoCapitalize="none" autoCorrect={false} autoComplete="off" maxLength={500} selectionColor={p.accent} underlineColorAndroid="transparent" style={{minHeight: 84 * s, borderRadius: radius, backgroundColor: p.surface, paddingHorizontal: 24 * s, paddingVertical: 20 * s, color: p.text, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}/>
-    </SwipeBackBoundary>
-  </View>;
 }
 
 export function AiToggle({label, detail, value, onChange}: {label: string; detail?: string; value: boolean; onChange: (value: boolean) => void}) {
