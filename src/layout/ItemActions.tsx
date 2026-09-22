@@ -1,20 +1,21 @@
 import {useCallback, useEffect, useRef} from 'react';
 import {AccessibilityInfo, Animated, BackHandler, Easing, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
-import type {Conversation} from './model';
-import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
-import {useDrawerModalLock} from './DrawerGestureBoundary';
-import {RowPressable} from '../../layout/RowPressable';
-import {SettingsIcon, type SettingsIconName} from '../settings/SettingsIcon';
-import {panelReference as g} from '../../layout/panelGeometry';
+import {syncSystemBars, useAppearance} from '../features/appearance/AppAppearance';
+import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
+import {RowPressable} from './RowPressable';
+import {SettingsIcon, type SettingsIconName} from '../features/settings/SettingsIcon';
+import {panelReference as g} from './panelGeometry';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {itemMenuGeometry, type MenuBounds} from './itemMenuGeometry';
 
-export interface HistoryMenuTarget {
-  conversation: Conversation;
-  bounds: {left: number; top: number; width: number; height: number};
+export interface ItemMenuTarget {
+  item: {id: string; title: string; pinnedAt?: number | null | undefined};
+  bounds: MenuBounds;
+  anchor: MenuBounds;
 }
 
-export function HistoryActionMenu({target, scale: s, onClose, onSelect, onPin, onRename, onDelete}: {
-  target: HistoryMenuTarget; scale: number;
+export function ItemActionMenu({target, scale: s, scope = 'history', onClose, onSelect, onPin, onRename, onDelete}: {
+  target: ItemMenuTarget; scale: number; scope?: 'history' | 'card';
   onClose: () => void; onSelect: () => void; onPin: () => void; onRename: () => void; onDelete: () => void;
 }) {
   const {settings: p, colors: c, isDark} = useAppearance();
@@ -49,29 +50,25 @@ export function HistoryActionMenu({target, scale: s, onClose, onSelect, onPin, o
   }, [close]);
   const inset = g.groupPadding * s;
   // Android's measured activity window excludes the status bar; this modal covers it.
-  const panelTop = target.bounds.top + (Platform.OS === 'android' ? safe.top : 0);
-  const minLeft = Math.max(safe.left, target.bounds.left) + inset;
-  const maxRight = Math.min(width - safe.right, target.bounds.left + target.bounds.width) - inset;
-  const minTop = Math.max(safe.top, panelTop) + inset;
-  const maxBottom = Math.min(windowHeight - safe.bottom, panelTop + target.bounds.height) - inset;
-  const menuWidth = Math.min(338 * s, Math.max(1, maxRight - minLeft));
-  const height = Math.min((4 * g.rowHeight + 2 * g.groupPadding) * s, Math.max(1, maxBottom - minTop));
-  // Keep a stable center height and align to the popup's right edge, regardless of the pressed row.
-  const left = Math.max(minLeft, maxRight - menuWidth);
-  const centeredTop = (safe.top + windowHeight - safe.bottom - height) / 2;
-  const top = Math.max(minTop, Math.min(centeredTop, maxBottom - height));
+  const windowOffset = Platform.OS === 'android' ? safe.top : 0;
+  const {left, top, width: menuWidth, height, originX, originY} = itemMenuGeometry({
+    panel: {...target.bounds, top: target.bounds.top + windowOffset},
+    anchor: {...target.anchor, top: target.anchor.top + windowOffset},
+    viewport: {left: safe.left, top: safe.top, width: width - safe.left - safe.right, height: windowHeight - safe.top - safe.bottom},
+    width: 338 * s, height: (4 * g.rowHeight + 2 * g.groupPadding) * s, inset, gap: 8 * s,
+  });
   const actions: {label: string; icon: SettingsIconName; action: () => void; danger?: boolean}[] = [
     {label: '선택', icon: 'select', action: onSelect},
-    {label: target.conversation.pinnedAt == null ? '고정' : '고정 해제', icon: 'pin', action: onPin},
+    {label: target.item.pinnedAt == null ? '고정' : '고정 해제', icon: 'pin', action: onPin},
     {label: '이름 변경', icon: 'edit', action: onRename},
     {label: '삭제', icon: 'delete', action: onDelete, danger: true},
   ];
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => close()} onShow={() => syncSystemBars(isDark)}>
-  <View testID="history-actions-overlay" accessibilityViewIsModal style={{flex: 1}}>
-    <Pressable testID="history-actions-dismiss" accessibilityRole="button" accessibilityLabel="채팅내역 메뉴 닫기" onPress={() => close()} style={StyleSheet.absoluteFill}/>
-    <Animated.View testID="history-actions" accessibilityRole="menu" style={{position: 'absolute', left, top, width: menuWidth, paddingVertical: g.groupPadding * s, borderRadius: g.radius * s, backgroundColor: p.sheet,
+  <View testID={`${scope}-actions-overlay`} accessibilityViewIsModal style={{flex: 1}}>
+    <Pressable testID={`${scope}-actions-dismiss`} accessibilityRole="button" accessibilityLabel={scope === 'card' ? '카드 메뉴 닫기' : '채팅내역 메뉴 닫기'} onPress={() => close()} style={StyleSheet.absoluteFill}/>
+    <Animated.View testID={`${scope}-actions`} accessibilityRole="menu" style={{position: 'absolute', left, top, width: menuWidth, paddingVertical: g.groupPadding * s, borderRadius: g.radius * s, backgroundColor: p.sheet,
       boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)', opacity: progress,
-      transform: [{translateX: progress.interpolate({inputRange: [0, 1], outputRange: [8 * s, 0]})}, {scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
+      transformOrigin: [originX, originY, 0], transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
       <Pressable accessible={false} onPress={() => close()} style={StyleSheet.absoluteFill}/>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * inset)}}>
       {actions.map(item => <RowPressable key={item.icon} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}

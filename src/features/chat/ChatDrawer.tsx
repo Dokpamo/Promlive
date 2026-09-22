@@ -4,6 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ConversationList} from './ConversationList';
 import type {Conversation} from './model';
 import type {Card} from '../cards/model';
+import type {CardListActions} from '../cards/store';
 import {ChatHistory} from './ChatHistory';
 import {CardConversationPanel} from './CardConversationPanel';
 import {useAppearance} from '../appearance/AppAppearance';
@@ -21,8 +22,9 @@ import {panelGroupScale, panelReference} from '../../layout/panelGeometry';
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
 
-export function ChatDrawer({cardItems, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true}: {
+export function ChatDrawer({cardItems, cardActions, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true}: {
   cardItems: readonly Card[];
+  cardActions: CardListActions;
   historyList: ConversationList;
   startChat: (card?: Card) => Promise<void>;
   openConversation: (conversation: Conversation) => Promise<void>;
@@ -203,7 +205,7 @@ export function ChatDrawer({cardItems, historyList, startChat, openConversation,
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
-        <ChatHistory cards={cardItems} selectedCardId={historyList.selected?.cardId} startChat={startChat} report={report} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
+        <ChatHistory cards={cardItems} cardActions={cardActions} active={active && cards.visible} selectedCardId={historyList.selected?.cardId} startChat={startChat} report={report} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
         {historyCard && history.visible && <>
           <Pressable testID="card-history-backdrop" accessibilityRole="button" accessibilityLabel="채팅 기록 바깥 눌러 닫기" onPress={backToCards} style={{position: 'absolute', top: historyTop, bottom: historyBottom, left: 0, right: 0}}/>
           <Animated.View testID="card-history-panel" onLayout={history.onLayout} style={{
@@ -242,7 +244,7 @@ export function ChatDrawer({cardItems, historyList, startChat, openConversation,
             borderTopLeftRadius: pageRadius(corners.topLeft), borderTopRightRadius: pageRadius(corners.topRight), borderBottomLeftRadius: pageRadius(corners.bottomLeft), borderBottomRightRadius: pageRadius(corners.bottomRight),
             transform: [{translateX: Animated.multiply(pocket.progress, -width)}],
           }]}>
-            {/* One continuous surface: only its four outside corners are rounded. */}
+            {/* Share the background and outside clip; control shadows cross the page join. */}
             <View testID="chat-page" pointerEvents={pocket.visible ? 'none' : 'auto'} aria-hidden={pocket.visible} accessibilityElementsHidden={pocket.visible} importantForAccessibility={pocket.visible ? 'no-hide-descendants' : 'auto'} style={[styles.page, {left: 0, width}]}>{children(openCards)}</View>
             {pocketEnabled && pocket.visible && <View testID="pocket-page" accessible accessibilityLabel={`${activeCard?.title ?? '현재 카드'} 포켓`} accessibilityHint="오른쪽으로 밀면 채팅으로 돌아갑니다." onAccessibilityEscape={() => pocket.settle(false)} style={[styles.page, {left: width, width}]}/>}
           </Animated.View>
@@ -259,6 +261,6 @@ const styles = StyleSheet.create({
   root: {flex: 1, overflow: 'hidden'},
   panel: {...StyleSheet.absoluteFillObject, overflow: 'hidden'},
   pages: {position: 'absolute', top: 0, bottom: 0, left: 0, overflow: 'hidden'},
-  page: {position: 'absolute', top: 0, bottom: 0, overflow: 'hidden'},
+  page: {position: 'absolute', top: 0, bottom: 0},
   content: {flex: 1},
 });

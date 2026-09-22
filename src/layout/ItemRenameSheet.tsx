@@ -1,23 +1,23 @@
 import {useEffect, useRef, useState, type RefObject} from 'react';
 import {Animated, Keyboard, NativeModules, Platform, Pressable, StyleSheet, Text, TextInput, View, findNodeHandle, useWindowDimensions, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {KeyboardDock, KeyboardMotionProvider, useKeyboardFrame} from '../../layout/KeyboardMotion';
-import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
-import {SwipeBackBoundary, SwipeBackModal} from '../../layout/SwipeBackModal';
-import {headerScale, referenceHeader, referenceTypography} from '../../layout/metrics';
-import {panelReference as g} from '../../layout/panelGeometry';
-import {useAppearance} from '../appearance/AppAppearance';
-import {useDrawerModalLock} from './DrawerGestureBoundary';
-import type {Conversation} from './model';
+import {KeyboardDock, KeyboardMotionProvider, useKeyboardFrame} from './KeyboardMotion';
+import {HeaderButton, ScreenHeader} from './ScreenHeader';
+import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
+import {headerScale, referenceHeader, referenceTypography} from './metrics';
+import {panelReference as g} from './panelGeometry';
+import {useAppearance} from '../features/appearance/AppAppearance';
+import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
 
 interface RenameProps {
-  conversation: Conversation;
+  item: {title: string};
+  scope?: 'history' | 'card';
   onClose: () => void;
   onSave: (title: string) => Promise<void>;
 }
 
 /** A short, keyboard-docked editor; the draft is committed only on confirmation. */
-export function HistoryRenameSheet({conversation, onClose, onSave}: RenameProps) {
+export function ItemRenameSheet({item, scope = 'history', onClose, onSave}: RenameProps) {
   const [height, setHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const input = useRef<TextInput>(null);
@@ -35,12 +35,12 @@ export function HistoryRenameSheet({conversation, onClose, onSave}: RenameProps)
     Keyboard.dismiss();
     return true;
   }}>{(close, motionStyle) => <KeyboardMotionProvider>
-    <RenameEditor conversation={conversation} onSave={onSave} close={close} closing={closing} input={input}
+    <RenameEditor item={item} scope={scope} onSave={onSave} close={close} closing={closing} input={input}
       keyboardVisible={keyboardVisible} motionStyle={motionStyle} onHeight={setHeight}/>
   </KeyboardMotionProvider>}</SwipeBackModal>;
 }
 
-function RenameEditor({conversation, onSave, close, closing, input, keyboardVisible, motionStyle, onHeight}: Omit<RenameProps, 'onClose'> & {
+function RenameEditor({item, scope, onSave, close, closing, input, keyboardVisible, motionStyle, onHeight}: Omit<RenameProps, 'onClose'> & {
   close: () => void;
   closing: boolean;
   input: RefObject<TextInput | null>;
@@ -55,7 +55,7 @@ function RenameEditor({conversation, onSave, close, closing, input, keyboardVisi
   const s = headerScale(width);
   const gap = g.sheetInset * s;
   const bottom = insets.bottom + gap;
-  const [title, setTitle] = useState(conversation.title);
+  const [title, setTitle] = useState(item.title);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -90,13 +90,13 @@ function RenameEditor({conversation, onSave, close, closing, input, keyboardVisi
     }
   };
   return <>
-    <SwipeBackBoundary style={StyleSheet.absoluteFill}><Pressable testID="history-rename-dismiss" accessibilityRole="button" accessibilityLabel="이름 변경 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
+    <SwipeBackBoundary style={StyleSheet.absoluteFill}><Pressable testID={`${scope}-rename-dismiss`} accessibilityRole="button" accessibilityLabel="이름 변경 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <KeyboardDock fraction={fraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
-      <Animated.View testID="history-rename" accessibilityViewIsModal onLayout={event => onHeight(event.nativeEvent.layout.height + bottom)}
+      <Animated.View testID={`${scope}-rename`} accessibilityViewIsModal onLayout={event => onHeight(event.nativeEvent.layout.height + bottom)}
         style={[{position: 'absolute', bottom, alignSelf: 'center', width: Math.min(440, width - insets.left - insets.right - 2 * gap), paddingTop: gap, paddingBottom: g.groupPadding * s,
           borderRadius: g.radius * s, backgroundColor: p.sheet, boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)'}, motionStyle]}>
-        <View testID="history-rename-handle" pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: g.sheetHandle.top * s, width: g.sheetHandle.width * s, height: g.sheetHandle.height * s, borderRadius: g.sheetHandle.radius * s, backgroundColor: p.divider}}/>
-        <ScreenHeader width={width} frosted={false}>
+        <View testID={`${scope}-rename-handle`} pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: g.sheetHandle.top * s, width: g.sheetHandle.width * s, height: g.sheetHandle.height * s, borderRadius: g.sheetHandle.radius * s, backgroundColor: p.divider}}/>
+        <ScreenHeader width={width} edgeTint={false}>
           <SwipeBackBoundary><HeaderButton width={width} icon="close" label="이름 변경 취소" onPress={close}/></SwipeBackBoundary>
           <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
             <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceTypography.titleFontSize * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>이름 변경</Text>
@@ -104,7 +104,7 @@ function RenameEditor({conversation, onSave, close, closing, input, keyboardVisi
           <SwipeBackBoundary><HeaderButton width={width} icon="check" label="이름 변경 완료" disabled={saving || closing || !title.trim()} onPress={() => {void save();}}/></SwipeBackBoundary>
         </ScreenHeader>
         <SwipeBackBoundary style={{marginHorizontal: g.groupPadding * s}}>
-          <TextInput ref={input} testID="history-rename-input" accessibilityLabel="채팅 이름" selectTextOnFocus value={title}
+          <TextInput ref={input} testID={`${scope}-rename-input`} accessibilityLabel={scope === 'card' ? '카드 이름' : '채팅 이름'} selectTextOnFocus value={title}
             maxLength={120} onChangeText={value => {setTitle(value); setError('');}} editable={!saving && !closing} autoCorrect={false}
             returnKeyType="done" submitBehavior="submit" onSubmitEditing={() => {void save();}}
             selectionColor={isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)'} cursorColor={p.accent} underlineColorAndroid="transparent"

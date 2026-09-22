@@ -14,6 +14,7 @@ export const cardSchema = z.object({
   title: z.string().min(1).max(120), description: z.string().max(500),
   genre: z.string().max(40), cover: z.enum(['moon', 'forest', 'sunset', 'code']),
   favorite: z.boolean(), archived: z.boolean(), example: z.boolean(),
+  pinnedAt: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), body: bodySchema,
 });
 export type Card = z.infer<typeof cardSchema>;

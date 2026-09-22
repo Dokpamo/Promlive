@@ -5,7 +5,6 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {SettingsTextEditorHost, SettingsTextField} from '../src/features/settings/SettingsTextField';
 
 const closing = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
-vi.mock('@sbaiahmed1/react-native-blur', () => ({ProgressiveBlurView: ({children}: {children?: ReactNode}) => <div>{children}</div>}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native, useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),

@@ -2,7 +2,7 @@
 import {act, useEffect, useState, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
-import {HistoryRenameSheet} from '../src/features/chat/HistoryRenameSheet';
+import {ItemRenameSheet} from '../src/layout/ItemRenameSheet';
 import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
 import type {Conversation} from '../src/features/chat/model';
 
@@ -34,7 +34,7 @@ async function setup(onSave = vi.fn<(title: string) => Promise<void>>().mockReso
   const onClose = vi.fn();
   function Host() {
     const [open, setOpen] = useState(true);
-    return <DrawerModalLocks.Provider value={locks}>{open && <HistoryRenameSheet conversation={conversation} onSave={onSave} onClose={() => {onClose(); setOpen(false);}}/>}</DrawerModalLocks.Provider>;
+    return <DrawerModalLocks.Provider value={locks}>{open && <ItemRenameSheet item={conversation} onSave={onSave} onClose={() => {onClose(); setOpen(false);}}/>}</DrawerModalLocks.Provider>;
   }
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<Host/>));

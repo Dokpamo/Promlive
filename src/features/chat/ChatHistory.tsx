@@ -1,7 +1,9 @@
 import {useRef, useState} from 'react';
-import {Animated, FlatList, Keyboard, Platform, Pressable, Text, TextInput, View} from 'react-native';
+import {Animated, Platform, Pressable, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Card} from '../cards/model';
+import type {CardListActions} from '../cards/store';
+import {CardList} from '../cards/CardList';
 import {CardThumbnail} from '../cards/CardThumbnail';
 import {ChatIcon} from './ChatIcon';
 import {referenceSidebar as r} from './chatAppearance';
@@ -16,6 +18,8 @@ import {panelReference} from '../../layout/panelGeometry';
 
 interface Props {
   cards: readonly Card[];
+  cardActions: CardListActions;
+  active: boolean;
   selectedCardId: string | undefined;
   startChat: (card?: Card) => Promise<void>;
   report: (error: unknown) => void;
@@ -30,7 +34,7 @@ interface Props {
 }
 
 /** Shared search/create controls stay above the card history popup. */
-export function ChatHistory({cards: allCards, selectedCardId, startChat, report, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
+export function ChatHistory({cards: allCards, cardActions, active, selectedCardId, startChat, report, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
   const {colors: c} = useAppearance();
   const [cardSearch, setCardSearch] = useState('');
   const insets = useSafeAreaInsets();
@@ -56,11 +60,8 @@ export function ChatHistory({cards: allCards, selectedCardId, startChat, report,
       </View>
     </View>
     <View style={{flex: 1}} pointerEvents={historyCard ? 'none' : 'auto'} aria-hidden={!!historyCard} accessibilityElementsHidden={!!historyCard} importantForAccessibility={historyCard ? 'no-hide-descendants' : 'auto'}>
-      <SidebarRows items={cards} scale={s} selectedId={historyCard?.id ?? selectedCardId} testID="card-list" label={title => `${title} 카드의 채팅 기록`} empty={query ? '검색 결과가 없어요.' : '아직 카드가 없어요.'} onSelect={id => {
-        Keyboard.dismiss();
-        const card = cards.find(item => item.id === id);
-        if (card) openCard(card);
-      }}/>
+      <CardList cards={cards} allCards={allCards} actions={cardActions} active={active && !historyCard} scale={s} selectedId={selectedCardId}
+        search={query} openCard={openCard} report={report}/>
     </View>
     <View testID="sidebar-footer" style={{height: (r.footerHeight + r.footerBottom) * s, flexShrink: 0}}>
       <RowPressable testID="sidebar-account" accessibilityRole="button" accessibilityLabel="사용자 계정" accessibilityHint="설정 열기" onPress={openSettings} radius={r.rowRadius * s} style={{position: 'absolute', left: r.rowInset * s, right: r.rowInset * s, top: 0, height: r.footerHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.accountAvatarLeft - r.rowInset) * s, flexDirection: 'row', alignItems: 'center'}}>
@@ -82,22 +83,6 @@ export function CardConversationHeader({card, scale: s, onClose, closeLabel = '�
     <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: panelReference.rowFont * s, lineHeight: panelReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
     <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label={closeLabel} onPress={onClose} variant="plain"/>
   </View>;
-}
-
-function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelect}: {
-  items: {id: string; title: string; cover?: Card['cover']}[];
-  scale: number; selectedId: string | undefined; testID: string;
-  label: (title: string) => string; empty: string; onSelect: (id: string) => void;
-}) {
-  const {colors: c} = useAppearance();
-  return <FlatList testID={testID} data={items} keyExtractor={item => item.id} style={{flex: 1}}
-    contentContainerStyle={{paddingHorizontal: r.rowInset * s, paddingBottom: 12 * s}}
-    keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-    ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: (r.textInset - r.rowInset) * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <RowPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} radius={r.rowRadius * s} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s, paddingHorizontal: (r.textInset - r.rowInset) * s}}>
-      {item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
-      <Text numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{item.title}</Text>
-    </RowPressable>}/>;
 }
 
 export function SidebarSearch({scale: s, history, historyProgress, value, onChange}: {scale: number; history: boolean; historyProgress: Animated.AnimatedInterpolation<number>; value: string; onChange: (value: string) => void}) {

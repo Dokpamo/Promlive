@@ -10,6 +10,7 @@ export class ConversationList {
   private listeners = new Set<() => void>();
   private deleted = new Set<string>();
   private opening = new Map<string, Promise<Conversation>>();
+  private removingCards = new Set<string>();
 
   constructor(private readonly store: Pick<ConversationStore, 'conversations' | 'createConversation' | 'renameConversation' | 'pinConversation'>,
     private readonly removeStored: (ids: readonly string[]) => Promise<void>) {}
@@ -29,7 +30,7 @@ export class ConversationList {
   }
 
   select(conversation: Conversation) {
-    if (this.deleted.has(conversation.id)) return false;
+    if (this.deleted.has(conversation.id) || this.removingCards.has(conversation.cardId)) return false;
     // Keep refreshed titles/previews instead of replacing them with a stale row reference.
     if (!this.list.some(item => item.id === conversation.id)) this.list = [conversation, ...this.list];
     this.selectedId = conversation.id;
@@ -38,6 +39,7 @@ export class ConversationList {
   }
 
   roomFor(cardId: string, forceNew = false): Promise<Conversation> {
+    if (this.removingCards.has(cardId)) return Promise.reject(new Error('삭제 중인 카드입니다.'));
     const key = `${cardId}:${forceNew}`;
     const pending = this.opening.get(key);
     if (pending) return pending;
@@ -63,16 +65,28 @@ export class ConversationList {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
     await this.removeStored(unique);
+    this.forget(unique);
+    // Even if reloading fails, deleted rows/selection must stay removed locally.
+    await this.refresh();
+  }
+  async removeCards(cardIds: readonly string[], removeStored: () => Promise<readonly string[]>) {
+    cardIds.forEach(id => this.removingCards.add(id));
+    try {
+      // An already-started room creation must finish before the card cascade.
+      await Promise.allSettled([...this.opening].filter(([key]) => cardIds.some(id => key.startsWith(`${id}:`))).map(([, task]) => task));
+      const removed = await removeStored();
+      this.forget([...removed, ...this.list.filter(item => cardIds.includes(item.cardId)).map(item => item.id)]);
+    } finally {cardIds.forEach(id => this.removingCards.delete(id));}
+  }
+  private forget(ids: readonly string[]) {
     // Use the selection at completion: a room opened during deletion keeps ownership.
     const previous = this.selected;
-    unique.forEach(id => this.deleted.add(id));
+    ids.forEach(id => this.deleted.add(id));
     this.refreshRevision++;
     this.list = this.list.filter(item => !this.deleted.has(item.id));
     if (previous && this.deleted.has(previous.id)) {
       this.selectedId = (this.list.find(item => item.cardId === previous.cardId) ?? this.list[0])?.id ?? null;
     }
     this.emit();
-    // Even if reloading fails, deleted rows/selection must stay removed locally.
-    await this.refresh();
   }
 }

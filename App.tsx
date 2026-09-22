@@ -66,7 +66,7 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {Keyboard.dismiss(); setSettingsOpen(true);};
   const {width} = useWindowDimensions();
-  return <><ChatDrawer cardItems={w.cards} historyList={w.history} startChat={card => card ? w.startChat(card, true) : w.newGeneralChat()} openConversation={item => w.openConversation(item)} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen}>{openHistory => <View style={{flex: 1}}>
+  return <><ChatDrawer cardItems={w.cards} cardActions={w.cardActions} historyList={w.history} startChat={card => card ? w.startChat(card, true) : w.newGeneralChat()} openConversation={item => w.openConversation(item)} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen}>{openHistory => <View style={{flex: 1}}>
     <WorkspaceChat key={w.history.selected?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.history.selected?.title ?? '새로운 대화'} conversationId={w.history.selected?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>}/>
     <NotificationToast notifications={w.notifications} width={width}/>
   </View>}</ChatDrawer>

@@ -2,6 +2,7 @@ import type {Runtime} from './runtime';
 import {Notifications} from './Notifications';
 import {newCard, type Card} from '../features/cards/model';
 import {CardEditor} from '../features/cards/CardEditor';
+import type {CardListActions, CardMetadataPatch} from '../features/cards/store';
 import type {Conversation} from '../features/chat/model';
 import {ChatSessions} from '../features/chat/ChatSession';
 import {ConversationList} from '../features/chat/ConversationList';
@@ -15,12 +16,23 @@ export class Workspace {
   private navigation = 0;
   private refreshVersion = 0;
   private generalOpening: Promise<Card> | undefined;
+  private removingCards = new Set<string>();
+  private cardRemoval: Promise<void> = Promise.resolve();
   page: Page = 'library'; filter: LibraryFilter = 'all'; search = '';
   cards: Card[] = [];
   readonly notifications = new Notifications();
   readonly cardEditor: CardEditor;
   readonly history: ConversationList;
   readonly chats: ChatSessions;
+  readonly cardActions: CardListActions = {
+    rename: (id, title) => this.changeCardMetadata(id, {title}),
+    pin: (id, pinned) => this.changeCardMetadata(id, {pinnedAt: pinned ? Date.now() : null}),
+    remove: ids => {
+      const task = this.cardRemoval.then(() => this.removeCards([...new Set(ids)]));
+      this.cardRemoval = task.catch(() => {});
+      return task;
+    },
+  };
 
   constructor(readonly runtime: Runtime) {
     this.history = new ConversationList(runtime.repo, async ids => {
@@ -48,6 +60,7 @@ export class Workspace {
   private emit() {this.version++; this.listeners.forEach(listener => listener());}
   async ready() {await this.refresh();}
   private generalCard(): Promise<Card> {
+    if (this.removingCards.has('promlive-general-chat')) return Promise.reject(new Error('삭제 중인 카드입니다.'));
     const existing = this.cards.find(card => card.id === 'promlive-general-chat');
     if (existing) return Promise.resolve(existing);
     this.generalOpening ??= this.runtime.repo.insertCard({...newCard(), id: 'promlive-general-chat', title: 'Promlive', genre: '', description: ''})
@@ -89,7 +102,7 @@ export class Workspace {
   async duplicate(card: Card) {
     const attempt = ++this.navigation;
     const copy = newCard(card.body.kind);
-    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
+    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, pinnedAt: null, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
     await this.refreshCards(); await this.openAt(saved.id, attempt);
     this.notifications.inform('별도의 카드로 복제했어요.');
   }
@@ -110,8 +123,36 @@ export class Workspace {
     await this.refreshCards();
     this.notifications.inform(saved.archived ? '보관함으로 옮겼어요.' : '서재로 다시 가져왔어요.');
   }
+  private async changeCardMetadata(id: string, patch: CardMetadataPatch) {
+    if (this.removingCards.has(id)) throw new Error('삭제 중인 카드입니다.');
+    await this.cardEditor.settle();
+    const saved = await this.runtime.repo.updateMetadata(id, patch);
+    this.cardEditor.updateMetadata(saved, patch);
+    await this.refreshCards();
+  }
+  private async removeCards(ids: readonly string[]) {
+    if (!ids.length) return;
+    const attempt = ++this.navigation;
+    ids.forEach(id => this.removingCards.add(id));
+    try {
+      if (ids.includes('promlive-general-chat')) await this.generalOpening;
+      await this.history.removeCards(ids, () => this.cardEditor.withRemoval(ids, async () => {
+        for (const room of this.history.items) if (ids.includes(room.cardId)) this.runtime.extensions?.cancel(room.id);
+        const removed = await this.runtime.creation.deleteCards(ids);
+        this.chats.forget(removed);
+        this.refreshVersion++;
+        this.cards = this.cards.filter(card => !ids.includes(card.id));
+        if (ids.includes('promlive-general-chat')) this.generalOpening = undefined;
+        if (attempt === this.navigation && this.page === 'editor' && ids.includes(this.cardEditor.state?.card.id ?? '')) this.page = 'library';
+        this.emit();
+        return removed;
+      }));
+      await this.refresh();
+    } finally {ids.forEach(id => this.removingCards.delete(id));}
+  }
   async startChat(card: Card, forceNew = false) {await this.startChatAt(card, forceNew, ++this.navigation);}
   private async startChatAt(card: Card, forceNew: boolean, attempt: number) {
+    if (this.removingCards.has(card.id)) throw new Error('삭제 중인 카드입니다.');
     const editor = this.cardEditor.state;
     if (editor?.card.id === card.id && editor.dirty) await this.cardEditor.save();
     else await this.cardEditor.flush();

@@ -2,6 +2,7 @@
 import {act, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
+import {CardList} from '../src/features/cards/CardList';
 import {CardConversationPanel} from '../src/features/chat/CardConversationPanel';
 import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
 import {repository, FixtureProvider} from './helpers';
@@ -10,7 +11,7 @@ import {Workspace} from '../src/app/workspace';
 import {CreationService} from '../src/features/chat/service';
 import {GenerationCoordinator} from '../src/features/chat/generation';
 import type {Repository} from '../src/adapters/sqlite/repository';
-import type {HistoryLayoutItem} from '../src/features/chat/historyListMotion';
+import type {ItemLayout, ListItem} from '../src/layout/itemListMotion';
 
 vi.mock('react-native', async () => {
   const React = await import('react');
@@ -25,16 +26,17 @@ vi.mock('react-native', async () => {
   return {...native, View, Text: ({children}: {children: ReactNode}) => <span>{children}</span>,
     AccessibilityInfo: {isReduceMotionEnabled: async () => false, addEventListener: () => ({remove() {}})},
     Animated: {...native.Animated, View, timing: animate, spring: animate},
-    FlatList: ({data, renderItem, ListFooterComponent}: {data: HistoryLayoutItem[]; renderItem: (args: {item: HistoryLayoutItem; index: number}) => ReactNode; ListFooterComponent: ReactNode}) => <div data-testid="history-rows">{data.map((item, index) => <div key={item.key}>{renderItem({item, index})}</div>)}{ListFooterComponent}</div>,
+    FlatList: ({data, renderItem, ListFooterComponent}: {data: ItemLayout<ListItem>[]; renderItem: (args: {item: ItemLayout<ListItem>; index: number}) => ReactNode; ListFooterComponent: ReactNode}) => <div data-testid="history-rows">{data.map((item, index) => <div key={item.key}>{renderItem({item, index})}</div>)}{ListFooterComponent}</div>,
   };
 });
-vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}));
-vi.mock('../src/layout/FrostedEdge', () => ({FrostedEdge: ({children}: {children: ReactNode}) => children}));
+vi.mock('react-native-safe-area-context', () => ({SafeAreaProvider: ({children}: {children: ReactNode}) => children, useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}));
+vi.mock('../src/layout/EdgeTint', () => ({EdgeTint: ({children}: {children: ReactNode}) => children}));
 vi.mock('../src/features/chat/ChatHistory', () => ({
   CardConversationHeader: ({onClose}: {onClose: () => void}) => <button onClick={onClose}>닫기</button>,
 }));
 vi.mock('../src/layout/RowPressable', () => ({RowPressable: ({children, onPress, onLongPress, accessibilityLabel, accessibilityState}: {children: ReactNode; onPress: () => void; onLongPress?: () => void; accessibilityLabel: string; accessibilityState?: {checked?: boolean}}) => <button aria-label={accessibilityLabel} aria-checked={accessibilityState?.checked} onClick={onPress} onContextMenu={event => {event.preventDefault(); onLongPress?.();}}>{children}</button>}));
 vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} disabled={disabled} onClick={onPress}>{children}</button>}));
+vi.mock('../src/features/cards/CardThumbnail', () => ({CardThumbnail: () => null}));
 vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => null}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
@@ -132,4 +134,80 @@ it('places the action menu outside the history panel and dismisses it without ac
   expect(close).not.toHaveBeenCalled();
   expect(workspace.history.selected?.id).toBe(conversation.id);
   expect((await repo.conversations()).map(item => item.id)).toEqual([conversation.id]);
+});
+
+function CardHost({workspace}: {workspace: Workspace}) {
+  useSyncExternalStore(workspace.subscribe, workspace.snapshot);
+  const [query, setQuery] = useState('');
+  return <DrawerModalLocks.Provider value={locks}>
+    <input aria-label="검색" value={query} onChange={event => setQuery(event.target.value)}/>
+    <CardList cards={workspace.cards.filter(card => card.title.includes(query))} allCards={workspace.cards} actions={workspace.cardActions}
+      scale={0.6} search={query} active openCard={close} report={workspace.notifications.report}/>
+  </DrawerModalLocks.Provider>;
+}
+async function cardHost() {
+  repo = await repository();
+  const cards = await Promise.all(['첫 카드', '둘째 카드', '유지 카드'].map((title, index) => repo.insertCard({...newCard(), title, updatedAt: 100 - index})));
+  for (const card of cards) await repo.createConversation(card.id, `${card.title} 대화`);
+  const provider = new FixtureProvider();
+  const workspace = new Workspace({repo, provider, creation: new CreationService(repo, new GenerationCoordinator(provider))});
+  await workspace.ready();
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<CardHost workspace={workspace}/>));
+  return {workspace, cards};
+}
+async function holdCard(title: string) {
+  await act(async () => {button(`${title} 카드의 채팅 기록`).dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));});
+}
+it('uses the same actions for cards, retains hidden selections and deletes only selected card histories', async () => {
+  const {cards, workspace} = await cardHost();
+  await holdCard('첫 카드');
+  expect(locks.current).toBe(1);
+  expect(close).not.toHaveBeenCalled();
+  for (const label of ['선택', '고정', '이름 변경', '삭제']) expect(button(label)).not.toBeNull();
+  await press('선택');
+  expect(button('첫 카드').getAttribute('aria-checked')).toBe('true');
+  await search('둘째'); await press('둘째 카드');
+  expect(button('선택한 카드 2개 삭제')).not.toBeNull();
+  await press('선택한 카드 2개 삭제');
+  expect(workspace.cards.map(card => card.id)).toEqual([cards[2]!.id]);
+  expect((await repo.conversations()).map(room => room.cardId)).toEqual([cards[2]!.id]);
+  expect(document.querySelector('[data-testid="card-selection-footer"]')).toBeNull();
+});
+it('pins cards above the others, unpins back to recency and dismisses outside taps without opening a card', async () => {
+  const {cards, workspace} = await cardHost();
+  await holdCard('유지 카드'); await press('고정');
+  expect(workspace.cards[0]?.id).toBe(cards[2]!.id);
+  expect(document.querySelector('[data-testid="card-pin-divider"]')).not.toBeNull();
+  await holdCard('유지 카드'); expect(button('고정 해제')).not.toBeNull(); await press('고정 해제');
+  expect(workspace.cards.map(card => card.id)).toEqual(cards.map(card => card.id));
+  await holdCard('첫 카드'); await press('카드 메뉴 닫기');
+  expect(locks.current).toBe(0);
+  expect(document.querySelector('[data-testid="card-actions-overlay"]')).toBeNull();
+  expect(close).not.toHaveBeenCalled();
+});
+it('exits card selection when the last check is cleared and when the cancel button is pressed', async () => {
+  await cardHost();
+  await holdCard('첫 카드'); await press('선택'); await press('첫 카드');
+  expect(document.querySelector('[data-testid="card-selection-footer"]')).toBeNull();
+  await holdCard('둘째 카드'); await press('선택'); await press('카드 선택 취소');
+  expect(document.querySelector('[aria-checked]')).toBeNull();
+  await press('첫 카드 카드의 채팅 기록');
+  expect(close).toHaveBeenCalledOnce();
+});
+it('opens the compact editor for a card and applies the confirmed name to that card only', async () => {
+  const {cards, workspace} = await cardHost();
+  const oldRooms = await repo.conversations();
+  await holdCard('둘째 카드'); await press('이름 변경');
+  expect(document.querySelector('[data-testid="card-rename"]')).not.toBeNull();
+  const input = document.querySelector('[data-testid="card-rename-input"]') as HTMLInputElement;
+  expect(input.getAttribute('aria-label')).toBe('카드 이름');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '바뀐 카드');
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+  await press('이름 변경 완료');
+  expect(workspace.cards.find(card => card.id === cards[1]!.id)?.title).toBe('바뀐 카드');
+  expect((await repo.conversations()).map(room => room.title)).toEqual(oldRooms.map(room => room.title));
+  expect(close).not.toHaveBeenCalled();
 });

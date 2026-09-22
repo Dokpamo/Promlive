@@ -3,7 +3,12 @@
 `@sbaiahmed1/react-native-blur` is pinned to 6.0.2. `npm install` applies the
 checked-in patch with `patch-package`.
 
-The Android progressive blur hosts the floating header controls. The patch:
+Screen edges now use `EdgeTint`, a translucent layer of the page background.
+They do not mount a native blur view or capture another window. The page-local
+capture experiment has been removed; the existing package compatibility patch
+is retained for any future use of the dependency.
+
+The Android progressive blur compatibility patch:
 
 - Treats the internal blur renderer separately from Fabric-managed children, so
   it remains behind buttons and does not disturb mounting/removal indices.

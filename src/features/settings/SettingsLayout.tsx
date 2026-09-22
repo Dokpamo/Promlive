@@ -42,7 +42,7 @@ export function SettingsPage({children, onBack, title, titleInHeader = false, ho
       </SwipeBackScrollContent>
     </ScrollView>
     <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}>
-      <ScreenHeader width={width} topInset={insets.top} testID={home ? 'settings-header' : 'settings-detail-header'}>
+      <ScreenHeader width={width} topInset={insets.top} surfaceColor={p.background} testID={home ? 'settings-header' : 'settings-detail-header'}>
         <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
         {titleInHeader && title && <>
           <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>

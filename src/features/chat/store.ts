@@ -1,6 +1,6 @@
 import type {Conversation, Message} from './model';
 import type {ChatSessionStore} from './sessionStore';
-import type {DraftWriter} from '../cards/store';
+import type {DraftWriter, CardLibraryStore} from '../cards/store';
 
 export interface ConversationStore {
   createConversation(cardId: string, title?: string): Promise<Conversation>;
@@ -23,5 +23,6 @@ export interface MessageStore extends MessageReader {
 /** Only operations used by generation and its cancellation-before-delete boundary. */
 export interface CreationStore extends MessageReader, DraftWriter,
   Pick<MessageStore, 'beginExchange' | 'saveMessage'>,
-  Pick<ConversationStore, 'deleteConversations'>,
+  Pick<ConversationStore, 'deleteConversations' | 'conversations'>,
+  Pick<CardLibraryStore, 'deleteCards'>,
   Pick<ChatSessionStore, 'acceptChatSubmission'> {}

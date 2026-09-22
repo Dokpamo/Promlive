@@ -5,6 +5,7 @@ import {cardSchema, draftSchema, newId, type Card, type Draft} from '../../featu
 import {conversationSchema, messageSchema, type Conversation, type Message} from '../../features/chat/model';
 import {SqliteChatSessionStore} from './chatSessionStore';
 import type {ChatSubmission, ComposerDraft} from '../../features/chat/sessionStore';
+import type {CardMetadataPatch} from '../../features/cards/store';
 const bufferSchema = cardSchema.extend({title: z.string().max(120)});
 
 export class RevisionConflict extends Error { constructor() { super('원본 카드가 변경되었습니다. 최신 내용과 초안을 비교한 뒤 다시 적용해 주세요.'); this.name = 'RevisionConflict'; } }
@@ -14,7 +15,10 @@ export class Repository implements StoryRepository {
   loadComposerDraft(id: string) {return this.chatStore.loadComposerDraft(id);}
   writeComposerDraft(id: string, draft: Pick<ComposerDraft, 'text' | 'revision'>) {return this.chatStore.writeComposerDraft(id, draft);}
   acceptChatSubmission(submission: ChatSubmission) {return this.chatStore.acceptChatSubmission(submission);}
-  async listCards() { return (await this.db.execute('SELECT document FROM cards ORDER BY updated_at DESC')).rows.map(row => cardSchema.parse(JSON.parse(String(row.document)))); }
+  async listCards() {
+    const cards = (await this.db.execute('SELECT document FROM cards ORDER BY updated_at DESC,id')).rows.map(row => cardSchema.parse(JSON.parse(String(row.document))));
+    return cards.sort((a, b) => (b.pinnedAt ?? -1) - (a.pinnedAt ?? -1) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
+  }
   async getCard(id: string, tx: SqlSession = this.db) {
     const row = (await tx.execute('SELECT document FROM cards WHERE id = ?', [id])).rows[0];
     if (!row) throw new Error('카드를 찾을 수 없습니다.');
@@ -25,8 +29,8 @@ export class Repository implements StoryRepository {
     await this.db.execute('INSERT INTO cards(id,title,kind,revision,updated_at,favorite,archived,document) VALUES(?,?,?,?,?,?,?,?)', [card.id, card.title, card.body.kind, card.revision, card.updatedAt, Number(card.favorite), Number(card.archived), JSON.stringify(card)]);
     return card;
   }
-  private async updateCard(input: Card, expectedRevision: number, tx: SqlSession) {
-    const card = cardSchema.parse({...input, revision: expectedRevision + 1, updatedAt: Date.now()});
+  private async updateCard(input: Card, expectedRevision: number, tx: SqlSession, preserveRecency = false) {
+    const card = cardSchema.parse({...input, revision: expectedRevision + 1, updatedAt: preserveRecency ? input.updatedAt : Date.now()});
     const result = await tx.execute('UPDATE cards SET title=?,kind=?,revision=?,updated_at=?,favorite=?,archived=?,document=? WHERE id=? AND revision=?', [card.title, card.body.kind, card.revision, card.updatedAt, Number(card.favorite), Number(card.archived), JSON.stringify(card), card.id, expectedRevision]);
     if (result.changes !== 1) throw new RevisionConflict();
     return card;
@@ -46,10 +50,11 @@ export class Repository implements StoryRepository {
     const row = (await this.db.execute('SELECT * FROM editor_buffers WHERE card_id=?', [id])).rows[0];
     return row ? {card: bufferSchema.parse(JSON.parse(String(row.document))), baseRevision: z.number().int().parse(row.base_revision)} : null;
   }
-  async updateMetadata(id: string, patch: Partial<Pick<Card, 'favorite' | 'archived'>>) {
+  async updateMetadata(id: string, patch: CardMetadataPatch) {
+    if (patch.title !== undefined) patch = {...patch, title: z.string().trim().min(1, '이름을 입력해 주세요.').max(120).parse(patch.title)};
     return this.db.transaction(async tx => {
       const current = await this.getCard(id, tx);
-      const saved = await this.updateCard({...current, ...patch}, current.revision, tx);
+      const saved = await this.updateCard({...current, ...patch}, current.revision, tx, patch.favorite === undefined && patch.archived === undefined);
       const row = (await tx.execute('SELECT document,base_revision FROM editor_buffers WHERE card_id=?', [id])).rows[0];
       if (row && row.base_revision === current.revision) {
         const buffer = bufferSchema.parse(JSON.parse(String(row.document)));
@@ -58,7 +63,15 @@ export class Repository implements StoryRepository {
       return saved;
     });
   }
-  async deleteCard(id: string) { await this.db.execute('DELETE FROM cards WHERE id=?', [id]); }
+  async deleteCard(id: string) {await this.deleteCards([id]);}
+  async deleteCards(ids: readonly string[]) {
+    await this.db.transaction(async tx => {
+      for (const id of new Set(ids)) {
+        await tx.execute("DELETE FROM settings WHERE key IN (SELECT 'composer:' || id FROM conversations WHERE card_id=?)", [id]);
+        await tx.execute('DELETE FROM cards WHERE id=?', [id]);
+      }
+    });
+  }
   async putDraft(input: Draft, tx: SqlSession = this.db) {
     const draft = draftSchema.parse(input);
     await tx.execute('INSERT INTO ai_drafts(id,card_id,created_at,document) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET document=excluded.document', [draft.id, draft.cardId, draft.createdAt, JSON.stringify(draft)]);

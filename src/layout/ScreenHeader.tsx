@@ -4,14 +4,14 @@ import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon, type ChatIconName} from '../features/chat/ChatIcon';
 import {headerScale, referenceHeader as r} from './metrics';
 import {PressSurface} from './PressSurface';
-import {FrostedEdge} from './FrostedEdge';
+import {EdgeTint} from './EdgeTint';
 
 /** Place inside the screen's safe area; width is the viewport, including in a drawer. */
-export function ScreenHeader({width, testID, children, topInset = 0, frosted = true}: {width: number; testID?: string; children: ReactNode; topInset?: number; frosted?: boolean}) {
+export function ScreenHeader({width, testID, children, topInset = 0, edgeTint = true, surfaceColor}: {width: number; testID?: string; children: ReactNode; topInset?: number; edgeTint?: boolean; surfaceColor?: string}) {
   const s = headerScale(width);
-  const controls = <View pointerEvents="box-none" style={{paddingTop: (frosted ? topInset : 0) + r.top * s, paddingHorizontal: r.inset * s, flexDirection: 'row', alignItems: 'flex-start', gap: r.gap * s}}>{children}</View>;
+  const controls = <View pointerEvents="box-none" style={{paddingTop: (edgeTint ? topInset : 0) + r.top * s, paddingHorizontal: r.inset * s, flexDirection: 'row', alignItems: 'flex-start', gap: r.gap * s}}>{children}</View>;
   return <View testID={testID} pointerEvents="box-none" style={{height: r.barHeight * s, flexShrink: 0}}>
-    {frosted ? <FrostedEdge edge="top" testID="header-frost" style={{position: 'absolute', top: -topInset, left: 0, right: 0, height: topInset + (r.barHeight + 20) * s}}>{controls}</FrostedEdge> : controls}
+    {edgeTint ? <EdgeTint edge="top" testID="header-tint" {...(surfaceColor ? {surfaceColor} : {})} style={{position: 'absolute', top: -topInset, left: 0, right: 0, height: topInset + (r.barHeight + 20) * s}}>{controls}</EdgeTint> : controls}
   </View>;
 }
 

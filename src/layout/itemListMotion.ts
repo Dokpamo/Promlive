@@ -1,9 +1,8 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, Platform} from 'react-native';
-import type {Conversation} from './model';
-import {panelSpringForDistance} from '../../layout/panelAnimation';
+import {panelSpringForDistance} from './panelAnimation';
 
-export function useHistoryReducedMotion() {
+export function useItemReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
     let mounted = true;
@@ -15,7 +14,7 @@ export function useHistoryReducedMotion() {
 }
 
 /** Layout and opacity share one clock, and can reverse without waiting for an exit. */
-export function useHistoryPresence(active: boolean, reduced: boolean, nativeDriver = false) {
+export function useItemPresence(active: boolean, reduced: boolean, nativeDriver = false) {
   const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
   const [present, setPresent] = useState(active);
   useLayoutEffect(() => {
@@ -32,31 +31,33 @@ export function useHistoryPresence(active: boolean, reduced: boolean, nativeDriv
   return {progress, present: active || present};
 }
 
-export type HistoryLayoutItem =
-  | {key: string; kind: 'conversation'; conversation: Conversation; top: number; height: number}
+export interface ListItem {id: string; title: string; pinnedAt?: number | null | undefined}
+
+export type ItemLayout<T extends ListItem> =
+  | {key: string; kind: 'item'; item: T; top: number; height: number}
   | {key: 'pin-divider'; kind: 'divider'; visible: boolean; top: number; height: number};
 
 /** Keep the separator mounted at zero height so its disappearance can also animate. */
-export function historyListLayout(conversations: Conversation[], rowHeight: number, dividerHeight: number): HistoryLayoutItem[] {
-  const firstUnpinned = conversations.findIndex(item => item.pinnedAt == null);
-  const dividerIndex = firstUnpinned < 0 ? conversations.length : firstUnpinned;
-  const visible = dividerIndex > 0 && dividerIndex < conversations.length;
-  const rows: HistoryLayoutItem[] = [];
+export function itemListLayout<T extends ListItem>(items: readonly T[], rowHeight: number, dividerHeight: number): ItemLayout<T>[] {
+  const firstUnpinned = items.findIndex(item => item.pinnedAt == null);
+  const dividerIndex = firstUnpinned < 0 ? items.length : firstUnpinned;
+  const visible = dividerIndex > 0 && dividerIndex < items.length;
+  const rows: ItemLayout<T>[] = [];
   let top = 0;
-  for (let index = 0; index <= conversations.length; index++) {
+  for (let index = 0; index <= items.length; index++) {
     if (index === dividerIndex) {
       const height = visible ? dividerHeight : 0;
       rows.push({key: 'pin-divider', kind: 'divider', visible, top, height});
       top += height;
     }
-    const conversation = conversations[index];
-    if (conversation) {rows.push({key: conversation.id, kind: 'conversation', conversation, top, height: rowHeight}); top += rowHeight;}
+    const item = items[index];
+    if (item) {rows.push({key: item.id, kind: 'item', item, top, height: rowHeight}); top += rowHeight;}
   }
   return rows;
 }
 
 /** FLIP the visual position while FlatList keeps stable keys and row measurements. */
-export function useHistoryRowOffset(top: number, resetKey: string, reduced: boolean) {
+export function useItemRowOffset(top: number, resetKey: string, reduced: boolean) {
   const offset = useRef(new Animated.Value(0)).current;
   const previous = useRef({top, resetKey});
   useLayoutEffect(() => {

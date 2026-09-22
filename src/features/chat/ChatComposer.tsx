@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {PressSurface} from '../../layout/PressSurface';
-import {FrostedEdge} from '../../layout/FrostedEdge';
+import {EdgeTint} from '../../layout/EdgeTint';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import type {ComposerInputHandle} from './ComposerInput.types';
@@ -175,7 +175,7 @@ export function ChatComposer(p: Props) {
     <DrawerGestureBoundary style={{flex: 1}}>
     <DragClickBoundary cancelClick={pull.cancelClick}>
       <Animated.View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: Animated.add(motion.height, p.bottom + (r.bottom + 40) * s), opacity: fraction}}>
-        <FrostedEdge edge="bottom" testID="composer-frost" style={{flex: 1}}/>
+        <EdgeTint edge="bottom" testID="composer-tint" style={{flex: 1}}/>
       </Animated.View>
       {modal && <Pressable accessibilityRole="button" accessibilityLabel="입력창 바깥 눌러 접기" onPress={close} style={{position: 'absolute', inset: 0}}/>}
       <Animated.View testID={visible ? 'expanded-composer-surface' : 'chat-composer'} accessibilityViewIsModal={visible} onAccessibilityEscape={visible ? close : undefined} {...pull.panHandlers} style={{
@@ -201,7 +201,7 @@ export function ChatComposer(p: Props) {
         </Animated.View>
         <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: panelReference.sheetHandle.top * s, width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: expandedOpacity}}/>
         <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', top: sheetInset, left: 0, right: 0, opacity: expandedOpacity}}>
-          <ScreenHeader width={p.width} testID="expanded-composer-header" frosted={false}>
+          <ScreenHeader width={p.width} testID="expanded-composer-header" edgeTint={false}>
             <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
             <View style={{flex: 1}} pointerEvents="none"/>
             <HeaderButton width={p.width} testID="expanded-composer-send" icon={cancelling ? 'stop' : 'send'} label={p.action.label} bright disabled={!p.action.enabled} onPress={() => {if (cancelling) p.onCancel(); else {p.onSend(); close();}}}/>

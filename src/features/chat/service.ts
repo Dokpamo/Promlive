@@ -11,6 +11,8 @@ export class CreationService {
   private readonly active = new Map<string, LiveGeneration>();
   private readonly sends = new Map<string, Set<Promise<void>>>();
   private readonly deleting = new Set<string>();
+  private readonly deletingCards = new Set<string>();
+  private readonly draftJobs = new Map<string, {id: string; task: Promise<Draft>}>();
   private revision = 0;
   private readonly cancelled = new Set<string>();
   private readonly drafts = new Map<string, Draft>();
@@ -25,7 +27,7 @@ export class CreationService {
   lastError() { return this.error; }
   cancel(requestId: string) { this.cancelled.add(requestId); this.coordinator.cancel(requestId); }
   send(card: Card, conversationId: string, input: string, requestId = newId('request'), onAccepted?: () => void, draftRevision?: number) {
-    if (this.deleting.has(conversationId)) return Promise.reject(new Error('삭제 중인 채팅입니다.'));
+    if (this.deleting.has(conversationId) || this.deletingCards.has(card.id)) return Promise.reject(new Error('삭제 중인 채팅입니다.'));
     const tasks = this.sends.get(conversationId) ?? new Set<Promise<void>>();
     this.sends.set(conversationId, tasks);
     const task = this.sendMessage(card, conversationId, input, requestId, onAccepted, draftRevision).finally(() => {
@@ -49,6 +51,35 @@ export class CreationService {
       unique.forEach(id => this.active.delete(id));
     } finally {unique.forEach(id => this.deleting.delete(id)); this.emit();}
   }
+  /** Card removal waits for every last message/draft write before the FK cascade. */
+  async deleteCards(ids: readonly string[]) {
+    const cards = [...new Set(ids)];
+    cards.forEach(id => this.deletingCards.add(id));
+    let rooms: string[] = [];
+    try {
+      rooms = (await this.repo.conversations()).filter(room => cards.includes(room.cardId)).map(room => room.id);
+      rooms.forEach(id => this.deleting.add(id));
+      for (const id of rooms) {
+        const live = this.active.get(id);
+        if (live) this.cancel(live.requestId);
+      }
+      const drafts = cards.flatMap(id => {
+        const job = this.draftJobs.get(id);
+        if (!job) return [];
+        this.cancel(job.id);
+        return [job.task];
+      });
+      await Promise.allSettled([...drafts, ...rooms.flatMap(id => [...this.sends.get(id) ?? []])]);
+      await this.repo.deleteCards(cards);
+      cards.forEach(id => this.drafts.delete(id));
+      rooms.forEach(id => this.active.delete(id));
+      return rooms;
+    } finally {
+      cards.forEach(id => this.deletingCards.delete(id));
+      rooms.forEach(id => this.deleting.delete(id));
+      this.emit();
+    }
+  }
   private async sendMessage(card: Card, conversationId: string, input: string, requestId: string, onAccepted?: () => void, draftRevision?: number) {
     if (!input.trim()) return;
     if (!this.coordinator.provider.connected) {
@@ -59,13 +90,13 @@ export class CreationService {
     }
     // Context reads are independent from the screen's 40-row page.
     const history = await this.repo.messages(conversationId, Number.MAX_SAFE_INTEGER, 200);
-    if (this.deleting.has(conversationId)) return;
+    if (this.deleting.has(conversationId) || this.deletingCards.has(card.id)) return;
     const context = buildContext(card, history, input, this.coordinator.provider.inputCharacterLimit);
     const receipt = draftRevision === undefined ? {...await this.repo.beginExchange(conversationId, requestId, input.trim()), replayed: false} : await this.repo.acceptChatSubmission({id: requestId, conversationId, text: input, draftRevision, generate: true});
     onAccepted?.();
     const assistant = receipt.assistant;
     if (receipt.replayed || !assistant) return;
-    if (this.deleting.has(conversationId) || this.cancelled.has(requestId)) {
+    if (this.deleting.has(conversationId) || this.deletingCards.has(card.id) || this.cancelled.has(requestId)) {
       await this.repo.saveMessage({...assistant, status: 'cancelled'});
       this.cancelled.delete(requestId);
       return;
@@ -92,11 +123,22 @@ export class CreationService {
   async generateDraft(card: Card, instruction: string, kind: Draft['kind']) {
     if (!instruction.trim()) throw new Error('AI에게 요청할 내용을 적어 주세요.');
     if (!this.coordinator.provider.connected) throw new AiUnavailableError();
-    if (this.drafts.get(card.id)?.status === 'generating') throw new Error('이 카드의 초안을 이미 생성 중입니다.');
-    let draft: Draft = {id: newId('draft'), cardId: card.id, baseRevision: card.revision, kind, status: 'generating', instruction, content: '', sources: [], error: null, createdAt: Date.now()};
+    if (this.deletingCards.has(card.id)) throw new Error('삭제 중인 카드입니다.');
+    if (this.draftJobs.has(card.id)) throw new Error('이 카드의 초안을 이미 생성 중입니다.');
+    const id = newId('draft');
+    const task = this.createDraft(card, instruction, kind, id).finally(() => {
+      this.draftJobs.delete(card.id);
+      this.cancelled.delete(id);
+    });
+    this.draftJobs.set(card.id, {id, task});
+    return task;
+  }
+  private async createDraft(card: Card, instruction: string, kind: Draft['kind'], id: string) {
+    let draft: Draft = {id, cardId: card.id, baseRevision: card.revision, kind, status: 'generating', instruction, content: '', sources: [], error: null, createdAt: Date.now()};
     await this.repo.putDraft(draft); this.drafts.set(card.id, draft); this.emit();
     let lastSave = 0; let lastRender = 0;
     try {
+      if (this.deletingCards.has(card.id) || this.cancelled.has(id)) throw new Error('초안 생성을 취소했습니다.');
       await this.coordinator.run({id: draft.id, purpose: kind, instruction, context: cardContext(card), messages: []}, async event => {
         if (event.type === 'delta') draft = {...draft, content: draft.content + event.text};
         if (event.type === 'source') draft = {...draft, sources: [...draft.sources, event.source]};

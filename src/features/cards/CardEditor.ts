@@ -1,5 +1,5 @@
 import type {Card, Draft, World} from './model';
-import type {CardEditorStore} from './store';
+import type {CardEditorStore, CardMetadataPatch} from './store';
 import {rebaseEditorChanges} from './editorState';
 
 export interface Editor {card: Card; baseRevision: number; dirty: boolean; status: 'saved' | 'saving' | 'buffered' | 'error'}
@@ -20,6 +20,8 @@ export class CardEditor {
   private bufferWrites: Promise<void> = Promise.resolve();
   private saving = new Map<number, {card: Card | undefined; task: Promise<void>}>();
   private forms = new Map<string, AssistantForm>();
+  private removing = new Set<string>();
+  private applying = new Set<Promise<void>>();
   constructor(private readonly store: CardEditorStore, private readonly events: EditorEvents) {}
 
   get state() {return this.current;}
@@ -35,6 +37,7 @@ export class CardEditor {
   drafts(id: string) {return this.store.drafts(id);}
 
   async open(id: string, isRequested: () => boolean = () => true) {
+    if (this.removing.has(id)) return false;
     const opening = ++this.opening;
     while (opening === this.opening && isRequested()) {
       const before = this.current;
@@ -44,7 +47,7 @@ export class CardEditor {
       await this.saving.get(this.session)?.task;
       const saved = await this.store.getCard(id);
       const buffer = await this.store.getBuffer(id);
-      if (opening !== this.opening || !isRequested()) return false;
+      if (opening !== this.opening || !isRequested() || this.removing.has(id)) return false;
       // The previous card remains editable while reads wait. Flush edits made
       // during that wait before replacing it (and reread when reopening it).
       if (before?.card !== this.current?.card) continue;
@@ -57,7 +60,7 @@ export class CardEditor {
     return false;
   }
   edit(patch: Partial<Card>) {
-    if (!this.current) return;
+    if (!this.current || this.removing.has(this.current.card.id)) return;
     this.current = {...this.current, card: {...this.current.card, ...patch}, dirty: true, status: 'saving'};
     clearTimeout(this.bufferTimer);
     this.bufferTimer = setTimeout(() => {void this.flush().catch(this.events.report);}, 300);
@@ -91,6 +94,7 @@ export class CardEditor {
     return task;
   }
   save(): Promise<void> {
+    if (this.current && this.removing.has(this.current.card.id)) return Promise.reject(new Error('삭제 중인 카드입니다.'));
     const session = this.session;
     const pending = this.saving.get(session);
     if (pending) return pending.task;
@@ -120,10 +124,24 @@ export class CardEditor {
     }
     this.emit();
   }
-  updateMetadata(saved: Card) {
+  updateMetadata(saved: Card, patch?: CardMetadataPatch) {
     if (this.current?.card.id !== saved.id) return;
-    this.current = {...this.current, card: {...this.current.card, favorite: saved.favorite, archived: saved.archived}, baseRevision: this.current.baseRevision === saved.revision - 1 ? saved.revision : this.current.baseRevision};
+    this.current = {...this.current, card: {...this.current.card, favorite: saved.favorite, archived: saved.archived, pinnedAt: saved.pinnedAt, ...(patch?.title !== undefined ? {title: saved.title} : {})}, baseRevision: this.current.baseRevision === saved.revision - 1 ? saved.revision : this.current.baseRevision};
     this.emit();
+  }
+  async settle() {
+    await Promise.allSettled([...this.saving.values()].map(item => item.task).concat([...this.applying]));
+    await this.flush();
+  }
+  async withRemoval<T>(ids: readonly string[], removeStored: () => Promise<T>): Promise<T> {
+    ids.forEach(id => this.removing.add(id));
+    this.opening++;
+    try {
+      await this.settle();
+      const result = await removeStored();
+      for (const id of ids) {this.close(id); this.forms.delete(id);}
+      return result;
+    } finally {ids.forEach(id => this.removing.delete(id));}
   }
   close(id: string) {
     if (this.current?.card.id !== id) return;
@@ -133,7 +151,13 @@ export class CardEditor {
     this.current = null;
     this.emit();
   }
-  async apply(draft: Draft, content: string, field: keyof World) {
+  apply(draft: Draft, content: string, field: keyof World): Promise<void> {
+    if (this.removing.has(draft.cardId)) return Promise.reject(new Error('삭제 중인 카드입니다.'));
+    const task = this.applyCurrent(draft, content, field).finally(() => this.applying.delete(task));
+    this.applying.add(task);
+    return task;
+  }
+  private async applyCurrent(draft: Draft, content: string, field: keyof World) {
     if (!this.current) return;
     const session = this.session;
     await this.flush();
