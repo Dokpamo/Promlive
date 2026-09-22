@@ -249,6 +249,31 @@ it('routes Android back to the open sheet, then to the page during the sheet exi
   expect(closeSheet).not.toHaveBeenCalled();
 });
 
+it('routes back through nested sheets and lets the editor hide its keyboard first', async () => {
+  const closePage = vi.fn(), closeChoices = vi.fn(), closeEditor = vi.fn();
+  let keyboardVisible = true;
+  const hideKeyboard = vi.fn(() => {const visible = keyboardVisible; keyboardVisible = false; return visible;});
+  await render(<SwipeBackModal onClose={closePage}>{() =>
+    <SwipeBackModal sheet sheetHeight={400} onClose={closeChoices}>{() =>
+      <SwipeBackModal sheet sheetHeight={700} onClose={closeEditor} onBackRequest={hideKeyboard}>{() => null}</SwipeBackModal>
+    }</SwipeBackModal>
+  }</SwipeBackModal>);
+  const count = native.springs.length;
+  await act(async () => native.requestClose!());
+  expect(hideKeyboard).toHaveBeenCalledTimes(1);
+  expect(native.springs).toHaveLength(count);
+  await act(async () => native.requestClose!());
+  const editorExit = native.springs.slice(-3);
+  await act(async () => editorExit.forEach(spring => spring.finish()));
+  expect(closeEditor).toHaveBeenCalledTimes(1);
+  expect(closeChoices).not.toHaveBeenCalled();
+  expect(closePage).not.toHaveBeenCalled();
+  await act(async () => native.requestClose!());
+  await act(async () => native.springs.slice(-3).forEach(spring => spring.finish()));
+  expect(closeChoices).toHaveBeenCalledTimes(1);
+  expect(closePage).not.toHaveBeenCalled();
+});
+
 it('releases the closing sheet scroll responder before the next native view update', async () => {
   let dismiss!: () => void;
   await render(<SwipeBackModal sheet sheetHeight={400} onClose={vi.fn()}>{close => {

@@ -1,5 +1,5 @@
 import {useState, type Dispatch, type SetStateAction} from 'react';
-import {Keyboard, KeyboardAvoidingView} from 'react-native';
+import {Keyboard} from 'react-native';
 import {SettingsChoice, SettingsGroup, SettingsPage, SettingsRow, SettingsSheet} from './SettingsLayout';
 import {SwipeBackModal} from './SwipeBackModal';
 import {AiAction, AiCaption, AiField, AiSection, AiToggle} from './AiSettingsControls';
@@ -84,7 +84,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
   }
 
   return <SwipeBackModal onClose={onClose}>{back => <>
-    <KeyboardAvoidingView style={{flex: 1}} behavior="padding"><SettingsPage title="AI" onBack={back} obscured={sheet !== null}>
+    <SettingsPage title="AI" onBack={back} obscured={sheet !== null}>
       {saveError && <AiCaption>{saveError}</AiCaption>}
       <SettingsGroup>
         <SettingsRow label="프로바이더" value={service.name} onPress={() => {Keyboard.dismiss(); setSheet({kind: 'services'});}}/>
@@ -134,7 +134,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
         {connectionField('API 주소', 'url', route.url, service.id === 'qwen' ? 'Model Studio에 표시된 리전·워크스페이스 주소를 사용해 주세요.' : undefined)}
       </>}
       <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
-    </SettingsPage></KeyboardAvoidingView>
+    </SettingsPage>
 
     {sheet && <SettingsSheet key={sheetKey} fillHeight={sheet.kind === 'models'} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
       {aiServices.map(item => <SettingsChoice key={item.id} label={item.name} selected={service.id === item.id} onPress={() => {

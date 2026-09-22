@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Text, View} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
-import {AiCaption, AiField} from './AiSettingsControls';
+import {AiCaption, AiField, AiSearchField} from './AiSettingsControls';
 import {connectionRoute, type AiConnectionPreview, type AiModelPreview, type AiServicePreview} from './aiSettingsModel';
 import {AiCatalogError, type AiCatalogKind} from '../../ports/aiCatalog';
 import {defaultCatalog, loadAiModels, reconcileCatalog, type AiModelLoader} from './aiModelCatalog';
@@ -76,7 +76,7 @@ function CatalogSession({service, connection, onSelect, onManualChange, onRefres
       {loading && <ActivityIndicator size="small" color={p.secondary} accessibilityLabel="모델 목록 갱신 중"/>}
       <Text style={{flex: 1, color: p.secondary, fontSize: 21 * s, lineHeight: 30 * s}}>{availability}{loading ? ' · 갱신 중' : error ? ` · ${error}` : ''}</Text>
     </View>
-    <AiField label={kind === 'voice' ? '목소리 검색' : '모델 검색'} value={query} onChange={setQuery} placeholder={kind === 'voice' ? '이름이나 목소리 ID로 검색' : '이름이나 모델 ID로 검색'}/>
+    <AiSearchField label={kind === 'voice' ? '목소리 검색' : '모델 검색'} value={query} onChange={setQuery} placeholder={kind === 'voice' ? '이름이나 목소리 ID로 검색' : '이름이나 모델 ID로 검색'}/>
     {source === 'default' && !serverCatalog && route.auth !== 'oauth' && <AiCaption>{catalog.length}개 항목 · 실제 이용 가능 여부는 계정과 리전에 따라 달라요.</AiCaption>}
     <AnimatedModelList key={search} models={models} selected={selected} onSelect={onSelect}/>
     {!models.length && <AiCaption>{catalog.length ? '검색 결과가 없어요.' : source === 'live' ? '이 목록에는 사용할 수 있는 항목이 없어요.' : route.auth === 'oauth' ? '계정 연결 후 목록을 확인할 수 있어요.' : '연결하면 모델 목록을 확인할 수 있어요.'}</AiCaption>}

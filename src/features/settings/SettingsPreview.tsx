@@ -1,15 +1,16 @@
 import {useState, type Dispatch, type SetStateAction} from 'react';
-import {ActivityIndicator, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Text, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../chat/chatAppearance';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
 import {SettingsIcon} from './SettingsIcon';
 import {SettingsPressable} from './SettingsPressable';
-import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
-import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
+import {SwipeBackModal} from './SwipeBackModal';
+import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsScale} from './SettingsLayout';
 import {AiSettingsPreview} from './AiSettingsPreview';
 import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
 import {useSettingsSheetState} from './useSettingsSheetState';
+import {SettingsTextField} from './SettingsTextField';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
@@ -82,13 +83,8 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
 }
 
 function SettingsField({label, value, onChange, placeholder, multiline = false, maxLength = 100}: {label: string; value: string; onChange: (value: string) => void; placeholder: string; multiline?: boolean; maxLength?: number}) {
-  const {settings: p} = useAppearance();
   const s = useSettingsScale();
-  const radius = useSettingsRadius('control');
-  return <View style={{gap: 14 * s, marginTop: 24 * s}}>
-    <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s}}>{label}</Text>
-    <SwipeBackBoundary><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} maxLength={maxLength} placeholder={placeholder} placeholderTextColor={p.faint} selectionColor={p.accent} underlineColorAndroid="transparent" textAlignVertical={multiline ? 'top' : 'center'} style={{backgroundColor: p.control, borderRadius: radius, paddingHorizontal: 24 * s, paddingVertical: 20 * s, color: p.text, fontSize: 27 * s, lineHeight: 40 * s, minHeight: (multiline ? 220 : 82) * s}}/></SwipeBackBoundary>
-  </View>;
+  return <View style={{marginTop: 24 * s}}><SettingsTextField label={label} value={value} onChange={onChange} placeholder={placeholder} multiline={multiline} maxLength={maxLength} autoCapitalize="sentences"/></View>;
 }
 
 function ProfileEditor({value, onApply}: {value: string; onApply: (value: string) => void}) {

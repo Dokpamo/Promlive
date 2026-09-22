@@ -1,4 +1,4 @@
-import {useState, type ReactNode} from 'react';
+import type {ReactNode} from 'react';
 import {Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 import {PressSurface} from '../../layout/PressSurface';
@@ -7,6 +7,7 @@ import {SettingsPressable} from './SettingsPressable';
 import {SettingsToggleIndicator} from './SettingsToggleIndicator';
 import {SwipeBackBoundary} from './SwipeBackModal';
 import {settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
+import {SettingsTextField} from './SettingsTextField';
 
 export function AiCaption({children}: {children: ReactNode}) {
   const {settings: p} = useAppearance();
@@ -24,19 +25,19 @@ export function AiField({label, value, onChange, placeholder, secret = false, ke
   label: string; value: string; onChange: (value: string) => void; placeholder: string;
   secret?: boolean; keyboard?: KeyboardTypeOptions; detail?: string; multiline?: boolean;
 }) {
+  return <SettingsTextField testID={`ai-field-${label}`} label={label} value={value} onChange={onChange} placeholder={placeholder} secret={secret} keyboard={keyboard} multiline={multiline} {...(detail ? {detail} : {})}/>;
+}
+
+/** Search stays beside its results; it does not edit a saved setting. */
+export function AiSearchField({label, value, onChange, placeholder}: {label: string; value: string; onChange: (value: string) => void; placeholder: string}) {
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  const [revealed, setRevealed] = useState(false);
   return <View style={{marginBottom: 26 * s}}>
     <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, marginBottom: 12 * s, marginHorizontal: 6 * s}}>{label}</Text>
     <SwipeBackBoundary>
-      <View style={{minHeight: 84 * s, borderRadius: radius, backgroundColor: p.surface, flexDirection: 'row', alignItems: 'center', overflow: 'hidden'}}>
-        <TextInput testID={`ai-field-${label}`} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.faint} secureTextEntry={secret && !revealed} autoCapitalize="none" autoCorrect={false} autoComplete="off" keyboardType={keyboard} multiline={multiline} maxLength={secret ? 1024 : 500} selectionColor={p.accent} underlineColorAndroid="transparent" style={{flex: 1, minWidth: 0, minHeight: 84 * s, paddingHorizontal: 24 * s, paddingVertical: 20 * s, color: p.text, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}/>
-        {secret && <SettingsPressable accessibilityRole="button" accessibilityLabel={revealed ? 'API 키 숨기기' : 'API 키 표시'} onPress={() => setRevealed(!revealed)} radius={radius} style={{marginRight: 8 * s}} contentStyle={{minHeight: 64 * s, paddingHorizontal: 16 * s, justifyContent: 'center'}}><Text style={{color: p.secondary, fontSize: 22 * s}}>{revealed ? '숨기기' : '보기'}</Text></SettingsPressable>}
-      </View>
+      <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.faint} autoCapitalize="none" autoCorrect={false} autoComplete="off" maxLength={500} selectionColor={p.accent} underlineColorAndroid="transparent" style={{minHeight: 84 * s, borderRadius: radius, backgroundColor: p.surface, paddingHorizontal: 24 * s, paddingVertical: 20 * s, color: p.text, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}/>
     </SwipeBackBoundary>
-    {detail && <Text style={{color: p.secondary, fontSize: 21 * s, lineHeight: 31 * s, marginTop: 10 * s, marginHorizontal: 6 * s}}>{detail}</Text>}
   </View>;
 }
 

@@ -30,9 +30,10 @@ export function SwipeBackScrollContent({children, sheetScroll}: {children: React
 }
 
 /** A transparent modal keeps the previous screen visible beneath a back swipe. */
-export function SwipeBackModal({onClose, onDismissStart, children, sheet = false, sheetHeight = 0, active = true}: {
+export function SwipeBackModal({onClose, onDismissStart, onBackRequest, children, sheet = false, sheetHeight = 0, active = true}: {
   onClose: () => void;
   onDismissStart?: () => void;
+  onBackRequest?: () => boolean;
   children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>) => ReactNode;
   sheet?: boolean;
   sheetHeight?: number;
@@ -75,6 +76,8 @@ export function SwipeBackModal({onClose, onDismissStart, children, sheet = false
   onCloseRef.current = onClose;
   const onDismissStartRef = useRef(onDismissStart);
   onDismissStartRef.current = onDismissStart;
+  const onBackRequestRef = useRef(onBackRequest);
+  onBackRequestRef.current = onBackRequest;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const [shown, setShown] = useState(inline);
   const [sheetDismissing, setSheetDismissing] = useState(false);
@@ -149,14 +152,14 @@ export function SwipeBackModal({onClose, onDismissStart, children, sheet = false
   const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
   const requestClose = useCallback(() => {
     const topSheet = Array.from(sheets.current.values()).at(-1);
-    if (topSheet) topSheet(); else close();
+    if (topSheet) topSheet(); else if (!onBackRequestRef.current?.()) close();
   }, [close]);
 
   useLayoutEffect(() => {
     if (!inline || sheetDismissing) return;
-    parentSheets.current.set(sheetId, close);
+    parentSheets.current.set(sheetId, requestClose);
     return () => {parentSheets.current.delete(sheetId);};
-  }, [close, inline, parentSheets, sheetDismissing, sheetId]);
+  }, [requestClose, inline, parentSheets, sheetDismissing, sheetId]);
   useLayoutEffect(() => () => {parentExitingSheets?.current.delete(sheetId);}, [parentExitingSheets, sheetId]);
 
   useEffect(() => {

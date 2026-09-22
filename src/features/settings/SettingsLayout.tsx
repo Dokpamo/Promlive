@@ -10,6 +10,7 @@ import {SettingsPressable} from './SettingsPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from './SwipeBackModal';
 import type {SheetScrollState} from './sheetMotion';
 import {settingsReference} from './settingsGeometry';
+import {SettingsTextEditorHost} from './SettingsTextField';
 
 export {settingsReference} from './settingsGeometry';
 
@@ -32,7 +33,7 @@ export function SettingsPage({children, onBack, title, home = false, obscured = 
   const {width} = useWindowDimensions();
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
-  return <View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
+  return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
     <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{marginTop: insets.top}} contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: referenceHeader.barHeight * s + settingsReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
       <SwipeBackScrollContent>
         {title && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
@@ -44,7 +45,7 @@ export function SettingsPage({children, onBack, title, home = false, obscured = 
         <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
       </ScreenHeader>
     </View>
-  </SafeAreaView></View>;
+  </SafeAreaView></View></SettingsTextEditorHost>;
 }
 
 export function SettingsGroup({children}: {children: ReactNode}) {
@@ -87,7 +88,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   scroll.current.canScroll = bodyHeight > height - handleHeight + 1;
-  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>
+  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: settingsReference.sheetInset * s, paddingBottom: bottom}}>
     <SwipeBackBoundary style={{position: 'absolute', inset: 0}}><Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <Animated.View testID="settings-sheet" accessibilityViewIsModal style={[{width: '100%', maxWidth: 560, height, borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: handleHeight, flexShrink: 0, alignItems: 'center', paddingTop: settingsReference.sheetHandle.top * s}}><View style={{width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
@@ -99,7 +100,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
         </SwipeBackScrollContent>
       </ScrollView>
     </Animated.View>
-  </View>}</SwipeBackModal>;
+  </View></SettingsTextEditorHost>}</SwipeBackModal>;
 }
 
 export function SettingsChoice({label, detail, selected, onPress}: {label: string; detail?: string; selected: boolean; onPress: () => void}) {

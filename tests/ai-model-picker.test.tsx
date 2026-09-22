@@ -13,6 +13,7 @@ vi.mock('../src/features/appearance/AppAppearance', () => ({useAppearance: () =>
 vi.mock('../src/features/settings/AiSettingsControls', () => ({
   AiCaption: ({children}: {children: ReactNode}) => <p>{children}</p>,
   AiField: ({label, value, onChange}: {label: string; value: string; onChange: (value: string) => void}) => <input aria-label={label} value={value} onChange={event => onChange(event.target.value)}/>,
+  AiSearchField: ({label, value, onChange}: {label: string; value: string; onChange: (value: string) => void}) => <input aria-label={label} value={value} onChange={event => onChange(event.target.value)}/>,
 }));
 vi.mock('../src/features/settings/AnimatedModelList', () => ({AnimatedModelList: ({models, onSelect}: {models: AiModelPreview[]; onSelect: (model: AiModelPreview) => void}) => <div>{models.map(model => <button key={model.id} onClick={() => onSelect(model)}>{model.name}</button>)}</div>}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
