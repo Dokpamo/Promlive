@@ -1,12 +1,12 @@
 import {useState, type Dispatch, type SetStateAction} from 'react';
 import {ActivityIndicator, Text, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
-import {referenceTypography} from '../chat/chatAppearance';
+import {referenceTypography} from '../../layout/metrics';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
 import {SettingsIcon} from './SettingsIcon';
-import {SettingsPressable} from './SettingsPressable';
-import {SwipeBackModal} from './SwipeBackModal';
-import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, settingsReference as r, useSettingsScale} from './SettingsLayout';
+import {RowPressable} from '../../layout/RowPressable';
+import {SwipeBackModal} from '../../layout/SwipeBackModal';
+import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, panelReference as r, useSettingsScale} from './SettingsLayout';
 import {AiSettingsPreview} from './AiSettingsPreview';
 import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
 import {useSettingsSheetState} from './useSettingsSheetState';
@@ -51,14 +51,14 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 
   return <SwipeBackModal onClose={onClose} active={page === null}>{close => <>
     <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
-      <SettingsPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
+      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
         <View accessible={false} style={{width: r.profileSize * s, height: r.profileSize * s, borderRadius: r.profileSize * s / 2, backgroundColor: p.avatarBackground, alignItems: 'center'}}>
           <View style={{position: 'absolute', top: 20 * s, width: 26 * s, height: 26 * s, borderRadius: 13 * s, backgroundColor: p.avatarForeground}}/>
           <View style={{position: 'absolute', top: 49 * s, width: 51 * s, height: 26 * s, borderTopLeftRadius: 30 * s, borderTopRightRadius: 30 * s, borderBottomLeftRadius: 14 * s, borderBottomRightRadius: 14 * s, backgroundColor: p.avatarForeground}}/>
         </View>
         <View style={{flex: 1, gap: 8 * s}}><Text numberOfLines={1} style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', includeFontPadding: false}}>{name}</Text><Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, includeFontPadding: false}}>내 정보</Text></View>
         <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
-      </SettingsPressable>
+      </RowPressable>
       {settingsGroups.map((group, index) => <SettingsGroup key={index}>
         {group.map(key => <SettingsRow key={key} label={key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
       </SettingsGroup>)}

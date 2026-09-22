@@ -1,10 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Animated, Keyboard, Platform} from 'react-native';
-import {selectionHaptic} from './selectionHaptic';
+import {selectionHaptic} from '../../layout/selectionHaptic';
 import {drawerProgress, shouldOpenDrawer} from './drawerMotion';
-import {panelSpringForDistance, stopAndRead} from './panelAnimation';
-
-export {panelSpring} from './panelAnimation';
+import {panelSpringForDistance, stopAndRead} from '../../layout/panelAnimation';
 
 /** Shared spring and touch tracking for adjacent panels. */
 export function usePanelMotion(reduceMotion: boolean, travel: number) {

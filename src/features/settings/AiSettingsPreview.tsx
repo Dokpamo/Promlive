@@ -1,7 +1,7 @@
 import {useState, type Dispatch, type SetStateAction} from 'react';
 import {Keyboard} from 'react-native';
 import {SettingsChoice, SettingsGroup, SettingsPage, SettingsRow, SettingsSheet} from './SettingsLayout';
-import {SwipeBackModal} from './SwipeBackModal';
+import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {AiAction, AiCaption, AiField, AiSection, AiToggle} from './AiSettingsControls';
 import {AiModelPicker} from './AiModelPicker';
 import {useSettingsSheetState} from './useSettingsSheetState';

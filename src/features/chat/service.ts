@@ -1,4 +1,4 @@
-import type {StoryRepository} from '../../ports/repository';
+import type {CreationStore} from './store';
 import {AiUnavailableError} from '../../ports/ai';
 import {cardContext, newId, type Card, type Draft} from '../cards/model';
 import type {Message} from './model';
@@ -15,7 +15,7 @@ export class CreationService {
   private readonly cancelled = new Set<string>();
   private readonly drafts = new Map<string, Draft>();
   private error: string | null = null;
-  constructor(private readonly repo: StoryRepository, readonly coordinator: GenerationCoordinator) {}
+  constructor(private readonly repo: CreationStore, readonly coordinator: GenerationCoordinator) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   snapshot = () => this.revision;
   private emit() { this.revision++; this.listeners.forEach(fn => fn()); }

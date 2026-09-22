@@ -1,7 +1,7 @@
 import {CreatorHost} from '../creator-sdk/protocol';
 import {newId} from '../features/cards/model';
 import type {GenerationCoordinator} from '../features/chat/generation';
-import type {StoryRepository} from '../ports/repository';
+import type {MessageReader} from '../features/chat/store';
 import type {ExtensionStore, SummaryExtension, SummaryResult} from './store';
 import {parseSummaryProgram, sampleConversation, summaryCapabilities, summaryContract, type SummaryProgram} from './summaryProgram';
 
@@ -21,7 +21,7 @@ export class SummaryExtensions {
   private builder: CreatorHost | null = null;
   private previewer: CreatorHost | null = null;
   private changing = false;
-  constructor(private readonly store: ExtensionStore, private readonly messages: Pick<StoryRepository, 'messages'>, private readonly coordinator: GenerationCoordinator) {}
+  constructor(private readonly store: ExtensionStore, private readonly messages: MessageReader, private readonly coordinator: GenerationCoordinator) {}
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   snapshot = () => this.state;
   private update(patch: Partial<ExtensionState>) {this.state = {...this.state, ...patch}; this.listeners.forEach(listener => listener());}

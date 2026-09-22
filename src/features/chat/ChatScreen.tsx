@@ -1,33 +1,24 @@
-import {useCallback, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {FlatList, Pressable, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {Workspace} from '../../app/workspace';
 import type {Message} from './model';
 import {ChatComposer} from './ChatComposer';
 import {ChatMessage} from './ChatMessage';
-import {composerScale, headerScale, referenceHeader, referenceComposer, referenceMessage as r} from './chatAppearance';
+import {composerScale, referenceComposer, referenceMessage as r} from './chatAppearance';
+import {headerScale, referenceHeader} from '../../layout/metrics';
 import {useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {useStartupScreen} from '../../layout/StartupScreen';
 import {useAppearance} from '../appearance/AppAppearance';
 import {useChatMessages} from './useChatMessages';
 import {useChatSession} from './useChatSession';
 import type {ChatSession} from './ChatSession';
-import type {StoryRepository} from '../../ports/repository';
+import type {MessageReader} from './store';
 import type {CreationService} from './service';
 import type {SummaryExtensions} from '../../extensions/SummaryExtensions';
 import {ChatSummaryAction} from '../../extensions/ChatSummaryAction';
 
-export function ChatScreen({workspace: w, width, header}: {workspace: Workspace; width: number; header?: ReactNode}) {
-  const report = useCallback((error: unknown) => w.report(error), [w]);
-  const inform = useCallback((message: string) => w.inform(message), [w]);
-  const conversation = w.conversation;
-  const card = w.cards.find(item => item.id === conversation?.cardId);
-  if (!conversation || !card) return <View style={{flex: 1}}>{header}</View>;
-  return <ChatSessionScreen session={w.chats.get(conversation.id, card)} repo={w.runtime.repo} creation={w.runtime.creation} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} width={width} header={header} report={report} inform={inform}/>;
-}
-
-function ChatSessionScreen({session, repo, creation, extensions, width, header, report, inform}: {
-  session: ChatSession; repo: StoryRepository; creation: CreationService; width: number; header?: ReactNode;
+export function ChatScreen({session, repo, creation, extensions, width, header, report, inform}: {
+  session: ChatSession; repo: MessageReader; creation: CreationService; width: number; header?: ReactNode;
   extensions?: SummaryExtensions;
   report: (error: unknown) => void; inform: (message: string) => void;
 }) {

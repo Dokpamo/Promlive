@@ -3,7 +3,8 @@ import {createRoot} from 'react-dom/client';
 import {Text, View} from 'react-native';
 import {AppearanceProvider, useAppearance, type ThemeMode} from '../../src/features/appearance/AppAppearance';
 import {AnimatedModelList, catalogArrivalTiming} from '../../src/features/settings/AnimatedModelList';
-import {settingsReference, useSettingsScale} from '../../src/features/settings/SettingsLayout';
+import {useSettingsScale} from '../../src/features/settings/SettingsLayout';
+import {panelReference} from '../../src/layout/panelGeometry';
 import type {AiModelPreview} from '../../src/features/settings/aiSettingsModel';
 import './model-arrival.css';
 
@@ -35,10 +36,10 @@ function ArrivalStage({count}: {count: number}) {
     return () => {window.clearTimeout(reveal); window.clearTimeout(settled);};
   }, [count]);
 
-  return <View style={{flex: 1, backgroundColor: p.background, padding: settingsReference.sheetInset * s, justifyContent: 'center'}}>
-    <View style={{minHeight: 850 * s, borderRadius: settingsReference.radius * s, backgroundColor: p.sheet, paddingHorizontal: settingsReference.sheetPadding * s, paddingBottom: 42 * s, overflow: 'hidden'}}>
-      <View style={{alignItems: 'center', paddingTop: settingsReference.sheetHandle.top * s, height: 58 * s}}>
-        <View style={{width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: p.divider}}/>
+  return <View style={{flex: 1, backgroundColor: p.background, padding: panelReference.sheetInset * s, justifyContent: 'center'}}>
+    <View style={{minHeight: 850 * s, borderRadius: panelReference.radius * s, backgroundColor: p.sheet, paddingHorizontal: panelReference.sheetPadding * s, paddingBottom: 42 * s, overflow: 'hidden'}}>
+      <View style={{alignItems: 'center', paddingTop: panelReference.sheetHandle.top * s, height: 58 * s}}>
+        <View style={{width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: p.divider}}/>
       </View>
       <Text style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, marginTop: 15 * s}}>모델</Text>
       <Text accessibilityLiveRegion="polite" style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s, marginTop: 16 * s, marginBottom: 38 * s}}>{phase}</Text>

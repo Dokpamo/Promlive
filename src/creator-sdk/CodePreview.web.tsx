@@ -1,15 +1,15 @@
 import {useEffect, useRef, useState} from 'react';
 import type {Card} from '../features/cards/model';
 import {cardContext, newId} from '../features/cards/model';
-import type {Runtime} from '../app/runtime';
+import type {GenerationCoordinator} from '../features/chat/generation';
 import {CreatorHost} from './protocol';
 import {sandboxDocument} from './document';
 import {View, Text} from 'react-native';
 import {colors, styles} from '../layout/theme';
-export function CodePreview({card, runtime, allowed}: {card: Card; runtime: Runtime; allowed: boolean}) {
+export function CodePreview({card, coordinator, allowed}: {card: Card; coordinator: GenerationCoordinator; allowed: boolean}) {
   const iframe = useRef<HTMLIFrameElement>(null); const [error, setError] = useState('');
   const [instance] = useState(() => newId('sandbox'));
-  const [host] = useState(() => new CreatorHost(instance, runtime.creation.coordinator, allowed, cardContext(card)));
+  const [host] = useState(() => new CreatorHost(instance, coordinator, allowed, cardContext(card)));
   useEffect(() => {
     const listener = (event: MessageEvent<unknown>) => {
       if (event.source !== iframe.current?.contentWindow) return;

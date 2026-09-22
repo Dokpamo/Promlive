@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet, shouldScrollSheet} from '../src/features/settings/sheetMotion';
+import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet, shouldScrollSheet} from '../src/layout/sheetMotion';
 
 describe('bottom sheet pulling', () => {
   it('resists pulling and remains bounded during a long drag on either axis', () => {

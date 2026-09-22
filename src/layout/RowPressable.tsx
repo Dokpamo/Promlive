@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {Animated, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle} from 'react-native';
-import {pressedScale, usePressFeedback} from '../../layout/usePressFeedback';
-import {useAppearance} from '../appearance/AppAppearance';
+import {pressedScale, usePressFeedback} from './usePressFeedback';
+import {useAppearance} from '../features/appearance/AppAppearance';
 
 export const rowPressedScale = pressedScale;
 
@@ -17,7 +17,7 @@ type Props = Omit<PressableProps, 'children' | 'style' | 'onPressIn' | 'onPressO
 };
 
 /** Animate the visual surface without moving the row's layout or touch target. */
-export function SettingsPressable({children, radius, selected = false, selectedHighlight = 'full', selectionProgress, highlightInset = 0, style, contentStyle, ...props}: Props) {
+export function RowPressable({children, radius, selected = false, selectedHighlight = 'full', selectionProgress, highlightInset = 0, style, contentStyle, ...props}: Props) {
   const {settings: p} = useAppearance();
   const {progress, onPressIn, onPressOut} = usePressFeedback();
   const pressScale = progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]});

@@ -2,14 +2,14 @@ import {useEffect, useRef, useState} from 'react';
 import {View, Text} from 'react-native';
 import WebView from 'react-native-webview';
 import {cardContext, newId, type Card} from '../features/cards/model';
-import type {Runtime} from '../app/runtime';
+import type {GenerationCoordinator} from '../features/chat/generation';
 import {CreatorHost} from './protocol';
 import {sandboxDocument} from './document';
 import {colors, styles} from '../layout/theme';
-export function CodePreview({card, runtime, allowed}: {card: Card; runtime: Runtime; allowed: boolean}) {
+export function CodePreview({card, coordinator, allowed}: {card: Card; coordinator: GenerationCoordinator; allowed: boolean}) {
   const view = useRef<WebView<object>>(null); const [error, setError] = useState('');
   const [instance] = useState(() => newId('sandbox'));
-  const [host] = useState(() => new CreatorHost(instance, runtime.creation.coordinator, allowed, cardContext(card)));
+  const [host] = useState(() => new CreatorHost(instance, coordinator, allowed, cardContext(card)));
   useEffect(() => () => host.dispose(), [host]);
   if (card.body.kind !== 'code') return null;
   return <View style={{height: 420, borderWidth: 1, borderColor: colors.line, borderRadius: 10, overflow: 'hidden'}}>{error && <Text style={[styles.small, {padding: 12, color: colors.danger}]}>{error}</Text>}<WebView<object> ref={view} source={{html: sandboxDocument(card.body.source, instance), baseUrl: 'about:blank'}} originWhitelist={['about:blank']} onShouldStartLoadWithRequest={request => request.url === 'about:blank'} javaScriptCanOpenWindowsAutomatically={false} setSupportMultipleWindows={false} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} sharedCookiesEnabled={false} thirdPartyCookiesEnabled={false} incognito onMessage={event => {

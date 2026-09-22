@@ -9,7 +9,7 @@ export function LibraryScreen({workspace: w, width, onCreate}: {workspace: Works
   const [kind, setKind] = useState('전체');
   const compact = width < 660;
   const cards = w.cards.filter(c => w.filter === 'archived' ? c.archived : !c.archived && (w.filter !== 'favorites' || c.favorite)).filter(c => `${c.title} ${c.description} ${c.genre}`.toLocaleLowerCase().includes(w.search.toLocaleLowerCase())).filter(c => kind === '전체' || (kind === '템플릿' ? c.body.kind === 'template' : c.body.kind === 'code'));
-  const run = (work: Promise<unknown>) => void work.catch(error => w.report(error));
+  const run = (work: Promise<unknown>) => void work.catch(error => w.notifications.report(error));
   return <ScrollView style={{flex: 1}} contentContainerStyle={{padding: compact ? 22 : 38, paddingBottom: 48}} keyboardShouldPersistTaps="handled">
     <View style={{maxWidth: 1180, width: '100%', alignSelf: 'center', gap: 31}}>
       {w.filter === 'all' && !w.search && <View style={{backgroundColor: '#EEEAF0', borderRadius: 14, padding: compact ? 24 : 33, minHeight: compact ? 234 : 230, overflow: 'hidden'}}>

@@ -3,10 +3,10 @@ import {AccessibilityInfo, Animated, BackHandler, Easing, KeyboardAvoidingView, 
 import type {Conversation} from './model';
 import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 import {useDrawerModalLock} from './DrawerGestureBoundary';
-import {SettingsPressable} from '../settings/SettingsPressable';
+import {RowPressable} from '../../layout/RowPressable';
 import {SettingsIcon, type SettingsIconName} from '../settings/SettingsIcon';
-import {settingsReference as g} from '../settings/settingsGeometry';
-import {headerScale} from './chatAppearance';
+import {panelReference as g} from '../../layout/panelGeometry';
+import {headerScale} from '../../layout/metrics';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 export interface HistoryMenuTarget {conversation: Conversation; left: number; top: number; width: number; height: number}
@@ -69,11 +69,11 @@ export function HistoryActionMenu({target, scale: s, onClose, onSelect, onPin, o
       transform: [{translateY: progress.interpolate({inputRange: [0, 1], outputRange: [above >= minTop ? 6 : -6, 0]})}, {scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
       <Pressable accessible={false} onPress={() => close()} style={StyleSheet.absoluteFill}/>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * inset)}}>
-      {actions.map(item => <SettingsPressable key={item.icon} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}
+      {actions.map(item => <RowPressable key={item.icon} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}
         contentStyle={{height: g.rowHeight * s, paddingHorizontal: g.rowInset * s, flexDirection: 'row', gap: 18 * s, alignItems: 'center'}}>
         <SettingsIcon name={item.icon} size={32 * s} color={item.danger ? c.error : p.text}/>
         <Text style={{color: item.danger ? c.error : p.text, fontSize: g.rowFont * s, lineHeight: g.rowLine * s, includeFontPadding: false}}>{item.label}</Text>
-      </SettingsPressable>)}
+      </RowPressable>)}
       </ScrollView>
     </Animated.View>
   </View></Modal>;
@@ -107,9 +107,9 @@ export function HistoryRenameDialog({conversation, onClose, onSave}: {conversati
           style={{color: p.text, backgroundColor: p.background, borderRadius: g.controlRadius * s, paddingHorizontal: 20 * s, paddingVertical: 18 * s, fontSize: g.rowFont * s, minHeight: g.rowHeight * s}}/>
         {!!error && <Text accessibilityRole="alert" style={{color: c.error, marginTop: 12 * s}}>{error}</Text>}
         <View style={{flexDirection: 'row', gap: 12 * s, marginTop: 20 * s}}>
-          {[{label: '취소', action: onClose, disabled: saving}, {label: '변경', action: () => {void save();}, disabled: saving || !title.trim()}].map(item => <SettingsPressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{disabled: item.disabled}} disabled={item.disabled} onPress={item.action} radius={g.controlRadius * s} style={{flex: 1}} contentStyle={{minHeight: g.rowHeight * s, alignItems: 'center', justifyContent: 'center', opacity: item.disabled ? 0.4 : 1}}>
+          {[{label: '취소', action: onClose, disabled: saving}, {label: '변경', action: () => {void save();}, disabled: saving || !title.trim()}].map(item => <RowPressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{disabled: item.disabled}} disabled={item.disabled} onPress={item.action} radius={g.controlRadius * s} style={{flex: 1}} contentStyle={{minHeight: g.rowHeight * s, alignItems: 'center', justifyContent: 'center', opacity: item.disabled ? 0.4 : 1}}>
             <Text style={{color: p.text, fontSize: g.rowFont * s}}>{item.label}</Text>
-          </SettingsPressable>)}
+          </RowPressable>)}
         </View>
       </View>
     </KeyboardAvoidingView>

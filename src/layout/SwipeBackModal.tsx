@@ -1,10 +1,10 @@
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from 'react';
 import {AccessibilityInfo, Animated, Keyboard, Modal, PanResponder, Platform, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-import {selectionHaptic} from '../chat/selectionHaptic';
-import {panelSpringForDistance, stopAndRead} from '../chat/panelAnimation';
-import {useScreenCorners} from '../chat/useScreenCorners';
-import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
+import {selectionHaptic} from './selectionHaptic';
+import {panelSpringForDistance, stopAndRead} from './panelAnimation';
+import {useScreenCorners} from './useScreenCorners';
+import {syncSystemBars, useAppearance} from '../features/appearance/AppAppearance';
 import {DragClickBoundary} from './DragClickBoundary';
 import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet, shouldScrollSheet, type SheetScrollState} from './sheetMotion';
 

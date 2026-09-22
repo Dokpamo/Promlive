@@ -1,4 +1,4 @@
-import type {StoryRepository} from '../../ports/repository';
+import type {MessageReader} from './store';
 import type {Message} from './model';
 
 const PAGE_SIZE = 40;
@@ -22,7 +22,7 @@ export class MessageHistory {
   private queue: Promise<void> = Promise.resolve();
   private olderRequest: Promise<void> | undefined;
 
-  constructor(private repo: StoryRepository, private conversationId: string | undefined) {}
+  constructor(private repo: MessageReader, private conversationId: string | undefined) {}
 
   snapshot = () => this.state;
   subscribe = (listener: () => void) => {

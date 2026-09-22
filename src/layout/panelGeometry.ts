@@ -1,7 +1,7 @@
-import {headerScale, referenceTypography} from '../chat/chatAppearance';
+import {headerScale, referenceTypography} from './metrics';
 
 /** 618px reference geometry; panel corners follow photo_6159075255742305500_y.jpg. */
-export const settingsReference = {
+export const panelReference = {
   contentMaxWidth: 560,
   inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
   rowHeight: 82, rowInset: 34, rowPadding: 17, rowFont: referenceTypography.titleFontSize, rowLine: 40, valueFont: 26,
@@ -14,9 +14,9 @@ export const settingsReference = {
 } as const;
 
 /** Fit every setting-group measurement by the same rendered-width ratio. */
-export function settingsGroupScale(viewportWidth: number, targetWidth: number, horizontalSafeArea = 0) {
+export function panelGroupScale(viewportWidth: number, targetWidth: number, horizontalSafeArea = 0) {
   const scale = headerScale(viewportWidth);
-  const groupWidth = Math.min(viewportWidth - horizontalSafeArea, settingsReference.contentMaxWidth)
-    - 2 * settingsReference.inset * scale;
+  const groupWidth = Math.min(viewportWidth - horizontalSafeArea, panelReference.contentMaxWidth)
+    - 2 * panelReference.inset * scale;
   return scale * targetWidth / Math.max(1, groupWidth);
 }

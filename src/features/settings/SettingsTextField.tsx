@@ -5,12 +5,12 @@ import {KeyboardDock, KeyboardMotionProvider, useKeyboardFrame} from '../../layo
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceHeader, referenceTypography} from '../chat/chatAppearance';
+import {headerScale, referenceHeader, referenceTypography} from '../../layout/metrics';
 import {composerEditorHeight, expandedComposerFrame} from '../chat/composerGeometry';
 import {SettingsIcon} from './SettingsIcon';
 import {SettingsSubtitle} from './SettingsSubtitle';
-import {settingsReference as r} from './settingsGeometry';
-import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
+import {panelReference as r} from '../../layout/panelGeometry';
+import {SwipeBackBoundary, SwipeBackModal} from '../../layout/SwipeBackModal';
 
 interface FieldOptions {
   label: string;

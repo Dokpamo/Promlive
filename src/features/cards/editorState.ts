@@ -1,4 +1,4 @@
-import type {Card} from '../features/cards/model';
+import type {Card} from './model';
 
 function mergeChanges<T extends object>(base: T, current: T, saved: T): T {
   const merged = {...saved};

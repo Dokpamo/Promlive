@@ -41,12 +41,12 @@ function deferred() {
 it('reads the selected conversation title from the refreshed conversation list', async () => {
   const {repo, workspace, card} = await setup();
   await workspace.startChat(card, true);
-  const id = workspace.conversation!.id;
+  const id = workspace.history.selected!.id;
   await repo.appendLocalUserMessage(id, '첫 메시지로 정한 제목');
   await workspace.refresh();
 
-  expect(workspace.conversation?.title).toBe('첫 메시지로 정한 제목');
-  expect(workspace.conversation).toBe(workspace.conversations.find(item => item.id === id));
+  expect(workspace.history.selected?.title).toBe('첫 메시지로 정한 제목');
+  expect(workspace.history.selected).toBe(workspace.history.items.find(item => item.id === id));
 });
 
 it('does not restore stale metadata when opening an older conversation reference', async () => {
@@ -56,7 +56,7 @@ it('does not restore stale metadata when opening an older conversation reference
   await workspace.refresh();
   await workspace.openConversation(stale);
 
-  expect(workspace.conversation?.title).toBe('최신 제목');
+  expect(workspace.history.selected?.title).toBe('최신 제목');
 });
 
 it('preserves edits made while applying a draft and rebases them onto the saved draft', async () => {
@@ -72,21 +72,21 @@ it('preserves edits made while applying a draft and rebases them onto the saved 
     return saved;
   });
 
-  const pending = workspace.apply(draftFor(card), '적용한 세계관', 'world');
+  const pending = workspace.cardEditor.apply(draftFor(card), '적용한 세계관', 'world');
   await stored.promise;
-  workspace.edit({description: '기다리는 동안 추가한 소개'});
-  workspace.editWorld('era', '새로 입력한 시대');
+  workspace.cardEditor.edit({description: '기다리는 동안 추가한 소개'});
+  workspace.cardEditor.editWorld('era', '새로 입력한 시대');
   release.resolve();
   await pending;
-  await workspace.flush();
+  await workspace.cardEditor.flush();
 
-  expect(workspace.editor).toMatchObject({
+  expect(workspace.cardEditor.state).toMatchObject({
     dirty: true, baseRevision: 1,
     card: {description: '기다리는 동안 추가한 소개', body: {data: {world: '적용한 세계관', era: '새로 입력한 시대'}}},
   });
   expect(await repo.getBuffer(card.id)).toMatchObject({baseRevision: 1, card: {description: '기다리는 동안 추가한 소개'}});
   await workspace.open(card.id);
-  await workspace.save();
+  await workspace.cardEditor.save();
   expect(await repo.getCard(card.id)).toMatchObject({revision: 2, description: '기다리는 동안 추가한 소개', body: {data: {world: '적용한 세계관', era: '새로 입력한 시대'}}});
 });
 
@@ -102,13 +102,13 @@ it('keeps newer edits to the same field when draft application finishes', async 
     await release.promise;
     return saved;
   });
-  const pending = workspace.apply(draftFor(card), '적용한 세계관', 'world');
+  const pending = workspace.cardEditor.apply(draftFor(card), '적용한 세계관', 'world');
   await stored.promise;
-  workspace.editWorld('world', '사용자가 나중에 쓴 세계관');
+  workspace.cardEditor.editWorld('world', '사용자가 나중에 쓴 세계관');
   release.resolve();
   await pending;
-  await workspace.flush();
-  expect(workspace.editor).toMatchObject({dirty: true, card: {body: {data: {world: '사용자가 나중에 쓴 세계관'}}}});
+  await workspace.cardEditor.flush();
+  expect(workspace.cardEditor.state).toMatchObject({dirty: true, card: {body: {data: {world: '사용자가 나중에 쓴 세계관'}}}});
 });
 
 it('does not replace another card editor when an earlier draft application completes', async () => {
@@ -124,13 +124,47 @@ it('does not replace another card editor when an earlier draft application compl
     await release.promise;
     return saved;
   });
-  const pending = workspace.apply(draftFor(card), '적용한 세계관', 'world');
+  const pending = workspace.cardEditor.apply(draftFor(card), '적용한 세계관', 'world');
   await stored.promise;
   await workspace.open(other.id);
-  workspace.edit({description: '다른 카드에서 작성 중'});
+  workspace.cardEditor.edit({description: '다른 카드에서 작성 중'});
   release.resolve();
   await pending;
-  await workspace.flush();
-  expect(workspace.editor).toMatchObject({dirty: true, card: {id: other.id, description: '다른 카드에서 작성 중'}});
+  await workspace.cardEditor.flush();
+  expect(workspace.cardEditor.state).toMatchObject({dirty: true, card: {id: other.id, description: '다른 카드에서 작성 중'}});
   expect(await repo.getBuffer(other.id)).toMatchObject({card: {description: '다른 카드에서 작성 중'}});
+});
+
+
+it('does not navigate to a card whose slow load finishes after opening a chat', async () => {
+  const {repo, workspace, card} = await setup();
+  const chat = await repo.createConversation(card.id);
+  const gate = deferred(); const entered = deferred(); const get = repo.getCard.bind(repo);
+  vi.spyOn(repo, 'getCard').mockImplementationOnce(async id => {entered.resolve(); await gate.promise; return get(id);});
+  const opening = workspace.open(card.id); await entered.promise;
+  await workspace.openConversation(chat); gate.resolve(); await opening;
+  expect(workspace.page).toBe('chat'); expect(workspace.history.selected?.id).toBe(chat.id);
+  expect(workspace.cardEditor.state).toBeNull();
+});
+
+it('does not switch back when an earlier new-room request completes after choosing another room', async () => {
+  const {repo, workspace, card} = await setup();
+  const keep = await repo.createConversation(card.id, '사용자가 나중에 연 방');
+  const gate = deferred(); const entered = deferred(); const create = repo.createConversation.bind(repo);
+  vi.spyOn(repo, 'createConversation').mockImplementationOnce(async (...args) => {entered.resolve(); await gate.promise; return create(...args);});
+  const opening = workspace.startChat(card, true); await entered.promise;
+  await workspace.openConversation(keep); gate.resolve(); await opening;
+  expect(workspace.history.selected?.id).toBe(keep.id); expect(workspace.page).toBe('chat');
+});
+
+it('archiving a card cannot close an editor opened while its write was pending', async () => {
+  const {repo, workspace, card} = await setup();
+  const other = await repo.insertCard({...newCard(), title: '다른 카드'});
+  await workspace.open(card.id);
+  const gate = deferred(); const entered = deferred(); const update = repo.updateMetadata.bind(repo);
+  vi.spyOn(repo, 'updateMetadata').mockImplementationOnce(async (...args) => {entered.resolve(); await gate.promise; return update(...args);});
+  const archiving = workspace.archive(card); await entered.promise;
+  await workspace.open(other.id); gate.resolve(); await archiving;
+  expect(workspace.page).toBe('editor'); expect(workspace.cardEditor.state?.card.id).toBe(other.id);
+  expect((await repo.getCard(card.id)).archived).toBe(true);
 });

@@ -4,7 +4,7 @@ import {useAppearance} from '../features/appearance/AppAppearance';
 import {AiAction} from '../features/settings/AiSettingsControls';
 import {SettingsNote, SettingsSheet} from '../features/settings/SettingsLayout';
 import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
-import {headerScale, referenceHeader} from '../features/chat/chatAppearance';
+import {headerScale, referenceHeader} from '../layout/metrics';
 import {PressSurface} from '../layout/PressSurface';
 import type {SummaryExtensions} from './SummaryExtensions';
 import type {SummaryResult} from './store';

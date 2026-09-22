@@ -2,7 +2,7 @@ import type {ReactNode} from 'react';
 import {View, type StyleProp, type ViewStyle} from 'react-native';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon, type ChatIconName} from '../features/chat/ChatIcon';
-import {headerScale, referenceHeader as r} from '../features/chat/chatAppearance';
+import {headerScale, referenceHeader as r} from './metrics';
 import {PressSurface} from './PressSurface';
 import {FrostedEdge} from './FrostedEdge';
 

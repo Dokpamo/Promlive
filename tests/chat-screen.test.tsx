@@ -5,7 +5,7 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {FixtureProvider, repository} from './helpers';
 import {Workspace} from '../src/app/workspace';
 import {newCard} from '../src/features/cards/model';
-import {ChatScreen} from '../src/features/chat/ChatScreen';
+import {WorkspaceChat} from '../src/app/WorkspaceChat';
 import {CreationService} from '../src/features/chat/service';
 import {GenerationCoordinator} from '../src/features/chat/generation';
 import {DisconnectedProvider} from '../src/adapters/ai/disconnected';
@@ -56,10 +56,10 @@ afterEach(async () => {
 });
 
 function Host({workspace}: {workspace: Workspace}) {
-  useSyncExternalStore(workspace.subscribe, workspace.snapshot);
+  useSyncExternalStore(workspace.history.subscribe, workspace.history.snapshot);
   return <>
-    <h1>{workspace.conversation?.title}</h1>
-    <ChatScreen key={workspace.conversation?.id} workspace={workspace} width={412}/>
+    <h1>{workspace.history.selected?.title}</h1>
+    <WorkspaceChat key={workspace.history.selected?.id} workspace={workspace} width={412}/>
   </>;
 }
 
@@ -139,7 +139,7 @@ it('keeps the input when sending fails', async () => {
   vi.spyOn(storage, 'acceptChatSubmission').mockRejectedValueOnce(new Error('저장 실패'));
   await type('실패해도 남아야 하는 문장');
   await act(async () => {button('전송')!.click();});
-  await until(() => expect(workspace.error).toBe('저장 실패'));
+  await until(() => expect(workspace.notifications.snapshot().error).toBe('저장 실패'));
   expect(input().value).toBe('실패해도 남아야 하는 문장');
 });
 

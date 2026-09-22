@@ -1,7 +1,8 @@
 import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {ChatIcon} from './ChatIcon';
-import {chatAvatarColor, headerScale, referenceHeader as r, referenceTypography, typographyScale} from './chatAppearance';
+import {chatAvatarColor, typographyScale} from './chatAppearance';
+import {headerScale, referenceHeader as r, referenceTypography} from '../../layout/metrics';
 import {useAppearance} from '../appearance/AppAppearance';
 import {HeaderButton, HeaderCapsule, ScreenHeader} from '../../layout/ScreenHeader';
 

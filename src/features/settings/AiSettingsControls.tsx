@@ -2,11 +2,11 @@ import type {ReactNode} from 'react';
 import {Text, TextInput, View, type KeyboardTypeOptions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 import {PressSurface} from '../../layout/PressSurface';
-import {referenceTypography} from '../chat/chatAppearance';
-import {SettingsPressable} from './SettingsPressable';
+import {referenceTypography} from '../../layout/metrics';
+import {RowPressable} from '../../layout/RowPressable';
 import {SettingsToggleIndicator} from './SettingsToggleIndicator';
-import {SwipeBackBoundary} from './SwipeBackModal';
-import {settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
+import {SwipeBackBoundary} from '../../layout/SwipeBackModal';
+import {panelReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 import {SettingsTextField} from './SettingsTextField';
 import {SettingsSubtitle} from './SettingsSubtitle';
 
@@ -43,10 +43,10 @@ export function AiSearchField({label, value, onChange, placeholder}: {label: str
 export function AiToggle({label, detail, value, onChange}: {label: string; detail?: string; value: boolean; onChange: (value: boolean) => void}) {
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
-  return <SwipeBackBoundary><SettingsPressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)} radius={useSettingsRadius('control')} highlightInset={r.highlightInset * s} contentStyle={{minHeight: r.rowHeight * s, paddingHorizontal: r.rowInset * s, paddingVertical: r.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 22 * s}}>
+  return <SwipeBackBoundary><RowPressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)} radius={useSettingsRadius('control')} highlightInset={r.highlightInset * s} contentStyle={{minHeight: r.rowHeight * s, paddingHorizontal: r.rowInset * s, paddingVertical: r.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 22 * s}}>
     <View style={{flex: 1, gap: 6 * s}}><Text style={{color: p.text, fontSize: r.rowFont * s, lineHeight: r.rowLine * s, fontWeight: referenceTypography.titleWeight}}>{label}</Text>{detail && <Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>{detail}</Text>}</View>
     <SettingsToggleIndicator value={value}/>
-  </SettingsPressable></SwipeBackBoundary>;
+  </RowPressable></SwipeBackBoundary>;
 }
 
 export function AiAction({label, onPress, primary = false, disabled = false}: {label: string; onPress: () => void; primary?: boolean; disabled?: boolean}) {

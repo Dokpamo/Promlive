@@ -9,12 +9,13 @@ import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import type {ComposerInputHandle} from './ComposerInput.types';
 import {DrawerGestureBoundary, useDrawerModalLock} from './DrawerGestureBoundary';
-import {composerScale, headerScale, referenceComposer as r, referenceHeader, typographyScale} from './chatAppearance';
+import {composerScale, referenceComposer as r, typographyScale} from './chatAppearance';
+import {headerScale, referenceHeader} from '../../layout/metrics';
 import {useAppearance} from '../appearance/AppAppearance';
-import {panelSpringForDistance} from './panelAnimation';
+import {panelSpringForDistance} from '../../layout/panelAnimation';
 import {composerEditorHeight, expandedComposerFrame} from './composerGeometry';
-import {DragClickBoundary} from '../settings/DragClickBoundary';
-import {settingsReference} from '../settings/settingsGeometry';
+import {DragClickBoundary} from '../../layout/DragClickBoundary';
+import {panelReference} from '../../layout/panelGeometry';
 import {useComposerPull} from './useComposerPull';
 import type {ComposerAction} from './ChatSession';
 
@@ -160,7 +161,7 @@ export function ChatComposer(p: Props) {
   const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
   const collapsedWidth = Math.min(800, window.width - insets.left - insets.right) - 2 * r.inset * s;
   const collapsedLeft = insets.left + (window.width - insets.left - insets.right - collapsedWidth) / 2;
-  const sheetInset = settingsReference.sheetInset * s;
+  const sheetInset = panelReference.sheetInset * s;
   const inputTop = sheetInset + referenceHeader.barHeight * headerScale(p.width) + 16 * s;
   const editorHeight = composerEditorHeight(sheet, inputTop, measured, line, 26 * s, window.height - keyboard.height);
   const activeHeight = visible ? editorHeight : inputHeight;
@@ -198,7 +199,7 @@ export function ChatComposer(p: Props) {
             </Animated.View>
           </Animated.View>
         </Animated.View>
-        <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: settingsReference.sheetHandle.top * s, width: settingsReference.sheetHandle.width * s, height: settingsReference.sheetHandle.height * s, borderRadius: settingsReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: expandedOpacity}}/>
+        <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: panelReference.sheetHandle.top * s, width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: expandedOpacity}}/>
         <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', top: sheetInset, left: 0, right: 0, opacity: expandedOpacity}}>
           <ScreenHeader width={p.width} testID="expanded-composer-header" frosted={false}>
             <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>

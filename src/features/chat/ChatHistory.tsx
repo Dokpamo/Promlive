@@ -1,21 +1,24 @@
 import {useRef, useState} from 'react';
 import {Animated, FlatList, Keyboard, Platform, Pressable, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {Workspace} from '../../app/workspace';
 import type {Card} from '../cards/model';
 import {CardThumbnail} from '../cards/CardThumbnail';
 import {ChatIcon} from './ChatIcon';
-import {referenceHeader, referenceSidebar as r, referenceTypography} from './chatAppearance';
+import {referenceSidebar as r} from './chatAppearance';
+import {referenceHeader, referenceTypography} from '../../layout/metrics';
 import {HeaderButton} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
-import {rowPressedScale, SettingsPressable} from '../settings/SettingsPressable';
-import {settingsReference} from '../settings/settingsGeometry';
+import {rowPressedScale, RowPressable} from '../../layout/RowPressable';
+import {panelReference} from '../../layout/panelGeometry';
 
 interface Props {
-  workspace: Workspace;
+  cards: readonly Card[];
+  selectedCardId: string | undefined;
+  startChat: (card?: Card) => Promise<void>;
+  report: (error: unknown) => void;
   width: number;
   historyCard: Card | undefined;
   historyProgress: Animated.AnimatedInterpolation<number>;
@@ -27,17 +30,16 @@ interface Props {
 }
 
 /** Shared search/create controls stay above the card history popup. */
-export function ChatHistory({workspace: w, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
+export function ChatHistory({cards: allCards, selectedCardId, startChat, report, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
   const {colors: c} = useAppearance();
   const [cardSearch, setCardSearch] = useState('');
   const insets = useSafeAreaInsets();
   const s = width / r.width;
   const query = cardSearch.trim().toLocaleLowerCase();
-  const cards = w.cards.filter(item => !item.archived && `${item.title} ${item.description}`.toLocaleLowerCase().includes(query));
+  const cards = allCards.filter(item => !item.archived && `${item.title} ${item.description}`.toLocaleLowerCase().includes(query));
   const listTop = (r.searchTop + r.searchHeight + r.listGap) * s;
   const start = async () => {
-    if (historyCard) await w.startChat(historyCard, true);
-    else await w.newGeneralChat();
+    await startChat(historyCard);
     close();
   };
 
@@ -50,21 +52,21 @@ export function ChatHistory({workspace: w, width, historyCard, historyProgress, 
         <View style={{flex: 1, minWidth: 0}}>
           <DrawerGestureBoundary><SidebarSearch scale={s} history={!!historyCard} historyProgress={historyProgress} value={historyCard ? historySearch : cardSearch} onChange={historyCard ? onHistorySearch : setCardSearch}/></DrawerGestureBoundary>
         </View>
-        <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : '새 채팅'} onPress={() => {void start().catch(error => w.report(error));}}/>
+        <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : '새 채팅'} onPress={() => {void start().catch(report);}}/>
       </View>
     </View>
     <View style={{flex: 1}} pointerEvents={historyCard ? 'none' : 'auto'} aria-hidden={!!historyCard} accessibilityElementsHidden={!!historyCard} importantForAccessibility={historyCard ? 'no-hide-descendants' : 'auto'}>
-      <SidebarRows items={cards} scale={s} selectedId={historyCard?.id ?? w.conversation?.cardId} testID="card-list" label={title => `${title} 카드의 채팅 기록`} empty={query ? '검색 결과가 없어요.' : '아직 카드가 없어요.'} onSelect={id => {
+      <SidebarRows items={cards} scale={s} selectedId={historyCard?.id ?? selectedCardId} testID="card-list" label={title => `${title} 카드의 채팅 기록`} empty={query ? '검색 결과가 없어요.' : '아직 카드가 없어요.'} onSelect={id => {
         Keyboard.dismiss();
         const card = cards.find(item => item.id === id);
         if (card) openCard(card);
       }}/>
     </View>
     <View testID="sidebar-footer" style={{height: (r.footerHeight + r.footerBottom) * s, flexShrink: 0}}>
-      <SettingsPressable testID="sidebar-account" accessibilityRole="button" accessibilityLabel="사용자 계정" accessibilityHint="설정 열기" onPress={openSettings} radius={r.rowRadius * s} style={{position: 'absolute', left: r.rowInset * s, right: r.rowInset * s, top: 0, height: r.footerHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.accountAvatarLeft - r.rowInset) * s, flexDirection: 'row', alignItems: 'center'}}>
+      <RowPressable testID="sidebar-account" accessibilityRole="button" accessibilityLabel="사용자 계정" accessibilityHint="설정 열기" onPress={openSettings} radius={r.rowRadius * s} style={{position: 'absolute', left: r.rowInset * s, right: r.rowInset * s, top: 0, height: r.footerHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.accountAvatarLeft - r.rowInset) * s, flexDirection: 'row', alignItems: 'center'}}>
         <View accessible={false} style={{width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: '#000000'}}/>
         <Text numberOfLines={1} style={{flex: 1, marginLeft: (r.accountNameLeft - r.accountAvatarLeft - r.avatar) * s, color: c.text, fontSize: 26 * s, lineHeight: 35 * s, fontWeight: '600', includeFontPadding: false}}>사용자</Text>
-      </SettingsPressable>
+      </RowPressable>
     </View>
   </View>;
 }
@@ -72,12 +74,12 @@ export function ChatHistory({workspace: w, width, historyCard, historyProgress, 
 export function CardConversationHeader({card, scale: s, onClose, closeLabel = '채팅내역 닫기'}: {card: Card; scale: number; onClose: () => void; closeLabel?: string}) {
   const {colors: c} = useAppearance();
   // Center the circular close button on the popup's outer corner arc.
-  const inset = settingsReference.radius - referenceHeader.height / 2;
-  const top = inset - settingsReference.groupPadding;
-  const bottom = settingsReference.rowHeight + settingsReference.groupPadding - referenceHeader.height - top;
-  return <View testID="card-history-header" style={{height: referenceHeader.height * s, flexShrink: 0, marginTop: top * s, marginBottom: bottom * s, paddingLeft: settingsReference.rowInset * s, paddingRight: inset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
+  const inset = panelReference.radius - referenceHeader.height / 2;
+  const top = inset - panelReference.groupPadding;
+  const bottom = panelReference.rowHeight + panelReference.groupPadding - referenceHeader.height - top;
+  return <View testID="card-history-header" style={{height: referenceHeader.height * s, flexShrink: 0, marginTop: top * s, marginBottom: bottom * s, paddingLeft: panelReference.rowInset * s, paddingRight: inset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
     <CardThumbnail testID="card-history-image" cover={card.cover} size={r.cardImage * s}/>
-    <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: settingsReference.rowFont * s, lineHeight: settingsReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
+    <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: panelReference.rowFont * s, lineHeight: panelReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
     <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label={closeLabel} onPress={onClose} variant="plain"/>
   </View>;
 }
@@ -92,10 +94,10 @@ function SidebarRows({items, scale: s, selectedId, testID, label, empty, onSelec
     contentContainerStyle={{paddingHorizontal: r.rowInset * s, paddingBottom: 12 * s}}
     keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
     ListEmptyComponent={<Text style={{paddingVertical: 19 * s, paddingHorizontal: (r.textInset - r.rowInset) * s, color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{empty}</Text>}
-    renderItem={({item}) => <SettingsPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} radius={r.rowRadius * s} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s, paddingHorizontal: (r.textInset - r.rowInset) * s}}>
+    renderItem={({item}) => <RowPressable testID={`sidebar-row-${item.id}`} accessibilityRole="button" accessibilityLabel={label(item.title)} accessibilityState={{selected: item.id === selectedId}} selected={item.id === selectedId} radius={r.rowRadius * s} onPress={() => onSelect(item.id)} style={{height: r.rowHeight * s}} contentStyle={{height: '100%', flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s, paddingHorizontal: (r.textInset - r.rowInset) * s}}>
       {item.cover && <CardThumbnail testID={`sidebar-card-image-${item.id}`} cover={item.cover} size={r.cardImage * s}/>}
       <Text numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: r.fontSize * s, lineHeight: r.lineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{item.title}</Text>
-    </SettingsPressable>}/>;
+    </RowPressable>}/>;
 }
 
 export function SidebarSearch({scale: s, history, historyProgress, value, onChange}: {scale: number; history: boolean; historyProgress: Animated.AnimatedInterpolation<number>; value: string; onChange: (value: string) => void}) {

@@ -1,213 +1,129 @@
 import type {Runtime} from './runtime';
-import {newCard, type Card, type Draft, type World} from '../features/cards/model';
+import {Notifications} from './Notifications';
+import {newCard, type Card} from '../features/cards/model';
+import {CardEditor} from '../features/cards/CardEditor';
 import type {Conversation} from '../features/chat/model';
-import {rebaseEditorChanges} from './editorState';
 import {ChatSessions} from '../features/chat/ChatSession';
+import {ConversationList} from '../features/chat/ConversationList';
 export type Page = 'library' | 'editor' | 'chat' | 'settings';
 export type LibraryFilter = 'all' | 'favorites' | 'archived';
-export interface Editor {card: Card; baseRevision: number; dirty: boolean; status: 'saved' | 'saving' | 'buffered' | 'error'}
-export interface AssistantForm {prompt: string; mode: Draft['kind']; target: keyof World; content: string; sourceContent: string; draftId: string}
+
+/** App navigation/composition. Feature owners hold edits, histories and messages. */
 export class Workspace {
-  private listeners = new Set<() => void>(); private version = 0;
-  page: Page = 'library'; filter: LibraryFilter = 'all'; search = '';
-  cards: Card[] = []; conversations: Conversation[] = []; editor: Editor | null = null;
-  selectedConversationId: string | null = null;
-  error: string | null = null; notice: string | null = null;
-  private editorSession = 0;
+  private listeners = new Set<() => void>();
+  private version = 0;
+  private navigation = 0;
   private refreshVersion = 0;
-  private bufferTimer: ReturnType<typeof setTimeout> | undefined;
-  private saving: Promise<void> | undefined;
-  private assistantForms = new Map<string, AssistantForm>();
+  private generalOpening: Promise<Card> | undefined;
+  page: Page = 'library'; filter: LibraryFilter = 'all'; search = '';
+  cards: Card[] = [];
+  readonly notifications = new Notifications();
+  readonly cardEditor: CardEditor;
+  readonly history: ConversationList;
   readonly chats: ChatSessions;
+
   constructor(readonly runtime: Runtime) {
+    this.history = new ConversationList(runtime.repo, async ids => {
+      await runtime.creation.deleteConversations(ids);
+      this.chats.forget(ids);
+    });
+    this.cardEditor = new CardEditor(runtime.repo, {
+      report: this.notifications.report,
+      committed: async (card, draft) => {
+        if (draft) runtime.creation.markDraftApplied(card.id, draft.id);
+        await this.refreshCards();
+        this.notifications.inform(draft ? '초안을 카드에 적용했어요.' : '이야기를 기기에 저장했어요.');
+      },
+    });
     this.chats = new ChatSessions(runtime.repo, runtime.creation, (error, offline) => {
-      if (error) this.report(error);
+      if (error) this.notifications.report(error);
       else {
-        void this.refreshConversations().catch(failure => this.report(failure));
-        if (offline) this.inform('AI 연결 전이에요. 메시지는 이 기기에만 저장했어요.');
+        void this.history.refresh().catch(this.notifications.report);
+        if (offline) this.notifications.inform('AI 연결 전이에요. 메시지는 이 기기에만 저장했어요.');
       }
     });
   }
-  private conversationRefresh = 0;
-  async refreshConversations() {
-    const revision = ++this.conversationRefresh;
-    const conversations = await this.runtime.repo.conversations();
-    if (revision !== this.conversationRefresh) return;
-    this.conversations = conversations; this.emit();
-  }
-  get conversation(): Conversation | null {
-    return this.conversations.find(item => item.id === this.selectedConversationId) ?? null;
-  }
-  subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
+  subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   snapshot = () => this.version;
-  emit() { this.version++; this.listeners.forEach(fn => fn()); }
-  assistantForm(id: string) {let form = this.assistantForms.get(id); if (!form) {form = {prompt: '', mode: 'writing', target: 'world', content: '', sourceContent: '', draftId: ''}; this.assistantForms.set(id, form);} return form;}
-  editAssistant(id: string, patch: Partial<AssistantForm>) {this.assistantForms.set(id, {...this.assistantForm(id), ...patch}); this.emit();}
-  async ready() { await this.refresh(); }
-  private async generalCard() {
+  private emit() {this.version++; this.listeners.forEach(listener => listener());}
+  async ready() {await this.refresh();}
+  private generalCard(): Promise<Card> {
     const existing = this.cards.find(card => card.id === 'promlive-general-chat');
-    if (existing) return existing;
-    return this.runtime.repo.insertCard({...newCard(), id: 'promlive-general-chat', title: 'Promlive', genre: '', description: ''});
+    if (existing) return Promise.resolve(existing);
+    this.generalOpening ??= this.runtime.repo.insertCard({...newCard(), id: 'promlive-general-chat', title: 'Promlive', genre: '', description: ''})
+      .catch(error => {this.generalOpening = undefined; throw error;});
+    return this.generalOpening;
   }
-  async readyChat() {
-    await this.ready();
+  async readyChat() {await this.ready(); await this.newGeneralChat(false);}
+  async newGeneralChat(forceNew = true) {
+    const attempt = ++this.navigation;
     const card = await this.generalCard();
-    await this.startChat(card);
+    if (attempt === this.navigation) await this.startChatAt(card, forceNew, attempt);
   }
-  async newGeneralChat() { await this.startChat(await this.generalCard(), true); }
-  async refresh() {
+  async refresh() {await Promise.all([this.refreshCards(), this.history.refresh()]);}
+  private async refreshCards() {
     const version = ++this.refreshVersion;
-    const conversationRevision = ++this.conversationRefresh;
-    const [cards, conversations] = await Promise.all([
-      this.runtime.repo.listCards(), this.runtime.repo.conversations(),
-    ]);
+    const cards = await this.runtime.repo.listCards();
     if (version !== this.refreshVersion) return;
-    this.cards = cards;
-    if (conversationRevision === this.conversationRefresh) this.conversations = conversations;
-    this.emit();
+    this.cards = cards; this.emit();
   }
-  report(error: unknown) { this.error = error instanceof Error ? error.message : '작업에 실패했습니다.'; this.emit(); }
-  clearMessage() { this.error = null; this.notice = null; this.emit(); }
-  inform(notice: string) { this.notice = notice; this.emit(); }
-  async go(page: Page) { await this.flush(); this.page = page; this.emit(); }
-  setFilter(filter: LibraryFilter) { this.filter = filter; this.page = 'library'; this.emit(); }
-  setSearch(value: string) { this.search = value; this.emit(); }
-  async create(kind: Card['body']['kind']) { const card = await this.runtime.repo.insertCard(newCard(kind)); await this.refresh(); await this.open(card.id); }
-  async open(id: string) {
-    const session = ++this.editorSession;
-    await this.flush();
-    const saved = await this.runtime.repo.getCard(id);
-    const buffer = await this.runtime.repo.getBuffer(id);
-    if (session !== this.editorSession) return;
-    this.editor = {card: buffer?.card ?? saved, baseRevision: buffer?.baseRevision ?? saved.revision, dirty: !!buffer, status: buffer ? 'buffered' : 'saved'};
-    if (buffer && buffer.baseRevision !== saved.revision) this.error = '저장된 카드가 변경되었습니다. 편집 내용은 보존되어 있습니다. 복제하여 저장해 주세요.';
-    this.page = 'editor'; this.emit();
+  async go(page: Page) {
+    const attempt = ++this.navigation;
+    await this.cardEditor.flush();
+    if (attempt === this.navigation) {this.page = page; this.emit();}
   }
-  edit(patch: Partial<Card>) {
-    if (!this.editor) return;
-    this.editor = {...this.editor, card: {...this.editor.card, ...patch}, dirty: true, status: 'saving'};
-    clearTimeout(this.bufferTimer);
-    this.bufferTimer = setTimeout(() => { void this.flush().catch(error => this.report(error)); }, 300);
-    this.emit();
+  setFilter(filter: LibraryFilter) {this.navigation++; this.filter = filter; this.page = 'library'; this.emit();}
+  setSearch(value: string) {this.search = value; this.emit();}
+  async create(kind: Card['body']['kind']) {
+    const attempt = ++this.navigation;
+    const card = await this.runtime.repo.insertCard(newCard(kind));
+    await this.refreshCards();
+    await this.openAt(card.id, attempt);
   }
-  editWorld(field: keyof World, value: string) {
-    const body = this.editor?.card.body;
-    if (body?.kind === 'template') this.edit({body: {...body, data: {...body.data, [field]: value}}});
-  }
-  async flush() {
-    clearTimeout(this.bufferTimer);
-    const editor = this.editor;
-    if (!editor?.dirty) return;
-    try {
-      await this.runtime.repo.saveBuffer(editor.card, editor.baseRevision);
-      if (this.editor?.card === editor.card) this.editor = {...editor, status: 'buffered'};
-      this.emit();
-    } catch (error) { if (this.editor?.card === editor.card) this.editor = {...editor, status: 'error'}; this.emit(); throw error; }
-  }
-  save(): Promise<void> {
-    if (this.saving) return this.saving;
-    this.saving = this.saveCurrent().finally(() => {this.saving = undefined;});
-    return this.saving;
-  }
-  private async saveCurrent() {
-    clearTimeout(this.bufferTimer);
-    const editor = this.editor;
-    const session = this.editorSession;
-    if (!editor) return;
-    if (!editor.card.title.trim()) throw new Error('이야기 제목을 입력해 주세요.');
-    const card = await this.runtime.repo.saveCard({...editor.card, title: editor.card.title.trim(), example: false}, editor.baseRevision);
-    await this.finishEditorWrite(session, editor, card);
-    await this.refresh();
-    this.inform('이야기를 기기에 저장했어요.');
-  }
-  private async finishEditorWrite(session: number, before: Editor, saved: Card) {
-    const current = this.editor;
-    if (session !== this.editorSession || current?.card.id !== saved.id || current.baseRevision > saved.revision) return;
-    if (current.card === before.card) {
-      this.editor = {card: saved, baseRevision: saved.revision, dirty: false, status: 'saved'};
-    } else {
-      this.editor = {
-        ...current,
-        card: rebaseEditorChanges(before.card, current.card, saved),
-        baseRevision: saved.revision,
-      };
-      await this.flush();
-    }
+  async open(id: string) {await this.openAt(id, ++this.navigation);}
+  private async openAt(id: string, attempt: number) {
+    if (attempt !== this.navigation) return;
+    const opened = await this.cardEditor.open(id, () => attempt === this.navigation);
+    if (opened) {this.page = 'editor'; this.emit();}
   }
   async duplicate(card: Card) {
+    const attempt = ++this.navigation;
     const copy = newCard(card.body.kind);
     const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
-    await this.refresh(); await this.open(saved.id); this.inform('별도의 카드로 복제했어요.');
+    await this.refreshCards(); await this.openAt(saved.id, attempt);
+    this.notifications.inform('별도의 카드로 복제했어요.');
   }
   async favorite(card: Card) {
-    await this.flush();
+    await this.cardEditor.flush();
     const latest = await this.runtime.repo.getCard(card.id);
     const saved = await this.runtime.repo.updateMetadata(card.id, {favorite: !latest.favorite});
-    if (this.editor?.card.id === saved.id) this.editor = {...this.editor, card: {...this.editor.card, favorite: saved.favorite}, baseRevision: this.editor.baseRevision === saved.revision - 1 ? saved.revision : this.editor.baseRevision};
-    await this.refresh();
+    this.cardEditor.updateMetadata(saved);
+    await this.refreshCards();
   }
   async archive(card: Card) {
-    await this.flush();
+    const attempt = ++this.navigation;
+    await this.cardEditor.flush();
     const latest = await this.runtime.repo.getCard(card.id);
-    // Archiving changes card metadata; preserve any unsaved text buffer.
     const saved = await this.runtime.repo.updateMetadata(card.id, {archived: !latest.archived});
-    if (this.editor?.card.id === saved.id) {this.editorSession++; this.editor = null;}
-    this.page = 'library'; await this.refresh(); this.inform(saved.archived ? '보관함으로 옮겼어요.' : '서재로 다시 가져왔어요.');
+    this.cardEditor.updateMetadata(saved);
+    if (attempt === this.navigation) {this.cardEditor.close(saved.id); this.page = 'library'; this.emit();}
+    await this.refreshCards();
+    this.notifications.inform(saved.archived ? '보관함으로 옮겼어요.' : '서재로 다시 가져왔어요.');
   }
-  async apply(draft: Draft, content: string, field: keyof World) {
-    if (!this.editor) return;
-    const session = this.editorSession;
-    await this.flush();
-    const editor = this.editor;
-    if (session !== this.editorSession || !editor) return;
-    if (editor.dirty) throw new Error('직접 편집한 내용이 있습니다. 먼저 저장하고 새 초안을 요청하거나 초안을 복사해 주세요.');
-    const body = editor.card.body;
-    if (body.kind !== 'template') throw new Error('코드 카드는 소스 편집기에서 직접 수정해 주세요.');
-    const saved = await this.runtime.repo.applyDraft({...draft, content}, {...editor.card, body: {...body, data: {...body.data, [field]: content}}});
-    this.runtime.creation.markDraftApplied(saved.id, draft.id);
-    await this.finishEditorWrite(session, editor, saved);
-    await this.refresh(); this.inform('초안을 카드에 적용했어요.');
-  }
-  async startChat(card: Card, forceNew = false) {
-    if (this.editor?.card.id === card.id && this.editor.dirty) await this.save();
-    else await this.flush();
-    const conversations = await this.runtime.repo.conversations(card.id);
-    // Pinning controls list order, not which recent room opens on startup.
-    const recent = conversations.reduce<Conversation | undefined>((latest, item) => !latest || item.updatedAt > latest.updatedAt ? item : latest, undefined);
-    const conversation = (!forceNew && recent) || await this.runtime.repo.createConversation(card.id);
-    this.selectConversation(conversation);
-    this.page = 'chat'; await this.refresh();
-  }
-  private selectConversation(conversation: Conversation) {
-    if (!this.conversations.some(item => item.id === conversation.id)) {
-      this.conversations = [conversation, ...this.conversations];
-    }
-    this.selectedConversationId = conversation.id;
+  async startChat(card: Card, forceNew = false) {await this.startChatAt(card, forceNew, ++this.navigation);}
+  private async startChatAt(card: Card, forceNew: boolean, attempt: number) {
+    const editor = this.cardEditor.state;
+    if (editor?.card.id === card.id && editor.dirty) await this.cardEditor.save();
+    else await this.cardEditor.flush();
+    if (attempt !== this.navigation) return;
+    const conversation = await this.history.roomFor(card.id, forceNew);
+    if (attempt !== this.navigation) {await this.history.refresh(); return;}
+    if (this.history.select(conversation)) {this.page = 'chat'; this.emit();}
+    await this.refresh();
   }
   async openConversation(conversation: Conversation) {
-    await this.flush();
-    this.selectConversation(conversation);
-    this.page = 'chat';
-    this.emit();
-  }
-  async renameConversation(id: string, title: string) {
-    await this.runtime.repo.renameConversation(id, title);
-    await this.refreshConversations();
-  }
-  async pinConversation(id: string, pinned: boolean) {
-    await this.runtime.repo.pinConversation(id, pinned);
-    await this.refreshConversations();
-  }
-  async deleteConversations(ids: readonly string[]) {
-    const previous = this.conversation;
-    await this.runtime.creation.deleteConversations(ids);
-    this.chats.forget(ids);
-    await this.refresh();
-    // Do not interrupt a different room opened while the deletion was saving.
-    if (previous && this.selectedConversationId === previous.id && ids.includes(previous.id)) {
-      const next = this.conversations.find(item => item.cardId === previous.cardId) ?? this.conversations[0];
-      this.selectedConversationId = next?.id ?? null;
-      this.emit();
-    }
+    const attempt = ++this.navigation;
+    await this.cardEditor.flush();
+    if (attempt === this.navigation && this.history.select(conversation)) {this.page = 'chat'; this.emit();}
   }
 }

@@ -4,7 +4,7 @@ import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {usePanelMotion} from '../src/features/chat/usePanelMotion';
 import {useComposerPull} from '../src/features/chat/useComposerPull';
-import {SwipeBackModal, SwipeBackScrollContent} from '../src/features/settings/SwipeBackModal';
+import {SwipeBackModal, SwipeBackScrollContent} from '../src/layout/SwipeBackModal';
 import {useSettingsSheetState} from '../src/features/settings/useSettingsSheetState';
 import type {Animated, GestureResponderEvent, PanResponderCallbacks, PanResponderGestureState} from 'react-native';
 
@@ -67,8 +67,8 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('react-native-safe-area-context', () => ({SafeAreaProvider: ({children}: {children: ReactNode}) => children}));
-vi.mock('../src/features/chat/selectionHaptic', () => ({selectionHaptic: vi.fn()}));
-vi.mock('../src/features/chat/useScreenCorners', () => ({useScreenCorners: () => ({topLeft: 24, topRight: 24, bottomLeft: 24, bottomRight: 24})}));
+vi.mock('../src/layout/selectionHaptic', () => ({selectionHaptic: vi.fn()}));
+vi.mock('../src/layout/useScreenCorners', () => ({useScreenCorners: () => ({topLeft: 24, topRight: 24, bottomLeft: 24, bottomRight: 24})}));
 vi.mock('../src/features/appearance/AppAppearance', () => ({useAppearance: () => ({isDark: false}), syncSystemBars: vi.fn()}));
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;

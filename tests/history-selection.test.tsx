@@ -32,7 +32,7 @@ vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top
 vi.mock('../src/features/chat/ChatHistory', () => ({
   CardConversationHeader: ({onClose}: {onClose: () => void}) => <button onClick={onClose}>닫기</button>,
 }));
-vi.mock('../src/features/settings/SettingsPressable', () => ({SettingsPressable: ({children, onPress, onLongPress, accessibilityLabel, accessibilityState}: {children: ReactNode; onPress: () => void; onLongPress?: () => void; accessibilityLabel: string; accessibilityState?: {checked?: boolean}}) => <button aria-label={accessibilityLabel} aria-checked={accessibilityState?.checked} onClick={onPress} onContextMenu={event => {event.preventDefault(); onLongPress?.();}}>{children}</button>}));
+vi.mock('../src/layout/RowPressable', () => ({RowPressable: ({children, onPress, onLongPress, accessibilityLabel, accessibilityState}: {children: ReactNode; onPress: () => void; onLongPress?: () => void; accessibilityLabel: string; accessibilityState?: {checked?: boolean}}) => <button aria-label={accessibilityLabel} aria-checked={accessibilityState?.checked} onClick={onPress} onContextMenu={event => {event.preventDefault(); onLongPress?.();}}>{children}</button>}));
 vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} disabled={disabled} onClick={onPress}>{children}</button>}));
 vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => null}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
@@ -45,7 +45,7 @@ function Host({workspace, card}: {workspace: Workspace; card: Card}) {
   const [search, setSearch] = useState('');
   return <DrawerModalLocks.Provider value={locks}>
     <input aria-label="검색" value={search} onChange={event => setSearch(event.target.value)}/>
-    <CardConversationPanel workspace={workspace} card={card} scale={0.6} search={search} close={close} onClose={close} scroll={{current: {offset: 0, canScroll: true}}} onListTouch={() => {}}/>
+    <CardConversationPanel history={workspace.history} openConversation={item => workspace.openConversation(item)} report={workspace.notifications.report} card={card} scale={0.6} search={search} close={close} onClose={close} scroll={{current: {offset: 0, canScroll: true}}} onListTouch={() => {}}/>
   </DrawerModalLocks.Provider>;
 }
 afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; if (repo) await repo.db.close(); document.body.replaceChildren(); close.mockClear();});
@@ -72,7 +72,7 @@ it('long press opens actions without navigating; selection survives filtering an
   await act(async () => {button('첫 번째 채팅 열기').dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));});
   expect(locks.current).toBe(1);
   expect(close).not.toHaveBeenCalled();
-  expect(workspace.selectedConversationId).toBe(keep.id);
+  expect(workspace.history.selected?.id).toBe(keep.id);
   for (const label of ['선택', '고정', '이름 변경', '삭제']) expect(button(label)).not.toBeNull();
   await press('선택');
   expect(locks.current).toBe(0);
@@ -84,7 +84,7 @@ it('long press opens actions without navigating; selection survives filtering an
   expect((await repo.conversations()).map(item => item.id)).toEqual([keep.id]);
   expect(await repo.messages(first.id)).toEqual([]);
   expect(await repo.messages(second.id)).toEqual([]);
-  expect(workspace.selectedConversationId).toBe(keep.id);
+  expect(workspace.history.selected?.id).toBe(keep.id);
 });
 
 it('leaves selection mode when the last item is unchecked, but not when filtering hides it', async () => {
@@ -108,7 +108,7 @@ it('leaves selection mode when the last item is unchecked, but not when filterin
   expect(document.querySelector('[data-testid="history-selection-footer"]')).toBeNull();
   expect(close).not.toHaveBeenCalled();
   await press('첫 번째 채팅 열기');
-  expect(workspace.selectedConversationId).toBe(first.id);
+  expect(workspace.history.selected?.id).toBe(first.id);
   expect(close).toHaveBeenCalledOnce();
 });
 
@@ -129,6 +129,6 @@ it('places the action menu outside the history panel and dismisses it without ac
   expect(document.querySelector('[data-testid="history-actions-overlay"]')).toBeNull();
   expect(locks.current).toBe(0);
   expect(close).not.toHaveBeenCalled();
-  expect(workspace.selectedConversationId).toBe(conversation.id);
+  expect(workspace.history.selected?.id).toBe(conversation.id);
   expect((await repo.conversations()).map(item => item.id)).toEqual([conversation.id]);
 });

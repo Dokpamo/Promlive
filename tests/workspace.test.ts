@@ -15,18 +15,18 @@ it('preserves edits made during a pending save, including after reopening the ed
   const provider = new DisconnectedProvider();
   const workspace = new Workspace({repo, provider, creation: new CreationService(repo, new GenerationCoordinator(provider))});
   const card = await repo.insertCard(newCard()); await workspace.ready(); await workspace.open(card.id);
-  workspace.edit({title: '저장 중인 제목'});
+  workspace.cardEditor.edit({title: '저장 중인 제목'});
   const originalSave = repo.saveCard.bind(repo);
   let finish!: () => void;
   const gate = new Promise<void>(resolve => {finish = resolve;});
   const save = vi.spyOn(repo, 'saveCard').mockImplementation(async (...args) => {await gate; return originalSave(...args);});
-  const first = workspace.save(); const duplicateClick = workspace.save();
-  workspace.edit({description: '저장이 끝나기 전에 추가한 문장'}); await workspace.flush();
+  const first = workspace.cardEditor.save(); const duplicateClick = workspace.cardEditor.save();
+  workspace.cardEditor.edit({description: '저장이 끝나기 전에 추가한 문장'}); await workspace.cardEditor.flush();
   finish(); await Promise.all([first, duplicateClick]);
   expect(save).toHaveBeenCalledTimes(1);
   expect((await repo.getCard(card.id)).description).toBe('');
   expect(await repo.getBuffer(card.id)).toMatchObject({baseRevision: 1, card: {description: '저장이 끝나기 전에 추가한 문장'}});
-  await workspace.open(card.id); await workspace.save();
+  await workspace.open(card.id); await workspace.cardEditor.save();
   expect(await repo.getCard(card.id)).toMatchObject({revision: 2, description: '저장이 끝나기 전에 추가한 문장'});
 });
 
@@ -41,12 +41,12 @@ it('keeps multiple conversations attached to their cards when choosing an old ch
   const otherChat = await repo.createConversation(secondCard.id, '다른 카드의 채팅');
   await workspace.ready();
   await workspace.openConversation(oldChat);
-  expect(workspace.conversation?.id).toBe(oldChat.id);
+  expect(workspace.history.selected?.id).toBe(oldChat.id);
   expect(await repo.conversations(firstCard.id)).toHaveLength(1);
   await workspace.startChat(firstCard, true);
-  const newChatId = workspace.conversation?.id;
+  const newChatId = workspace.history.selected?.id;
   expect(newChatId).not.toBe(oldChat.id);
-  expect(workspace.conversation?.cardId).toBe(firstCard.id);
+  expect(workspace.history.selected?.cardId).toBe(firstCard.id);
   expect(await repo.conversations(firstCard.id)).toHaveLength(2);
   expect(await repo.conversations(secondCard.id)).toMatchObject([{id: otherChat.id}]);
   await workspace.openConversation(oldChat);

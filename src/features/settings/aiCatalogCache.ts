@@ -1,6 +1,6 @@
 import {sha256} from '@noble/hashes/sha2.js';
 import {z} from 'zod';
-import type {StoryRepository} from '../../ports/repository';
+import type {SettingsStore} from '../../ports/settings';
 import {AiCatalogError, type AiCatalogKind} from '../../ports/aiCatalog';
 import type {AiConnectionPreview, AiModelPreview, AiServicePreview} from './aiSettingsModel';
 import {aiModelSchema} from './aiModelSchema';
@@ -23,7 +23,7 @@ export class AiCatalogCache {
   private loading: Promise<void> | undefined;
   private saving = Promise.resolve();
   private pending = new Map<string, {controller: AbortController; promise: Promise<AiModelPreview[]>; readers: Set<symbol>}>();
-  constructor(private readonly repo?: Pick<StoryRepository, 'getSetting' | 'setSetting'>) {}
+  constructor(private readonly repo?: SettingsStore) {}
   load() {
     return this.loading ??= (async () => {
       if (!this.repo) return;

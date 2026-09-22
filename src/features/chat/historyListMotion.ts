@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, Platform} from 'react-native';
 import type {Conversation} from './model';
-import {panelSpringForDistance} from './panelAnimation';
+import {panelSpringForDistance} from '../../layout/panelAnimation';
 
 export function useHistoryReducedMotion() {
   const [reduced, setReduced] = useState(false);

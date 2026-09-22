@@ -1,32 +1,39 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {AccessibilityInfo, Animated, BackHandler, PanResponder, Platform, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {Workspace} from '../../app/workspace';
+import type {ConversationList} from './ConversationList';
+import type {Conversation} from './model';
 import type {Card} from '../cards/model';
 import {ChatHistory} from './ChatHistory';
 import {CardConversationPanel} from './CardConversationPanel';
 import {useAppearance} from '../appearance/AppAppearance';
 import {navigationPanel, type NavigationPanel} from './drawerMotion';
-import {useScreenCorners} from './useScreenCorners';
+import {useScreenCorners} from '../../layout/useScreenCorners';
 import {DrawerGestureGuard, DrawerModalLocks} from './DrawerGestureBoundary';
-import {headerScale, referenceSidebar as r, sidebarWidth} from './chatAppearance';
+import {referenceSidebar as r, sidebarWidth} from './chatAppearance';
+import {headerScale} from '../../layout/metrics';
 import {usePanelMotion} from './usePanelMotion';
-import {DragClickBoundary} from '../settings/DragClickBoundary';
-import type {SheetScrollState} from '../settings/sheetMotion';
+import {DragClickBoundary} from '../../layout/DragClickBoundary';
+import type {SheetScrollState} from '../../layout/sheetMotion';
 import {useHistoryPull} from './useHistoryPull';
-import {settingsGroupScale, settingsReference} from '../settings/settingsGeometry';
+import {panelGroupScale, panelReference} from '../../layout/panelGeometry';
 
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
 
-export function ChatDrawer({workspace, children, openSettings, active = true, pocketEnabled = true}: {
-  workspace: Workspace;
+export function ChatDrawer({cardItems, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true}: {
+  cardItems: readonly Card[];
+  historyList: ConversationList;
+  startChat: (card?: Card) => Promise<void>;
+  openConversation: (conversation: Conversation) => Promise<void>;
+  report: (error: unknown) => void;
   children: (open: () => void) => ReactNode;
   openSettings: () => void;
   active?: boolean;
   /** The creator can opt a card out when card authoring is connected. */
   pocketEnabled?: boolean;
 }) {
+  useSyncExternalStore(historyList.subscribe, historyList.snapshot);
   const {colors: c, isDark} = useAppearance();
   const {width} = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -34,9 +41,9 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   const sidebarScale = drawerWidth / r.width;
   const surfaceScale = headerScale(width);
   const historyWidth = r.searchWidth * sidebarScale;
-  const historyScale = settingsGroupScale(width, historyWidth, insets.left + insets.right);
-  const historyRadius = settingsReference.radius * historyScale;
-  const historyPadding = settingsReference.groupPadding * historyScale;
+  const historyScale = panelGroupScale(width, historyWidth, insets.left + insets.right);
+  const historyRadius = panelReference.radius * historyScale;
+  const historyPadding = panelReference.groupPadding * historyScale;
   const corners = useScreenCorners();
   const [reduceMotion, setReduceMotion] = useState(false);
   const cards = usePanelMotion(reduceMotion, drawerWidth);
@@ -48,8 +55,8 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
   panels.current = {cards, history, pocket};
   const [historyCardId, setHistoryCardId] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
-  const historyCard = workspace.cards.find(card => card.id === historyCardId);
-  const activeCard = workspace.cards.find(card => card.id === workspace.conversation?.cardId);
+  const historyCard = cardItems.find(card => card.id === historyCardId);
+  const activeCard = cardItems.find(card => card.id === historyList.selected?.cardId);
   const blocked = useRef(false);
   const modalLocks = useRef(0);
   const cancelClick = useRef(false);
@@ -196,7 +203,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
-        <ChatHistory workspace={workspace} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
+        <ChatHistory cards={cardItems} selectedCardId={historyList.selected?.cardId} startChat={startChat} report={report} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
         {historyCard && history.visible && <>
           <Pressable testID="card-history-backdrop" accessibilityRole="button" accessibilityLabel="채팅 기록 바깥 눌러 닫기" onPress={backToCards} style={{position: 'absolute', top: historyTop, bottom: historyBottom, left: 0, right: 0}}/>
           <Animated.View testID="card-history-panel" onLayout={history.onLayout} style={{
@@ -211,7 +218,7 @@ export function ChatDrawer({workspace, children, openSettings, active = true, po
             transform: history.transform,
           }}>
             <View testID="card-conversations-popup" style={{flex: 1, borderRadius: historyRadius, overflow: 'hidden', paddingVertical: historyPadding}}>
-              <CardConversationPanel key={historyCard.id} workspace={workspace} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} onClose={backToCards} scroll={historyScroll} onListTouch={() => {historyListTouched.current = true;}}/>
+              <CardConversationPanel key={historyCard.id} history={historyList} openConversation={openConversation} report={report} scale={historyScale} card={historyCard} search={historySearch} close={closeCards} onClose={backToCards} scroll={historyScroll} onListTouch={() => {historyListTouched.current = true;}}/>
               <Pressable testID="card-history-handle" accessibilityRole="button" accessibilityLabel="카드 목록으로 돌아가기" accessibilityHint="누르거나 왼쪽으로 밀면 채팅내역을 닫습니다." onPress={backToCards} style={{position: 'absolute', top: '50%', right: 0, width: (r.textInset - r.rowInset) * historyScale, height: 82 * historyScale, transform: [{translateY: -41 * historyScale}], alignItems: 'center', justifyContent: 'center'}}>
                 <View pointerEvents="none" style={{width: 7 * historyScale, height: 82 * historyScale, borderRadius: 4 * historyScale, backgroundColor: c.divider}}/>
               </Pressable>

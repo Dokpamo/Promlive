@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, Platform, StyleSheet, View} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
-import {settingsReference, useSettingsScale} from './SettingsLayout';
+import {panelReference, useSettingsScale} from './SettingsLayout';
 
 /** The surrounding settings row owns the switch's input and accessibility. */
 export function SettingsToggleIndicator({value}: {value: boolean}) {
@@ -37,7 +37,7 @@ export function SettingsToggleIndicator({value}: {value: boolean}) {
     return () => animation.stop();
   }, [progress, reducedMotion, value]);
 
-  const geometry = settingsReference.toggle;
+  const geometry = panelReference.toggle;
   const width = geometry.width * scale;
   const height = geometry.height * scale;
   const inset = geometry.inset * scale;

@@ -1,8 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Keyboard, Platform} from 'react-native';
 import {historyDragOrigin, historyDragPosition, shouldDismissHistory} from './drawerMotion';
-import {selectionHaptic} from './selectionHaptic';
-import {panelSpringForDistance, stopAndRead} from './panelAnimation';
+import {selectionHaptic} from '../../layout/selectionHaptic';
+import {panelSpringForDistance, stopAndRead} from '../../layout/panelAnimation';
 
 /** A floating side sheet: mount offscreen, animate both axes, then unmount. */
 export function useHistoryPull(travel: number, reduceMotion: boolean) {

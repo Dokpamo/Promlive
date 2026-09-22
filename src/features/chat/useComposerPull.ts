@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef} from 'react';
 import {Animated, PanResponder, Platform} from 'react-native';
-import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../settings/sheetMotion';
+import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../../layout/sheetMotion';
 
 /** Blank space follows the settings sheet's drag physics; text keeps editing/scrolling. */
 export function useComposerPull(drag: {x: Animated.Value; y: Animated.Value}, options: {

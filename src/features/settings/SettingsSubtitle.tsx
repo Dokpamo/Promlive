@@ -1,8 +1,8 @@
 import type {ReactNode} from 'react';
 import {Text, useWindowDimensions} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceTypography} from '../chat/chatAppearance';
-import {settingsReference as r} from './settingsGeometry';
+import {headerScale, referenceTypography} from '../../layout/metrics';
+import {panelReference as r} from '../../layout/panelGeometry';
 
 /** Section headings and field labels share the text inset of a settings row. */
 export function SettingsSubtitle({children, section = false}: {children: ReactNode; section?: boolean}) {

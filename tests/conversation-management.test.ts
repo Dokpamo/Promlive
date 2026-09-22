@@ -67,8 +67,8 @@ it('bulk deletes only selected histories and messages, and rejects late draft fl
     await repo.writeComposerDraft(item.id, {text: '초안', revision: 1});
   }
   await workspace.ready(); await workspace.openConversation(first);
-  await workspace.deleteConversations([first.id, second.id, first.id]);
-  expect(workspace.conversation?.id).toBe(keep.id);
+  await workspace.history.remove([first.id, second.id, first.id]);
+  expect(workspace.history.selected?.id).toBe(keep.id);
   expect(await repo.messages(first.id)).toEqual([]);
   expect(await repo.messages(second.id)).toEqual([]);
   expect(await repo.messages(keep.id)).toHaveLength(1);
@@ -76,10 +76,10 @@ it('bulk deletes only selected histories and messages, and rejects late draft fl
   expect((await repo.loadComposerDraft(first.id)).text).toBe('');
   expect((await repo.loadComposerDraft(keep.id)).text).toBe('초안');
   expect(await repo.getCard(card.id)).toMatchObject({id: card.id});
-  await workspace.deleteConversations([keep.id]);
-  expect(workspace.conversation).toBeNull();
+  await workspace.history.remove([keep.id]);
+  expect(workspace.history.selected).toBeNull();
   await workspace.startChat(card, true);
-  expect(workspace.conversation?.cardId).toBe(card.id);
+  expect(workspace.history.selected?.cardId).toBe(card.id);
 });
 
 it('keeps the most recent room on startup even when an older room is pinned', async () => {
@@ -90,8 +90,8 @@ it('keeps the most recent room on startup even when an older room is pinned', as
   await repo.db.execute('UPDATE conversations SET updated_at=200 WHERE id=?', [recent.id]);
   await repo.pinConversation(pinned.id, true);
   await workspace.ready(); await workspace.startChat(card);
-  expect(workspace.conversations[0]?.id).toBe(pinned.id);
-  expect(workspace.conversation?.id).toBe(recent.id);
+  expect(workspace.history.items[0]?.id).toBe(pinned.id);
+  expect(workspace.history.selected?.id).toBe(recent.id);
 });
 
 it('finishes cancellation before deleting a streaming conversation', async () => {
@@ -107,7 +107,7 @@ it('finishes cancellation before deleting a streaming conversation', async () =>
   await workspace.ready(); await workspace.openConversation(chat);
   const send = creation.send(card, chat.id, '질문');
   await live;
-  await workspace.deleteConversations([chat.id]);
+  await workspace.history.remove([chat.id]);
   await send;
   expect(creation.live(chat.id)).toBeUndefined();
   expect(creation.lastError()).toBeNull();

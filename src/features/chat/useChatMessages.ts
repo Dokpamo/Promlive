@@ -1,8 +1,8 @@
 import {useEffect, useMemo, useSyncExternalStore} from 'react';
-import type {StoryRepository} from '../../ports/repository';
+import type {MessageReader} from './store';
 import {MessageHistory} from './messageHistory';
 
-export function useChatMessages(repo: StoryRepository, conversationId: string | undefined, activeRequestId: string | undefined, onError: (error: unknown) => void) {
+export function useChatMessages(repo: MessageReader, conversationId: string | undefined, activeRequestId: string | undefined, onError: (error: unknown) => void) {
   const history = useMemo(() => new MessageHistory(repo, conversationId), [repo, conversationId]);
   const state = useSyncExternalStore(history.subscribe, history.snapshot);
   useEffect(() => {

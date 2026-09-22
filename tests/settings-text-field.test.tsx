@@ -23,7 +23,7 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
   return {useAppearance: () => ({colors, isDark: false, settings: {sheet: '#fff', surface: '#fff', selected: '#eee', divider: '#ddd', text: '#222', faint: '#aaa'}})};
 });
 // Retain the real field/editor and focus lifecycle; control only exit completion.
-vi.mock('../src/features/settings/SwipeBackModal', () => ({
+vi.mock('../src/layout/SwipeBackModal', () => ({
   SwipeBackBoundary: ({children}: {children: ReactNode}) => <div>{children}</div>,
   SwipeBackModal: ({children, onDismissStart, onClose}: {children: (close: () => void, motion: object) => ReactNode; onDismissStart: () => void; onClose: () => void}) => <div>{children(() => {
     onDismissStart();

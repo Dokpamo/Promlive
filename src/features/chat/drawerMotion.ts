@@ -1,4 +1,4 @@
-import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../settings/sheetMotion';
+import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet} from '../../layout/sheetMotion';
 
 export function drawerProgress(origin: number, distance: number, width: number) {
   return Math.max(0, Math.min(1, origin + distance / width));

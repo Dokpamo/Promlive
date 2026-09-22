@@ -1,7 +1,8 @@
 import {memo, useMemo} from 'react';
 import {Text, View} from 'react-native';
 import type {Message} from './model';
-import {composerScale, referenceMessage as r, referenceTypography, typographyScale} from './chatAppearance';
+import {composerScale, referenceMessage as r, typographyScale} from './chatAppearance';
+import {referenceTypography} from '../../layout/metrics';
 import {useAppearance} from '../appearance/AppAppearance';
 
 /** Display modes change only presentation; all modes use the same message and status. */

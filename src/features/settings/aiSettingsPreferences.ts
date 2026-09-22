@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {StoryRepository} from '../../ports/repository';
+import type {SettingsStore} from '../../ports/settings';
 import type {CredentialStore} from '../../ports/ai';
 import {aiServices, chooseConnectionRoute, connectionRoutes, createAiSettingsPreview, type AiSettingsPreviewState} from './aiSettingsModel';
 import {aiModelSchema} from './aiModelSchema';
@@ -84,7 +84,7 @@ export class AiSettingsPreferences {
   private saving: Promise<void> = Promise.resolve();
   private savedKeys = new Map<string, string>();
   private unreadKeys = new Set<string>();
-  constructor(private readonly repo: Pick<StoryRepository, 'getSetting' | 'setSetting'>, private readonly credentials: CredentialStore) {}
+  constructor(private readonly repo: SettingsStore, private readonly credentials: CredentialStore) {}
   snapshot = () => this.state;
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private emit() {for (const listener of this.listeners) listener();}
