@@ -34,7 +34,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 }) {
   const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
-  const [page, setPage] = useState<Page | null>(null);
+  const {sheet: page, sheetKey: pageKey, setSheet: setPage, closeSheet: closePage} = useSettingsSheetState<Page>();
   const {sheet, sheetKey, setSheet, closeSheet} = useSettingsSheetState<Sheet>();
   const [name, setName] = useState('사용자');
   const [language, setLanguage] = useState('한국어');
@@ -49,7 +49,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
     {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
   </>}</SettingsSheet>;
 
-  return <SwipeBackModal onClose={onClose} active={page === null}>{close => <>
+  return <SwipeBackModal onClose={onClose}>{close => <>
     <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
       <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
         <View accessible={false} style={{width: r.profileSize * s, height: r.profileSize * s, borderRadius: r.profileSize * s / 2, backgroundColor: p.avatarBackground, alignItems: 'center'}}>
@@ -65,8 +65,8 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
       <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
     </SettingsPage>
 
-    {page === 'ai' && (aiReady ? <AiSettingsPreview value={ai} onChange={onAiChange} saveError={aiError} onClose={() => setPage(null)}/> : <SwipeBackModal onClose={() => setPage(null)}>{back => <SettingsPage title="AI" titleInHeader onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
-    {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => {setSheet(null); setPage(null);}}>{back => <><SettingsPage title={pageTitles[page]} onBack={back} obscured={sheet !== null}>
+    {page === 'ai' && (aiReady ? <AiSettingsPreview key={pageKey} value={ai} onChange={onAiChange} saveError={aiError} onClose={closePage}/> : <SwipeBackModal key={pageKey} onClose={closePage}>{back => <SettingsPage title="AI" titleInHeader onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
+    {page !== null && page !== 'ai' && <SwipeBackModal key={pageKey} onClose={() => {closeSheet(); closePage();}}>{back => <><SettingsPage title={pageTitles[page]} onBack={back} obscured={sheet !== null}>
       {page === 'theme' && <>
         <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
         <SettingsRow plain label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>

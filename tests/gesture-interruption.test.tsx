@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, type ReactNode} from 'react';
+import {act, type ReactNode, type Ref} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {usePanelMotion} from '../src/features/chat/usePanelMotion';
@@ -38,12 +38,13 @@ const native = vi.hoisted(() => {
       stop() {callback?.({finished: false});},
     };
   }
-  return {Value, values, springs, spring, reads, pans: [] as PanResponderCallbacks[], scrollStart: undefined as (() => boolean) | undefined, requestClose: undefined as (() => void) | undefined, flush: () => {while (reads.length) reads.shift()!();}};
+  return {Value, values, springs, spring, reads, pans: [] as PanResponderCallbacks[], touchUpdates: [] as {index: number | undefined; pointerEvents: string}[], scrollStart: undefined as (() => boolean) | undefined, requestClose: undefined as (() => void) | undefined, flush: () => {while (reads.length) reads.shift()!();}};
 });
 
 vi.mock('react-native', async () => {
   const React = await import('react');
-  const View = ({children, testID, pointerEvents, mockPanIndex, onStartShouldSetResponder}: {children?: ReactNode; testID?: string; pointerEvents?: string; mockPanIndex?: number; onStartShouldSetResponder?: () => boolean}) => {
+  const View = ({children, testID, pointerEvents, mockPanIndex, onStartShouldSetResponder, ref}: {children?: ReactNode; testID?: string; pointerEvents?: string; mockPanIndex?: number; onStartShouldSetResponder?: () => boolean; ref?: Ref<{setNativeProps: (props: {pointerEvents: string}) => void}>}) => {
+    React.useImperativeHandle(ref, () => ({setNativeProps: props => native.touchUpdates.push({index: mockPanIndex, pointerEvents: props.pointerEvents})}), [mockPanIndex]);
     if (onStartShouldSetResponder) native.scrollStart = onStartShouldSetResponder;
     return <div data-testid={testID} data-pointer-events={pointerEvents} data-pan-index={mockPanIndex}>{children}</div>;
   };
@@ -81,6 +82,7 @@ afterEach(async () => {
   if (root) await act(async () => root!.unmount());
   root = undefined;
   native.reads.length = 0; native.values.length = 0; native.springs.length = 0; native.pans.length = 0;
+  native.touchUpdates.length = 0;
   native.requestClose = undefined;
   native.scrollStart = undefined;
   document.body.replaceChildren();
@@ -189,6 +191,73 @@ it('keeps an inactive settings page out of gestures owned by its child popup', a
   await render(<SwipeBackModal active={false} onClose={vi.fn()}>{() => null}</SwipeBackModal>);
   expect(pan().onStartShouldSetPanResponder!(event, gesture())).toBe(false);
   expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(150))).toBe(false);
+});
+
+it.each(['button', 'swipe'])('hands the next back gesture to settings as soon as a detail page exits via %s', async source => {
+  const closeSettings = vi.fn(), closeDetail = vi.fn();
+  let dismissDetail!: () => void;
+  await render(<SwipeBackModal onClose={closeSettings}>{() =>
+    <SwipeBackModal onClose={closeDetail}>{dismiss => {dismissDetail = dismiss; return null;}}</SwipeBackModal>
+  }</SwipeBackModal>);
+  expect(document.querySelectorAll('[data-testid="native-modal"]')).toHaveLength(1);
+  const pages = document.querySelectorAll('[data-testid="settings-back-swipe"]');
+  const parentPan = native.pans[Number(pages[0]!.getAttribute('data-pan-index'))]!;
+  const detailPan = native.pans[Number(pages[1]!.getAttribute('data-pan-index'))]!;
+  native.values[0]!.setValue(0); native.values[3]!.setValue(0);
+  expect(parentPan.onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+  await act(async () => {
+    if (source === 'button') dismissDetail();
+    else {
+      detailPan.onStartShouldSetPanResponderCapture!(event, gesture());
+      detailPan.onPanResponderGrant!(event, gesture());
+      native.flush();
+      detailPan.onPanResponderMove!(event, gesture(160));
+      detailPan.onPanResponderRelease!(event, gesture(160, 0, 0.8));
+    }
+    expect(detailPan.onMoveShouldSetPanResponderCapture!(event, gesture(30))).toBe(false);
+    expect(native.touchUpdates.at(-1)).toEqual({index: Number(pages[1]!.getAttribute('data-pan-index')), pointerEvents: 'none'});
+    // The parent's next DOWN may arrive before React commits the outgoing view update.
+    parentPan.onStartShouldSetPanResponderCapture!(event, gesture());
+    expect(parentPan.onMoveShouldSetPanResponderCapture!(event, gesture(20))).toBe(true);
+    parentPan.onPanResponderGrant!(event, gesture());
+    expect(parentPan.onShouldBlockNativeResponder!(event, gesture())).toBe(true);
+    native.flush();
+    parentPan.onPanResponderMove!(event, gesture(160));
+    parentPan.onPanResponderRelease!(event, gesture(160, 0, 0.8));
+  });
+  expect(closeDetail).not.toHaveBeenCalled();
+  expect(closeSettings).not.toHaveBeenCalled();
+  expect(pages[1]!.getAttribute('data-pointer-events')).toBe('none');
+  const parentExit = native.springs.at(-1)!;
+  expect(parentExit.value).toBe(native.values[0]);
+  expect(parentExit.target).toBe(1);
+  await act(async () => detailPan.onPanResponderTerminate!(event, gesture()));
+  expect(native.springs.at(-1)).toBe(parentExit);
+});
+
+it('routes consecutive Android back presses through a sheet, detail and settings without waiting for springs', async () => {
+  const closeSettings = vi.fn(), closeDetail = vi.fn(), closeSheet = vi.fn();
+  await render(<SwipeBackModal onClose={closeSettings}>{() =>
+    <SwipeBackModal onClose={closeDetail}>{() =>
+      <SwipeBackModal sheet sheetHeight={400} onClose={closeSheet}>{() => null}</SwipeBackModal>
+    }</SwipeBackModal>
+  }</SwipeBackModal>);
+  expect(document.querySelectorAll('[data-testid="native-modal"]')).toHaveLength(1);
+  await act(async () => native.requestClose!());
+  expect(native.springs.at(-3)?.value).toBe(native.values[6]);
+  const sheetExit = native.springs.slice(-3);
+  await act(async () => native.requestClose!());
+  const detailExit = native.springs.at(-1)!;
+  expect(detailExit.value).toBe(native.values[3]);
+  expect(detailExit.target).toBe(1);
+  await act(async () => native.requestClose!());
+  const settingsExit = native.springs.at(-1)!;
+  expect(settingsExit.value).toBe(native.values[0]);
+  expect(settingsExit.target).toBe(1);
+  await act(async () => {sheetExit.forEach(spring => spring.finish()); detailExit.finish(); settingsExit.finish();});
+  expect(closeSheet).toHaveBeenCalledOnce();
+  expect(closeDetail).toHaveBeenCalledOnce();
+  expect(closeSettings).toHaveBeenCalledOnce();
 });
 
 it('hands the next back swipe to the page as soon as a sheet closes, before its exit animation finishes', async () => {
@@ -330,6 +399,31 @@ it.each(['theme', 'display'])('can immediately reopen %s without the previous di
   expect(state.sheet).toBe(next);
   expect(document.querySelector('[data-testid="settings-sheet-swipe"]')!.getAttribute('data-pointer-events')).toBe('auto');
   expect(renderedPan('settings-back-swipe').onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+});
+
+it.each(['ai', 'theme'])('keeps a newly opened %s page when the previous detail exit completes late', async next => {
+  let state!: ReturnType<typeof useSettingsSheetState<string>>;
+  let dismiss!: () => void;
+  function Host() {
+    state = useSettingsSheetState<string>();
+    return <SwipeBackModal onClose={vi.fn()}>{() => state.sheet !== null &&
+      <SwipeBackModal key={state.sheetKey} onClose={state.closeSheet}>{close => {dismiss = close; return null;}}</SwipeBackModal>
+    }</SwipeBackModal>;
+  }
+  await render(<Host/>);
+  await act(async () => state.setSheet('ai'));
+  const previousClose = state.closeSheet, previousKey = state.sheetKey;
+  await act(async () => dismiss());
+  const previousExit = native.springs.at(-1)!;
+  await act(async () => {state.setSheet(next); previousClose();});
+  await act(async () => previousExit.finish());
+  expect(state.sheet).toBe(next);
+  expect(state.sheetKey).not.toBe(previousKey);
+  const pages = document.querySelectorAll('[data-testid="settings-back-swipe"]');
+  expect(pages).toHaveLength(2);
+  expect(pages[1]!.getAttribute('data-pointer-events')).toBe('auto');
+  expect(renderedPan('settings-back-swipe').onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+  expect(document.querySelectorAll('[data-testid="native-modal"]')).toHaveLength(1);
 });
 
 it('regrabs composer recovery immediately while preserving the text gesture boundary', async () => {

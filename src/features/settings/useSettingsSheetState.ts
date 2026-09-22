@@ -1,6 +1,6 @@
 import {useCallback, useState} from 'react';
 
-/** A new opening owns its dismissal, even if a previous sheet is still leaving. */
+/** A new page or sheet owns its dismissal, even if its previous opening is still leaving. */
 export function useSettingsSheetState<T>() {
   const [selection, setSelection] = useState<{value: T | null; revision: number}>({value: null, revision: 0});
   const setSheet = useCallback((value: T | null) => {

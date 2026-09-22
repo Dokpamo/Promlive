@@ -17,7 +17,7 @@
 | 화면 이동·기능 연결 | [Workspace](../src/app/workspace.ts), [WorkspaceChat](../src/app/WorkspaceChat.tsx) | 화면 이동 순서, 카드 목록, 기능 연결만 담당. 늦은 요청이 새 선택을 덮지 않는 [회귀 검사](../tests/workspace-regressions.test.ts) |
 | 행·버튼 눌림과 공통 치수 | [RowPressable](../src/layout/RowPressable.tsx), [PressSurface](../src/layout/PressSurface.tsx), [panelGeometry](../src/layout/panelGeometry.ts), [metrics](../src/layout/metrics.ts) | 설정·카드 목록·채팅내역이 같은 눌림·곡률·비율을 사용 |
 | 화면 위아래 색상막·채팅/포켓 경계 | [EdgeTint](../src/layout/EdgeTint.tsx), [ScreenHeader](../src/layout/ScreenHeader.tsx), [ChatDrawer](../src/features/chat/ChatDrawer.tsx) | 페이지 바탕색으로 투명도만 변경. 두 페이지는 바탕과 바깥쪽 잘림을 공유하며 입력 팝업에는 색상막을 추가하지 않음 |
-| 팝업·뒤로가기·드래그 인계 | [SwipeBackModal](../src/layout/SwipeBackModal.tsx), [sheetMotion](../src/layout/sheetMotion.ts), [panelAnimation](../src/layout/panelAnimation.ts) | 공통 방향 판정·저항·스프링. [제스처 경합 검사](../tests/gesture-interruption.test.tsx), [방향 검사](../tests/sheet-motion.test.ts) |
+| 팝업·뒤로가기·드래그 인계 | [SwipeBackModal](../src/layout/SwipeBackModal.tsx), [sheetMotion](../src/layout/sheetMotion.ts), [panelAnimation](../src/layout/panelAnimation.ts) | 공통 방향 판정·저항·스프링. 상세 페이지·시트는 같은 창을 사용하고 닫기 시작 시 부모에 입력을 인계. [제스처 경합 검사](../tests/gesture-interruption.test.tsx), [방향 검사](../tests/sheet-motion.test.ts) |
 | AI 연결·스트리밍 | [SelectedProvider](../src/adapters/ai/selectedProvider.ts), [GenerationCoordinator](../src/features/chat/generation.ts) | 호스트만 인증·주소 보유. [전송 검사](../tests/transport.test.ts), [생성 수명 검사](../tests/generation.test.ts) |
 
 초안 버그를 고칠 때는 `ChatSession`과 `sessionStore` 및 관련 테스트가 우선입니다. 메시지 삽입·수락의 원자성을 바꾸는 경우에만 [SQLite 구현](../src/adapters/sqlite/chatSessionStore.ts)을 추가로 읽습니다. UI 수명이나 전체 `Workspace`를 초안의 기준으로 삼지 않습니다.
