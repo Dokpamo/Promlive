@@ -22,7 +22,7 @@ jobs:
         node: [22, 24]
     defaults:
       run:
-        working-directory: storyloom
+        working-directory: .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,6 +31,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: storyloom/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run verify
