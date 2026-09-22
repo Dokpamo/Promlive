@@ -4,6 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {PressSurface} from '../../layout/PressSurface';
+import {FrostedEdge} from '../../layout/FrostedEdge';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import type {ComposerInputHandle} from './ComposerInput.types';
@@ -171,6 +172,9 @@ export function ChatComposer(p: Props) {
   return <KeyboardDock fraction={fraction} bottomInset={p.bottom} freezeKeyboard={expanded || preparing} followCaret={modal}>
     <DrawerGestureBoundary style={{flex: 1}}>
     <DragClickBoundary cancelClick={pull.cancelClick}>
+      <Animated.View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: Animated.add(motion.height, p.bottom + (r.bottom + 40) * s), opacity: fraction}}>
+        <FrostedEdge edge="bottom" testID="composer-frost" style={{flex: 1}}/>
+      </Animated.View>
       {modal && <Pressable accessibilityRole="button" accessibilityLabel="입력창 바깥 눌러 접기" onPress={close} style={{position: 'absolute', inset: 0}}/>}
       <Animated.View testID={visible ? 'expanded-composer-surface' : 'chat-composer'} accessibilityViewIsModal={visible} onAccessibilityEscape={visible ? close : undefined} {...pull.panHandlers} style={{
         position: 'absolute', left: blend(collapsedLeft, sheet.x), width: blend(collapsedWidth, sheet.width),

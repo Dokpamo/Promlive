@@ -62,7 +62,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError}: {
       <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
     </SettingsPage>
 
-    {page === 'ai' && (aiReady ? <AiSettingsPreview value={ai} onChange={onAiChange} saveError={aiError} onClose={() => setPage(null)}/> : <SwipeBackModal onClose={() => setPage(null)}>{back => <SettingsPage title="AI" onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
+    {page === 'ai' && (aiReady ? <AiSettingsPreview value={ai} onChange={onAiChange} saveError={aiError} onClose={() => setPage(null)}/> : <SwipeBackModal onClose={() => setPage(null)}>{back => <SettingsPage title="AI" titleInHeader onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
     {page !== null && page !== 'ai' && <SwipeBackModal onClose={() => {setSheet(null); setPage(null);}}>{back => <><SettingsPage title={pageTitles[page]} onBack={back} obscured={sheet !== null}>
       {page === 'theme' && <>
         <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>

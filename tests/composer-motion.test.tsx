@@ -8,6 +8,7 @@ import type {ComposerInputProps} from '../src/features/chat/ComposerInput.types'
 
 const keyboard = vi.hoisted(() => ({height: 0}));
 const opening = vi.hoisted(() => ({defer: false, callbacks: [] as (() => void)[]}));
+vi.mock('@sbaiahmed1/react-native-blur', () => ({ProgressiveBlurView: ({children}: {children?: ReactNode}) => <div>{children}</div>}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native,

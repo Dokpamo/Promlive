@@ -22,10 +22,11 @@ export function useSettingsRadius(kind: 'panel' | 'control' = 'panel') {
   return (kind === 'panel' ? settingsReference.radius : settingsReference.controlRadius) * useSettingsScale();
 }
 
-export function SettingsPage({children, onBack, title, home = false, obscured = false}: {
+export function SettingsPage({children, onBack, title, titleInHeader = false, home = false, obscured = false}: {
   children: ReactNode;
   onBack: () => void;
   title?: string;
+  titleInHeader?: boolean;
   home?: boolean;
   obscured?: boolean;
 }) {
@@ -34,15 +35,21 @@ export function SettingsPage({children, onBack, title, home = false, obscured = 
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
   return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
-    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{marginTop: insets.top}} contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: referenceHeader.barHeight * s + settingsReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
+    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{width: '100%', maxWidth: settingsReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: settingsReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + settingsReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
       <SwipeBackScrollContent>
-        {title && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
+        {title && !titleInHeader && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
         {children}
       </SwipeBackScrollContent>
     </ScrollView>
     <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}>
-      <ScreenHeader width={width} testID={home ? 'settings-header' : 'settings-detail-header'}>
+      <ScreenHeader width={width} topInset={insets.top} testID={home ? 'settings-header' : 'settings-detail-header'}>
         <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
+        {titleInHeader && title && <>
+          <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
+            <Text testID="settings-header-title" accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceHeader.titleFont * s, lineHeight: referenceTypography.titleLineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
+          </View>
+          <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
+        </>}
       </ScreenHeader>
     </View>
   </SafeAreaView></View></SettingsTextEditorHost>;

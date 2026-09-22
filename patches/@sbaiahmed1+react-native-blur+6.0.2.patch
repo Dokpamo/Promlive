@@ -1,0 +1,83 @@
+diff --git a/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurView.kt b/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurView.kt
+index 598fb72..dd11f59 100644
+--- a/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurView.kt
++++ b/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurView.kt
+@@ -20,6 +20,8 @@ import android.view.ViewOutlineProvider
+ import android.widget.FrameLayout
+ import android.view.View.MeasureSpec
+ import com.qmdeve.blurview.widget.BlurView
++import com.facebook.react.uimanager.PointerEvents
++import com.facebook.react.uimanager.ReactPointerEventsView
+ import kotlin.math.roundToInt
+ 
+ /**
+@@ -33,7 +35,10 @@ import kotlin.math.roundToInt
+  * no startOffset/plateau control, no center direction, and no curve tuning,
+  * so it is not a viable replacement for this class.
+  */
+-class ReactNativeProgressiveBlurView : FrameLayout {
++class ReactNativeProgressiveBlurView : FrameLayout, ReactPointerEventsView {
++  // This decorative surface must let gestures reach the scroll view beneath it.
++  // React children (header buttons) still receive their own touches.
++  override val pointerEvents: PointerEvents get() = PointerEvents.BOX_NONE
+   private var blurView: BlurView? = null
+   // RN border radii (dp; -1f sentinels for unset per-corner values). With
+   // children mounted inside the native view on Android, the view itself must
+@@ -183,6 +188,8 @@ class ReactNativeProgressiveBlurView : FrameLayout {
+       if (blurView == null) {
+         blurView = BlurView(context, null).apply {
+           layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
++          isEnabled = false
++          importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+           setDownsampleFactor(DEFAULT_DOWNSAMPLE_FACTOR)
+           blurRounds = currentBlurRounds
+         }
+@@ -275,7 +282,9 @@ class ReactNativeProgressiveBlurView : FrameLayout {
+    *    the main activity window (decor view is correct there).
+    */
+   private fun findOptimalBlurRoot(): ViewGroup? {
+-    return findNearestScreenAncestor() ?: findNearestReactRootView()
++    // A settings Modal has its own window: sample that window's content,
++    // not the activity behind the modal.
++    return findNearestScreenAncestor() ?: findNearestReactRootView() ?: (rootView as? ViewGroup)
+   }
+ 
+   /**
+diff --git a/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurViewManager.kt b/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurViewManager.kt
+index 254875d..22a6da0 100644
+--- a/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurViewManager.kt
++++ b/node_modules/@sbaiahmed1/react-native-blur/android/src/main/java/com/sbaiahmed1/reactnativeblur/ReactNativeProgressiveBlurViewManager.kt
+@@ -1,5 +1,6 @@
+ package com.sbaiahmed1.reactnativeblur
+ 
++import android.view.View
+ import com.facebook.react.module.annotations.ReactModule
+ import com.facebook.react.uimanager.ThemedReactContext
+ import com.facebook.react.uimanager.ViewGroupManager
+@@ -104,6 +105,26 @@ class ReactNativeProgressiveBlurViewManager : ViewGroupManager<ReactNativeProgre
+     view?.setBorderBottomRightRadius(borderBottomRightRadius)
+   }
+ 
++  // Child zero is the internal blur renderer, not a Fabric-managed child.
++  // Keep it behind controls and out of React's mounting/removal indices.
++  override fun addView(parent: ReactNativeProgressiveBlurView, child: View, index: Int) {
++    parent.addView(child, index + 1)
++  }
++
++  override fun getChildCount(parent: ReactNativeProgressiveBlurView): Int =
++    (parent.childCount - 1).coerceAtLeast(0)
++
++  override fun getChildAt(parent: ReactNativeProgressiveBlurView, index: Int): View? =
++    parent.getChildAt(index + 1)
++
++  override fun removeViewAt(parent: ReactNativeProgressiveBlurView, index: Int) {
++    parent.removeViewAt(index + 1)
++  }
++
++  override fun removeAllViews(parent: ReactNativeProgressiveBlurView) {
++    while (parent.childCount > 1) parent.removeViewAt(parent.childCount - 1)
++  }
++
+   /**
+    * Called when view is detached from view hierarchy and allows for cleanup.
+    * This prevents the white screen issue during navigation transitions on Android.

@@ -5,6 +5,7 @@ export const settingsReference = {
   contentMaxWidth: 560,
   inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
   rowHeight: 82, rowInset: 34, rowPadding: 17, rowFont: referenceTypography.titleFontSize, rowLine: 40, valueFont: 26,
+  subtitle: {fontSize: 24, lineHeight: 34, bottom: 16, sectionTop: 14},
   highlightInset: 8,
   toggle: {width: 76, height: 44, inset: 4},
   profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,

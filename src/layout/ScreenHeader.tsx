@@ -4,11 +4,16 @@ import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon, type ChatIconName} from '../features/chat/ChatIcon';
 import {headerScale, referenceHeader as r} from '../features/chat/chatAppearance';
 import {PressSurface} from './PressSurface';
+import {FrostedEdge} from './FrostedEdge';
 
 /** Place inside the screen's safe area; width is the viewport, including in a drawer. */
-export function ScreenHeader({width, testID, children}: {width: number; testID?: string; children: ReactNode}) {
+export function ScreenHeader({width, testID, children, topInset = 0}: {width: number; testID?: string; children: ReactNode; topInset?: number}) {
   const s = headerScale(width);
-  return <View testID={testID} pointerEvents="box-none" style={{height: r.barHeight * s, flexShrink: 0, flexDirection: 'row', alignItems: 'flex-start', paddingTop: r.top * s, paddingHorizontal: r.inset * s, gap: r.gap * s}}>{children}</View>;
+  return <View testID={testID} pointerEvents="box-none" style={{height: r.barHeight * s, flexShrink: 0}}>
+    <FrostedEdge edge="top" testID="header-frost" style={{position: 'absolute', top: -topInset, left: 0, right: 0, height: topInset + (r.barHeight + 20) * s}}>
+      <View pointerEvents="box-none" style={{paddingTop: topInset + r.top * s, paddingHorizontal: r.inset * s, flexDirection: 'row', alignItems: 'flex-start', gap: r.gap * s}}>{children}</View>
+    </FrostedEdge>
+  </View>;
 }
 
 /** The outline overlays the surface so it never changes button height or icon centers. */

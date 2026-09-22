@@ -84,7 +84,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
   }
 
   return <SwipeBackModal onClose={onClose}>{back => <>
-    <SettingsPage title="AI" onBack={back} obscured={sheet !== null}>
+    <SettingsPage title="AI" titleInHeader onBack={back} obscured={sheet !== null}>
       {saveError && <AiCaption>{saveError}</AiCaption>}
       <SettingsGroup>
         <SettingsRow label="프로바이더" value={service.name} onPress={() => {Keyboard.dismiss(); setSheet({kind: 'services'});}}/>

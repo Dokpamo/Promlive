@@ -8,17 +8,16 @@ import {SettingsToggleIndicator} from './SettingsToggleIndicator';
 import {SwipeBackBoundary} from './SwipeBackModal';
 import {settingsReference as r, useSettingsRadius, useSettingsScale} from './SettingsLayout';
 import {SettingsTextField} from './SettingsTextField';
+import {SettingsSubtitle} from './SettingsSubtitle';
 
 export function AiCaption({children}: {children: ReactNode}) {
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
-  return <Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s, marginHorizontal: 6 * s, marginTop: 16 * s, marginBottom: 24 * s}}>{children}</Text>;
+  return <Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s, marginHorizontal: r.rowInset * s, marginTop: 16 * s, marginBottom: 24 * s}}>{children}</Text>;
 }
 
 export function AiSection({children}: {children: ReactNode}) {
-  const {settings: p} = useAppearance();
-  const s = useSettingsScale();
-  return <Text accessibilityRole="header" style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, marginHorizontal: r.rowInset * s, marginTop: 14 * s, marginBottom: 16 * s}}>{children}</Text>;
+  return <SettingsSubtitle section>{children}</SettingsSubtitle>;
 }
 
 export function AiField({label, value, onChange, placeholder, secret = false, keyboard = 'default', detail, multiline = false}: {
@@ -33,8 +32,8 @@ export function AiSearchField({label, value, onChange, placeholder}: {label: str
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <View style={{marginBottom: 26 * s}}>
-    <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, marginBottom: 12 * s, marginHorizontal: 6 * s}}>{label}</Text>
+  return <View style={{marginBottom: r.groupGap * s}}>
+    <SettingsSubtitle>{label}</SettingsSubtitle>
     <SwipeBackBoundary>
       <TextInput accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={p.faint} autoCapitalize="none" autoCorrect={false} autoComplete="off" maxLength={500} selectionColor={p.accent} underlineColorAndroid="transparent" style={{minHeight: 84 * s, borderRadius: radius, backgroundColor: p.surface, paddingHorizontal: 24 * s, paddingVertical: 20 * s, color: p.text, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}/>
     </SwipeBackBoundary>

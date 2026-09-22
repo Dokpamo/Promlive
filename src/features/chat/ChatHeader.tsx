@@ -1,4 +1,5 @@
 import {Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {ChatIcon} from './ChatIcon';
 import {chatAvatarColor, headerScale, referenceHeader as r, referenceTypography, typographyScale} from './chatAppearance';
 import {useAppearance} from '../appearance/AppAppearance';
@@ -14,7 +15,8 @@ export function ChatHeader({width, title, conversationId, openHistory, openSetti
   const {colors: c} = useAppearance();
   const s = headerScale(width);
   const titleScale = typographyScale(width);
-  return <ScreenHeader width={width} testID="chat-header">
+  const insets = useSafeAreaInsets();
+  return <ScreenHeader width={width} topInset={insets.top} testID="chat-header">
     <HeaderButton width={width} testID="chat-header-back" icon="back" label="카드 목록 열기" onPress={openHistory}/>
     <HeaderCapsule width={width} testID="chat-header-title" style={{flex: 1, minWidth: 0, justifyContent: 'center'}}>
       <View accessible={false} style={{position: 'absolute', left: r.avatarInset * s, top: r.avatarInset * s, width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: chatAvatarColor(conversationId), alignItems: 'center', justifyContent: 'center'}}>

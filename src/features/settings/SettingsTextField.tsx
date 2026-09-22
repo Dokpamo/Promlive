@@ -8,6 +8,7 @@ import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale, referenceHeader, referenceTypography} from '../chat/chatAppearance';
 import {composerEditorHeight, expandedComposerFrame} from '../chat/composerGeometry';
 import {SettingsIcon} from './SettingsIcon';
+import {SettingsSubtitle} from './SettingsSubtitle';
 import {settingsReference as r} from './settingsGeometry';
 import {SwipeBackBoundary, SwipeBackModal} from './SwipeBackModal';
 
@@ -47,8 +48,8 @@ export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: s
   const {settings: p} = useAppearance();
   const s = headerScale(useWindowDimensions().width);
   const preview = field.secret && field.value ? '••••••••' : field.value || field.placeholder;
-  return <View style={{marginBottom: 26 * s}}>
-    <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, marginBottom: 12 * s, marginHorizontal: 6 * s}}>{field.label}</Text>
+  return <View style={{marginBottom: r.groupGap * s}}>
+    <SettingsSubtitle>{field.label}</SettingsSubtitle>
     <PressSurface testID={field.testID} accessibilityRole="button" accessibilityLabel={field.label}
       accessibilityValue={{text: field.secret ? field.value ? '등록됨' : '입력 안 함' : field.value || '입력 안 함'}}
       accessibilityHint="눌러서 입력창 열기" onPress={() => open?.(field)} radius={r.controlRadius * s} highlightColor={p.selected}
@@ -56,7 +57,7 @@ export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: s
       <Text numberOfLines={3} ellipsizeMode="tail" style={{flex: 1, color: field.value ? p.text : p.faint, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}>{preview}</Text>
       <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
     </PressSurface>
-    {detail && <Text style={{color: p.secondary, fontSize: 21 * s, lineHeight: 31 * s, marginTop: 10 * s, marginHorizontal: 6 * s}}>{detail}</Text>}
+    {detail && <Text style={{color: p.secondary, fontSize: 21 * s, lineHeight: 31 * s, marginTop: 10 * s, marginHorizontal: r.rowInset * s}}>{detail}</Text>}
   </View>;
 }
 
