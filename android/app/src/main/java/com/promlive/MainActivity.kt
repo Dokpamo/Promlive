@@ -3,9 +3,9 @@ package com.promlive
 import android.view.KeyEvent
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.WindowManager
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.splashscreen.SplashScreenViewProvider
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -13,14 +13,17 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
   private var appReady = false
+  private var launchView: SplashScreenViewProvider? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    val started = SystemClock.elapsedRealtime()
     val splash = installSplashScreen()
     super.onCreate(savedInstanceState)
-    // Release as soon as the restored app (or its error view) is ready. The
-    // deadline only prevents a missing JS bundle from trapping the user here.
-    splash.setKeepOnScreenCondition { !appReady && SystemClock.elapsedRealtime() - started < 10_000 }
+    // Keep the launch artwork over the activity instead of cancelling pre-draw.
+    // React needs to lay out and draw before it can report that its UI is ready.
+    splash.setOnExitAnimationListener { provider ->
+      launchView = provider
+      if (appReady) revealApp()
+    }
     if (Build.VERSION.SDK_INT >= 30) {
       // Keep the canvas fixed. KeyboardMotionView moves only the floating dock.
       window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
@@ -29,7 +32,17 @@ class MainActivity : ReactActivity() {
 
   fun revealApp() {
     appReady = true
-    window.decorView.postInvalidateOnAnimation()
+    val provider = launchView ?: return
+    launchView = null
+    window.decorView.postOnAnimation {
+      provider.view.animate().alpha(0f).setDuration(120).withEndAction { provider.remove() }.start()
+    }
+  }
+
+  override fun onDestroy() {
+    launchView?.remove()
+    launchView = null
+    super.onDestroy()
   }
 
   override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {

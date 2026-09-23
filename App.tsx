@@ -2,7 +2,7 @@ import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Keyboard, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {KeyboardMotionProvider} from './src/layout/KeyboardMotion';
-import {initialStartupTheme, useStartupScreen} from './src/layout/StartupScreen';
+import {initialStartupTheme, syncStartupTheme, useStartupScreen} from './src/layout/StartupScreen';
 import {initialize} from './src/app/runtime';
 import {Workspace} from './src/app/workspace';
 import {WorkspaceChat} from './src/app/WorkspaceChat';
@@ -29,11 +29,16 @@ export default function App() {
       const next = new Workspace(runtime);
       await next.readyChat();
       const [savedTheme, savedChatDisplay] = await Promise.all([runtime.repo.getSetting(themeSettingKey), runtime.repo.getSetting(chatDisplaySettingKey)]);
-      if (active) {setTheme(storedTheme(savedTheme)); setChatDisplay(storedChatDisplay(savedChatDisplay)); setWorkspace(next);}
+      if (active) {
+        const restoredTheme = storedTheme(savedTheme);
+        syncStartupTheme(restoredTheme);
+        setTheme(restoredTheme); setChatDisplay(storedChatDisplay(savedChatDisplay)); setWorkspace(next);
+      }
     }).catch(e => {if (active) setError(e instanceof Error ? e.message : '저장소를 열지 못했어요.');});
     return () => {active = false;};
   }, []);
   const changeTheme = (mode: ThemeMode) => {
+    syncStartupTheme(mode);
     setTheme(mode);
     if (workspace) void workspace.runtime.repo.setSetting(themeSettingKey, mode).catch(e => workspace.notifications.report(e));
   };

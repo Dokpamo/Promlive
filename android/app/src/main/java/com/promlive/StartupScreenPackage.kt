@@ -21,8 +21,8 @@ object StartupAppearance {
   fun restore(context: Context) { saved(context)?.let { apply(context, it) } }
 
   fun save(context: Context, mode: String) {
-    if (mode !in listOf("light", "dark", "system")) return
-    if (saved(context) != mode) preferences(context).edit().putString("theme", mode).apply()
+    if (mode !in listOf("light", "dark", "system") || saved(context) == mode) return
+    preferences(context).edit().putString("theme", mode).apply()
     apply(context, mode)
   }
 
@@ -49,7 +49,12 @@ object StartupAppearance {
 @ReactModule(name = "PromliveStartup")
 class StartupScreenModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   override fun getName() = "PromliveStartup"
-  override fun getConstants(): Map<String, Any> = mapOf("theme" to (StartupAppearance.saved(reactApplicationContext) ?: "dark"))
+  override fun getConstants(): Map<String, Any> = mapOf("theme" to (StartupAppearance.saved(reactApplicationContext) ?: "system"))
+
+  @ReactMethod
+  fun setTheme(theme: String) {
+    UiThreadUtil.runOnUiThread { StartupAppearance.save(reactApplicationContext, theme) }
+  }
 
   @ReactMethod
   fun ready(theme: String) {

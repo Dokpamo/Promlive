@@ -4,6 +4,7 @@ import {SettingsChoice, SettingsGroup, SettingsPage, SettingsRow, SettingsSheet}
 import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {AiAction, AiCaption, AiField, AiSection, AiToggle} from './AiSettingsControls';
 import {AiModelSelectionSheet} from './AiModelSelectionSheet';
+import {aiChoiceCaptions, providerCaption} from './aiSheetCaptions';
 import {useSettingsSheetState} from './useSettingsSheetState';
 import {catalogKinds, catalogLabels} from './aiModelCatalog';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
@@ -37,7 +38,8 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
   });
   const select = (title: string, selected: string, choices: Choice[], choose: (next: string) => void, caption?: string) => {
     Keyboard.dismiss();
-    setSheet({kind: 'choices', title, value: selected, choices, choose, ...(caption ? {caption} : {})});
+    const description = caption ?? aiChoiceCaptions[title];
+    setSheet({kind: 'choices', title, value: selected, choices, choose, ...(description ? {caption: description} : {})});
   };
   const connectionField = (label: string, key: StringSetting<AiConnectionPreview>, placeholder: string, detail?: string) => <AiField label={label} value={connection[key]} onChange={next => patch({[key]: next, ...(key === 'url' ? {catalogModel: null} : {})})} placeholder={placeholder} {...(detail ? {detail} : {})}/>;
   const field = (label: string, key: StringSetting<AiModelPresetPreview>, placeholder: string, detail?: string, numeric = false) => <AiField label={label} value={preset[key]} onChange={next => patchPreset({[key]: next})} placeholder={placeholder} {...(detail ? {detail} : {})} {...(numeric ? {keyboard: 'decimal-pad' as const} : {})}/>;
@@ -61,7 +63,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       </>}
       {capabilities.filters && <>
         <AiSection>콘텐츠 필터</AiSection>
-        <SettingsGroup>{Object.entries(safetyCategories).map(([key, label]) => <SettingsRow key={key} label={label} value={filterLabels[preset.filters[key] ?? 'default'] ?? '서비스 기본값'} onPress={() => select(label, preset.filters[key] ?? 'default', choicesFrom(filterLabels), next => patchPreset({filters: {...preset.filters, [key]: next}}))}/>)}</SettingsGroup>
+        <SettingsGroup>{Object.entries(safetyCategories).map(([key, label]) => <SettingsRow key={key} label={label} value={filterLabels[preset.filters[key] ?? 'default'] ?? '서비스 기본값'} onPress={() => select(label, preset.filters[key] ?? 'default', choicesFrom(filterLabels), next => patchPreset({filters: {...preset.filters, [key]: next}}), '이 유형의 콘텐츠를 차단할 기준을 선택해요.')}/>)}</SettingsGroup>
         <AiCaption>서비스에서 허용하는 범위 안에서 차단 기준을 선택해요.</AiCaption>
       </>}
       {capabilities.localRuntime && <>
@@ -136,7 +138,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
     </SettingsPage>
 
-    {sheet && sheet.kind !== 'models' && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
+    {sheet && sheet.kind !== 'models' && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.title} {...(sheet.kind === 'services' ? {caption: providerCaption} : sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
       {aiServices.map(item => <SettingsChoice key={item.id} label={item.name} selected={service.id === item.id} onPress={() => {
         onChange(old => ({...old, service: item.id, connections: {...old.connections, [item.id]: old.connections[item.id] ?? createConnectionPreview(item)}}));
         setNotice(''); close();

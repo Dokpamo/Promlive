@@ -20,6 +20,7 @@ type Persona = {name: string; description: string};
 const pageTitles: Record<Page, string> = {ai: 'AI', persona: '페르소나', prompt: '프롬프트', theme: '테마', plugins: '플러그인', about: '정보'};
 const sheetTitles: Record<Sheet, string> = {profile: '내 정보', theme: '화면 색상', display: '대화 표시', language: '언어'};
 const sheetCaptions: Partial<Record<Sheet, string>> = {
+  profile: '프로필에 표시할 이름을 설정해요.',
   theme: '편안하게 사용할 화면 테마를 선택해요.',
   display: '같은 대화를 원하는 모습으로 읽어보세요.',
   language: '앱에서 사용할 언어를 선택해요.',

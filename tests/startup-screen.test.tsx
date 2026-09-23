@@ -2,9 +2,9 @@
 import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {useStartupScreen} from '../src/layout/StartupScreen';
+import {initialStartupTheme, syncStartupTheme, useStartupScreen} from '../src/layout/StartupScreen';
 
-const native = vi.hoisted(() => ({theme: 'light', ready: vi.fn()}));
+const native = vi.hoisted(() => ({theme: 'light', ready: vi.fn(), setTheme: vi.fn()}));
 vi.mock('react-native', () => ({Platform: {OS: 'android'}, NativeModules: {PromliveStartup: native}}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;
@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await act(async () => root.unmount());
-  document.body.replaceChildren(); native.ready.mockClear(); vi.unstubAllGlobals();
+  document.body.replaceChildren(); native.ready.mockClear(); native.setTheme.mockClear(); native.theme = 'light'; vi.unstubAllGlobals();
 });
 function Screen({ready, theme = 'light'}: {ready: boolean; theme?: 'light' | 'dark'}) {
   useStartupScreen(ready, theme);
@@ -47,5 +47,21 @@ it('cancels stale frames when the theme changes or the ready screen is removed',
   await render(true, 'light');
   await act(async () => root.render(null));
   await draw();
+  expect(native.ready).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['light', 'light'], ['dark', 'dark'], ['system', 'system'], ['', 'system'],
+])('restores the native launch theme %s as %s', (saved, expected) => {
+  native.theme = saved;
+  expect(initialStartupTheme()).toBe(expected);
+});
+
+it('mirrors theme changes immediately without waiting for the ready screen or a UI frame', async () => {
+  await render(false);
+  syncStartupTheme('dark');
+  syncStartupTheme('system');
+  expect(native.setTheme.mock.calls).toEqual([['dark'], ['system']]);
+  expect(frames.size).toBe(0);
   expect(native.ready).not.toHaveBeenCalled();
 });

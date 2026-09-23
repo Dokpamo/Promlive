@@ -11,7 +11,7 @@ export const panelReference = {
   highlightInset: 8,
   toggle: {width: 76, height: 44, inset: 4},
   profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,
-  sheetInset: 17, sheetPadding: rowInset, sheetContentGap: 24,
+  sheetInset: 17, sheetPadding: rowInset, sheetContentGap: 38,
   sheetHandle: {width: 82, height: 7, radius: 4, top: 21},
 } as const;
 

@@ -2,6 +2,7 @@ import {useRef, useState} from 'react';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
 import {AiModelPicker} from './AiModelPicker';
 import {catalogLabels} from './aiModelCatalog';
+import {catalogCaptions, reasoningLevelCaption} from './aiSheetCaptions';
 import {choosePreviewModel, effortLabels, modelPresetCapabilities, modelPresetFor, previewModel, type AiConnectionPreview, type AiModelPreview, type AiServicePreview} from './aiSettingsModel';
 import {SettingsChoice, SettingsSheet} from './SettingsLayout';
 
@@ -34,7 +35,7 @@ export function AiModelSelectionSheet({service, connection, kind, onSelect, onRe
     if (completed.current.size === 2) onClose();
   };
 
-  return <SettingsSheet title={catalogLabels[kind]} onClose={() => finishPanel('models')} dismiss={finishing} obscured={step !== null} overlay={stepModel && <SettingsSheet title="추론 레벨" slideFrom="right" dismiss={finishing} onClose={() => finishPanel('effort')}>
+  return <SettingsSheet title={catalogLabels[kind]} caption={catalogCaptions[kind]} onClose={() => finishPanel('models')} dismiss={finishing} obscured={step !== null} overlay={stepModel && <SettingsSheet title="추론 레벨" caption={reasoningLevelCaption} slideFrom="right" dismiss={finishing} onClose={() => finishPanel('effort')}>
     {() => <>{efforts.map(effort => <SettingsChoice key={effort} label={effortLabels[effort] ?? effort} selected={selectedEffort === effort} onPress={() => {
       if (finishingRef.current) return;
       finishingRef.current = true;

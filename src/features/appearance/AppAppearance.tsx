@@ -7,7 +7,7 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 export const themeSettingKey = 'appearance:theme';
 export const themeLabels: Record<ThemeMode, string> = {dark: '다크', light: '라이트', system: '시스템'};
 export function storedTheme(value: string | undefined): ThemeMode {
-  return value === 'light' || value === 'system' ? value : 'dark';
+  return value === 'light' || value === 'dark' ? value : 'system';
 }
 
 /** Settings uses the card list's palette instead of a separate accent color. */
@@ -41,7 +41,7 @@ export function syncSystemBars(isDark: boolean) {
 
 export function AppearanceProvider({mode, setMode, chatDisplay, setChatDisplay, children}: {mode: ThemeMode; setMode: (mode: ThemeMode) => void; chatDisplay: ChatDisplayMode; setChatDisplay: (mode: ChatDisplayMode) => void; children: ReactNode}) {
   const system = useColorScheme();
-  const isDark = mode === 'dark' || (mode === 'system' && system !== 'light');
+  const isDark = mode === 'dark' || (mode === 'system' && system === 'dark');
   const colors = isDark ? darkChatColors : lightChatColors;
   useEffect(() => {
     syncSystemBars(isDark);
