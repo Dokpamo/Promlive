@@ -1,4 +1,4 @@
-export interface SheetScrollState {offset: number; canScroll: boolean}
+export interface SheetScrollState {offset: number; canScroll: boolean; maxOffset?: number; hasScrolled?: boolean; nativeGesture?: boolean}
 
 export const sheetPullLimits = {sideways: 16, upward: 72} as const;
 const resistance = 0.35;
@@ -16,7 +16,9 @@ export function sheetPullOrigin(pull: number, limit: number) {
 }
 
 export function shouldScrollSheet(scroll: SheetScrollState | undefined, dx: number, dy: number) {
-  return !!scroll?.canScroll && Math.abs(dy) > Math.abs(dx) && (dy < 0 || scroll.offset > 1);
+  return !!scroll?.canScroll && Math.abs(dy) > Math.abs(dx) && (dy < 0
+    ? scroll.maxOffset === undefined || scroll.offset < scroll.maxOffset - 1
+    : scroll.offset > 1);
 }
 
 /** Sideways drags and upward releases always return to the resting position. */

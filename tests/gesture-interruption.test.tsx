@@ -4,7 +4,8 @@ import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {usePanelMotion} from '../src/features/chat/usePanelMotion';
 import {useComposerPull} from '../src/features/chat/useComposerPull';
-import {SwipeBackModal, SwipeBackScrollContent} from '../src/layout/SwipeBackModal';
+import {SwipeBackModal, SwipeBackScrollContent, useSheetDrag} from '../src/layout/SwipeBackModal';
+import {sheetPullDistance, sheetPullLimits} from '../src/layout/sheetMotion';
 import {useSettingsSheetState} from '../src/features/settings/useSettingsSheetState';
 import type {Animated, GestureResponderEvent, PanResponderCallbacks, PanResponderGestureState} from 'react-native';
 
@@ -38,14 +39,14 @@ const native = vi.hoisted(() => {
       stop() {callback?.({finished: false});},
     };
   }
-  return {Value, values, springs, spring, reads, pans: [] as PanResponderCallbacks[], touchUpdates: [] as {index: number | undefined; pointerEvents: string}[], scrollStart: undefined as (() => boolean) | undefined, requestClose: undefined as (() => void) | undefined, flush: () => {while (reads.length) reads.shift()!();}};
+  return {Value, values, springs, spring, reads, pans: [] as PanResponderCallbacks[], touchUpdates: [] as {index: number | undefined; pointerEvents: string}[], scrollStart: undefined as (() => boolean) | undefined, scrollCapture: undefined as (() => boolean) | undefined, requestClose: undefined as (() => void) | undefined, flush: () => {while (reads.length) reads.shift()!();}};
 });
 
 vi.mock('react-native', async () => {
   const React = await import('react');
-  const View = ({children, testID, pointerEvents, mockPanIndex, onStartShouldSetResponder, ref}: {children?: ReactNode; testID?: string; pointerEvents?: string; mockPanIndex?: number; onStartShouldSetResponder?: () => boolean; ref?: Ref<{setNativeProps: (props: {pointerEvents: string}) => void}>}) => {
+  const View = ({children, testID, pointerEvents, mockPanIndex, onStartShouldSetResponder, onStartShouldSetResponderCapture, ref}: {children?: ReactNode; testID?: string; pointerEvents?: string; mockPanIndex?: number; onStartShouldSetResponder?: () => boolean; onStartShouldSetResponderCapture?: () => boolean; ref?: Ref<{setNativeProps: (props: {pointerEvents: string}) => void}>}) => {
     React.useImperativeHandle(ref, () => ({setNativeProps: props => native.touchUpdates.push({index: mockPanIndex, pointerEvents: props.pointerEvents})}), [mockPanIndex]);
-    if (onStartShouldSetResponder) native.scrollStart = onStartShouldSetResponder;
+    if (onStartShouldSetResponder) {native.scrollStart = onStartShouldSetResponder; native.scrollCapture = onStartShouldSetResponderCapture;}
     return <div data-testid={testID} data-pointer-events={pointerEvents} data-pan-index={mockPanIndex}>{children}</div>;
   };
   return {
@@ -85,6 +86,7 @@ afterEach(async () => {
   native.touchUpdates.length = 0;
   native.requestClose = undefined;
   native.scrollStart = undefined;
+  native.scrollCapture = undefined;
   document.body.replaceChildren();
 });
 const event = {} as GestureResponderEvent;
@@ -356,6 +358,69 @@ it('releases the closing sheet scroll responder before the next native view upda
     // Native can deliver the next DOWN while the outgoing view is still mounted.
     expect(oldScrollStart()).toBe(false);
   });
+});
+
+it('springs back from the first responder edge pull and pulls normally on a fresh touch', async () => {
+  const scroll = {current: {canScroll: true, offset: 100}};
+  await render(<SwipeBackModal sheet sheetHeight={400} onClose={vi.fn()}>{() =>
+    <SwipeBackScrollContent sheetScroll={scroll}>choices</SwipeBackScrollContent>
+  }</SwipeBackModal>);
+  native.values[0]!.setValue(0);
+  await act(async () => {
+    pan().onStartShouldSetPanResponderCapture!(event, gesture());
+    native.scrollCapture!();
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 50))).toBe(false);
+    scroll.current.offset = 0;
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 150))).toBe(true);
+    pan().onPanResponderGrant!(event, gesture());
+    native.flush();
+    expect(native.values[0]!.displayed).toBe(0);
+    pan().onPanResponderMove!(event, gesture(0, 250));
+    expect(native.values[0]!.displayed).toBeCloseTo(sheetPullDistance(250, sheetPullLimits.upward) / 400);
+    pan().onPanResponderRelease!(event, gesture(0, 250, 0, 2));
+    expect(native.springs.at(-3)?.target).toBe(0);
+    native.values[0]!.setValue(0);
+    pan().onStartShouldSetPanResponderCapture!(event, gesture());
+    native.scrollCapture!();
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 20))).toBe(true);
+    pan().onPanResponderGrant!(event, gesture());
+    native.flush();
+  });
+  expect(native.values[0]!.displayed).toBeCloseTo(20 / 400);
+});
+
+it.each([1, -1])('returns a native edge pull even after a long fast release in direction %s', async direction => {
+  const close = vi.fn(), dismiss = vi.fn();
+  let drag!: NonNullable<ReturnType<typeof useSheetDrag>>;
+  function Content() {drag = useSheetDrag()!; return null;}
+  await render(<SwipeBackModal sheet sheetHeight={400} onClose={close} onDismissStart={dismiss}>{() => <Content/>}</SwipeBackModal>);
+  native.values[0]!.setValue(0);
+  await act(async () => {
+    drag.begin(0, 0, true); native.flush();
+    drag.move(0, direction * 800);
+  });
+  const visible = native.values[0]!.displayed * 400 - native.values[1]!.displayed;
+  expect(visible).toBeCloseTo(sheetPullDistance(direction * 800, sheetPullLimits.upward));
+  await act(async () => drag.release(0, direction * 800, 0, direction * 3, false));
+  expect(native.springs.slice(-3).map(spring => spring.target)).toEqual([0, 0, 0]);
+  expect(dismiss).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  // A fresh touch can grab the still-returning popup without waiting or jumping.
+  await act(async () => {drag.begin(0, 0); native.flush();});
+  expect(native.values[0]!.displayed * 400 - native.values[1]!.displayed).toBeCloseTo(visible);
+  await act(async () => {drag.move(0, 1000); drag.release(0, 1000, 0, 2, false);});
+  expect(dismiss).toHaveBeenCalledOnce();
+});
+
+it('leaves managed native scrolling to its simultaneous gesture instead of a second pan', async () => {
+  const scroll = {current: {canScroll: true, offset: 0, nativeGesture: true}};
+  await render(<SwipeBackModal sheet sheetHeight={400} onClose={vi.fn()}>{() =>
+    <SwipeBackScrollContent sheetScroll={scroll}>choices</SwipeBackScrollContent>
+  }</SwipeBackModal>);
+  pan().onStartShouldSetPanResponderCapture!(event, gesture());
+  native.scrollCapture!();
+  expect(pan().onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+  expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 150))).toBe(false);
 });
 
 it.each(['choice', 'drag'])('stops native sheet scrolling before the %s exit spring starts', async source => {

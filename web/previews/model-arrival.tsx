@@ -37,12 +37,12 @@ function ArrivalStage({count}: {count: number}) {
   }, [count]);
 
   return <View style={{flex: 1, backgroundColor: p.background, padding: panelReference.sheetInset * s, justifyContent: 'center'}}>
-    <View style={{minHeight: 850 * s, borderRadius: panelReference.radius * s, backgroundColor: p.sheet, paddingHorizontal: panelReference.sheetPadding * s, paddingBottom: 42 * s, overflow: 'hidden'}}>
+    <View style={{minHeight: 850 * s, borderRadius: panelReference.radius * s, backgroundColor: p.sheet, paddingHorizontal: panelReference.sheetPadding * s, paddingBottom: panelReference.groupPadding * s, overflow: 'hidden'}}>
       <View style={{alignItems: 'center', paddingTop: panelReference.sheetHandle.top * s, height: 58 * s}}>
         <View style={{width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: p.divider}}/>
       </View>
       <Text style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, marginTop: 15 * s}}>모델</Text>
-      <Text accessibilityLiveRegion="polite" style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s, marginTop: 16 * s, marginBottom: 38 * s}}>{phase}</Text>
+      <Text accessibilityLiveRegion="polite" style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s, marginTop: 16 * s, marginBottom: panelReference.sheetContentGap * s}}>{phase}</Text>
       <AnimatedModelList models={models} selected={selected} onSelect={model => setSelected(model.id)}/>
     </View>
   </View>;

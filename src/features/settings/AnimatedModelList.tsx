@@ -1,6 +1,6 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, View} from 'react-native';
-import {SettingsChoice, useSettingsScale} from './SettingsLayout';
+import {panelReference, SettingsChoice, useSettingsScale} from './SettingsLayout';
 import type {AiModelPreview} from './aiSettingsModel';
 
 export const catalogArrivalMotion = {scale: 0.965, opacity: 0, offset: -12} as const;
@@ -30,6 +30,7 @@ export function AnimatedModelList({models, selected, onSelect, timing = catalogA
   timing?: CatalogArrivalTiming;
 }) {
   const s = useSettingsScale();
+  const inset = panelReference.sheetPadding * s;
   const previous = useRef(models);
   const progress = useRef(new Animated.Value(1)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -68,8 +69,8 @@ export function AnimatedModelList({models, selected, onSelect, timing = catalogA
   const shift = phaseProgress(progress, 0, timing.shiftDuration, duration, Easing.bezier(0.22, 1, 0.36, 1));
   const reveal = phaseProgress(progress, timing.revealDelay, timing.revealDuration, duration, Easing.bezier(0.25, 0.1, 0.25, 1));
   return <View testID="model-catalog-list">
-    {batch.added.length > 0 && <Animated.View testID="model-catalog-arrivals" style={{height: shift.interpolate({inputRange: [0, 1], outputRange: [0, height]}), overflow: 'hidden', marginHorizontal: -20 * s, paddingHorizontal: 20 * s}}>
-      <Animated.View key={batch.revision} onLayout={event => setMeasurement({revision: batch.revision, height: event.nativeEvent.layout.height})} style={{position: 'absolute', left: 20 * s, right: 20 * s, opacity: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.opacity, 1]}), transformOrigin: 'top center', transform: [{translateY: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.offset * s, 0]})}, {scale: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.scale, 1]})}]}}>
+    {batch.added.length > 0 && <Animated.View testID="model-catalog-arrivals" style={{height: shift.interpolate({inputRange: [0, 1], outputRange: [0, height]}), overflow: 'hidden', marginHorizontal: -inset, paddingHorizontal: inset}}>
+      <Animated.View key={batch.revision} onLayout={event => setMeasurement({revision: batch.revision, height: event.nativeEvent.layout.height})} style={{position: 'absolute', left: inset, right: inset, opacity: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.opacity, 1]}), transformOrigin: 'top center', transform: [{translateY: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.offset * s, 0]})}, {scale: reveal.interpolate({inputRange: [0, 1], outputRange: [catalogArrivalMotion.scale, 1]})}]}}>
         {batch.added.map(row)}
       </Animated.View>
     </Animated.View>}

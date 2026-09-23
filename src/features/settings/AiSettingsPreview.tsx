@@ -88,7 +88,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       {saveError && <AiCaption>{saveError}</AiCaption>}
       <SettingsGroup>
         <SettingsRow label="프로바이더" value={service.name} onPress={() => {Keyboard.dismiss(); setSheet({kind: 'services'});}}/>
-        {routes.length > 1 && <SettingsRow label="연결 방식" value={route.name} onPress={() => select('연결 방식', route.id, routes.map(item => ({value: item.id, label: item.name, detail: item.detail})), id => {
+        {routes.length > 1 && <SettingsRow label="연결 방식" value={route.name} onPress={() => select('연결 방식', route.id, routes.map(item => ({value: item.id, label: item.name})), id => {
           onChange(old => ({...old, connections: {...old.connections, [service.id]: chooseConnectionRoute(service, old.connections[service.id], id)}}));
           setNotice('');
         })}/>}

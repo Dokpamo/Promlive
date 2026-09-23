@@ -1767,6 +1767,28 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - ReactNativeDependencies (0.81.6)
+  - RNGestureHandler (2.28.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNKeychain (10.0.0):
     - hermes-engine
     - RCTRequired
@@ -1863,6 +1885,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "ReactNativeBlur (from `../node_modules/@sbaiahmed1/react-native-blur`)"
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNKeychain (from `../node_modules/react-native-keychain`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -2008,6 +2031,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@sbaiahmed1/react-native-blur"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNGestureHandler:
+    :path: "../node_modules/react-native-gesture-handler"
   RNKeychain:
     :path: "../node_modules/react-native-keychain"
   Yoga:
@@ -2084,6 +2109,7 @@ SPEC CHECKSUMS:
   ReactCommon: a6d92d1cfe02ed622d05194d3592c87626ed14cd
   ReactNativeBlur: 3d15640110fb4f9e4746575e209d2d3e8baf6d95
   ReactNativeDependencies: 3854fa4300cf7659f4c5b788765cd47a0feb657a
+  RNGestureHandler: 2914750df066d89bf9d8f48a10ad5f0051108ac3
   RNKeychain: 667b7bd224f14055ae4cb52b41a82ad0ad70574f
   Yoga: 786fa7d9d2ff6060b4e688062243fa69c323d140
 

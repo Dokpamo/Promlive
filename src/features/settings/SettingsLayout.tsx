@@ -9,6 +9,7 @@ import {SettingsIcon} from './SettingsIcon';
 import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from '../../layout/SwipeBackModal';
 import type {SheetScrollState} from '../../layout/sheetMotion';
+import {SheetScrollView} from '../../layout/SheetScrollView';
 import {panelReference} from '../../layout/panelGeometry';
 import {SettingsTextEditorHost} from './SettingsTextField';
 
@@ -94,18 +95,23 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   // Choice lists fit their content; reading surfaces may reserve the full height.
   const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
-  scroll.current.canScroll = bodyHeight > height - handleHeight + 1;
+  scroll.current.maxOffset = Math.max(0, bodyHeight - (height - handleHeight));
+  scroll.current.canScroll = scroll.current.maxOffset > 1;
   return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: panelReference.sheetInset * s, paddingBottom: bottom}}>
     <SwipeBackBoundary style={{position: 'absolute', inset: 0}}><Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <Animated.View testID="settings-sheet" accessibilityViewIsModal style={[{width: '100%', maxWidth: 560, height, borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: handleHeight, flexShrink: 0, alignItems: 'center', paddingTop: panelReference.sheetHandle.top * s}}><View style={{width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
-      <ScrollView ref={scrollView} scrollEnabled={!closing} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16} contentContainerStyle={{paddingHorizontal: panelReference.sheetPadding * s, paddingTop: 15 * s, paddingBottom: 42 * s}}>
+      <SheetScrollView ref={scrollView} sheetScroll={scroll} scrollEnabled={!closing} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {
+        const offset = Math.max(0, event.nativeEvent.contentOffset.y);
+        if (Math.abs(offset - scroll.current.offset) > 0.5) scroll.current.hasScrolled = true;
+        scroll.current.offset = offset;
+      }} scrollEventThrottle={16} contentContainerStyle={{paddingHorizontal: panelReference.sheetPadding * s, paddingTop: 15 * s, paddingBottom: panelReference.groupPadding * s}}>
         <SwipeBackScrollContent sheetScroll={scroll}>
           <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
           {caption && <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 36 * s, marginTop: 20 * s}}>{caption}</Text>}
-          <View style={{marginTop: 38 * s}}>{children(close)}</View>
+          <View style={{marginTop: panelReference.sheetContentGap * s}}>{children(close)}</View>
         </SwipeBackScrollContent>
-      </ScrollView>
+      </SheetScrollView>
     </Animated.View>
   </View></SettingsTextEditorHost>}</SwipeBackModal>;
 }
@@ -114,9 +120,9 @@ export function SettingsChoice({label, detail, selected, onPress}: {label: strin
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
   const radius = useSettingsRadius('control');
-  return <RowPressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} selected={selected} selectedHighlight="pressed" onPress={onPress} radius={radius} style={{marginHorizontal: -20 * s}} contentStyle={{minHeight: 94 * s, paddingHorizontal: 20 * s, paddingVertical: 20 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s}}>
+  return <RowPressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{checked: selected}} aria-checked={selected} selected={selected} selectedHighlight="pressed" onPress={onPress} radius={radius} highlightInset={panelReference.highlightInset * s} style={{marginHorizontal: -panelReference.sheetPadding * s}} contentStyle={{minHeight: panelReference.rowHeight * s, paddingHorizontal: panelReference.rowInset * s, paddingVertical: panelReference.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
     <View style={{flex: 1, gap: 5 * s}}>
-      <Text style={{color: selected ? p.accent : p.text, fontSize: 28 * s, lineHeight: 40 * s, fontWeight: '600', includeFontPadding: false}}>{label}</Text>
+      <Text style={{color: selected ? p.accent : p.text, fontSize: panelReference.rowFont * s, lineHeight: panelReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{label}</Text>
       {detail && <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s}}>{detail}</Text>}
     </View>
     <View style={{width: 34 * s, alignItems: 'center'}}>{selected && <SettingsIcon name="check" size={32 * s} color={p.accent}/>}</View>
