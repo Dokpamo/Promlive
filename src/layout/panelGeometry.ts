@@ -10,7 +10,7 @@ export const panelReference = {
   subtitle: {fontSize: 24, lineHeight: 34, bottom: 16, sectionTop: 14},
   highlightInset: 8,
   toggle: {width: 76, height: 44, inset: 4},
-  profileSize: 96, profileInset: 11, profileGap: 27, profileBottom: 42,
+  profileSize: 180, profileInset: 34, profileGap: 20, profileBottom: 42,
   sheetInset: 17, sheetPadding: rowInset, sheetContentGap: 38,
   sheetHandle: {width: 82, height: 7, radius: 4, top: 21},
 } as const;

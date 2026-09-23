@@ -15,6 +15,8 @@ import {DrawerGestureBoundary} from './DrawerGestureBoundary';
 import {usePressFeedback} from '../../layout/usePressFeedback';
 import {rowPressedScale, RowPressable} from '../../layout/RowPressable';
 import {panelReference} from '../../layout/panelGeometry';
+import {UserAvatar} from '../profile/UserAvatar';
+import {useUserProfile} from '../profile/UserProfileContext';
 
 interface Props {
   cards: readonly Card[];
@@ -36,6 +38,7 @@ interface Props {
 /** Shared search/create controls stay above the card history popup. */
 export function ChatHistory({cards: allCards, cardActions, active, selectedCardId, startChat, report, width, historyCard, historyProgress, historySearch, onHistorySearch, openCard, close, openSettings}: Props) {
   const {colors: c} = useAppearance();
+  const {value: profile} = useUserProfile();
   const [cardSearch, setCardSearch] = useState('');
   const insets = useSafeAreaInsets();
   const s = width / r.width;
@@ -65,8 +68,8 @@ export function ChatHistory({cards: allCards, cardActions, active, selectedCardI
     </View>
     <View testID="sidebar-footer" style={{height: (r.footerHeight + r.footerBottom) * s, flexShrink: 0}}>
       <RowPressable testID="sidebar-account" accessibilityRole="button" accessibilityLabel="사용자 계정" accessibilityHint="설정 열기" onPress={openSettings} radius={r.rowRadius * s} style={{position: 'absolute', left: r.rowInset * s, right: r.rowInset * s, top: 0, height: r.footerHeight * s}} contentStyle={{height: '100%', paddingHorizontal: (r.accountAvatarLeft - r.rowInset) * s, flexDirection: 'row', alignItems: 'center'}}>
-        <View accessible={false} style={{width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: '#000000'}}/>
-        <Text numberOfLines={1} style={{flex: 1, marginLeft: (r.accountNameLeft - r.accountAvatarLeft - r.avatar) * s, color: c.text, fontSize: 26 * s, lineHeight: 35 * s, fontWeight: '600', includeFontPadding: false}}>사용자</Text>
+        <UserAvatar testID="sidebar-user-avatar" image={profile.image} size={r.avatar * s}/>
+        <Text numberOfLines={1} style={{flex: 1, marginLeft: (r.accountNameLeft - r.accountAvatarLeft - r.avatar) * s, color: c.text, fontSize: 26 * s, lineHeight: 35 * s, fontWeight: '600', includeFontPadding: false}}>{profile.name}</Text>
       </RowPressable>
     </View>
   </View>;

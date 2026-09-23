@@ -3,7 +3,6 @@ import {ActivityIndicator, Text, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../../layout/metrics';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
-import {SettingsIcon} from './SettingsIcon';
 import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, panelReference as r, useSettingsScale} from './SettingsLayout';
@@ -13,14 +12,16 @@ import {useSettingsSheetState} from './useSettingsSheetState';
 import {SettingsTextField} from './SettingsTextField';
 import {SummaryExtensionSettings} from '../../extensions/SummaryExtensionSettings';
 import type {SummaryExtensions} from '../../extensions/SummaryExtensions';
+import {UserAvatar} from '../profile/UserAvatar';
+import {useUserProfile} from '../profile/UserProfileContext';
+import {ProfileSheet} from '../profile/ProfileSheet';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
 type Persona = {name: string; description: string};
 const pageTitles: Record<Page, string> = {ai: 'AI', persona: '페르소나', prompt: '프롬프트', theme: '테마', plugins: '플러그인', about: '정보'};
-const sheetTitles: Record<Sheet, string> = {profile: '내 정보', theme: '화면 색상', display: '대화 표시', language: '언어'};
+const sheetTitles: Record<Exclude<Sheet, 'profile'>, string> = {theme: '화면 색상', display: '대화 표시', language: '언어'};
 const sheetCaptions: Partial<Record<Sheet, string>> = {
-  profile: '프로필에 표시할 이름을 설정해요.',
   theme: '편안하게 사용할 화면 테마를 선택해요.',
   display: '같은 대화를 원하는 모습으로 읽어보세요.',
   language: '앱에서 사용할 언어를 선택해요.',
@@ -28,7 +29,7 @@ const sheetCaptions: Partial<Record<Sheet, string>> = {
 // Keep this order fixed. Usage frequency never rearranges the settings.
 const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
 
-/** Appearance, AI preferences and separately stored API keys persist; login remains a preview. */
+/** Appearance, user profile and AI preferences persist locally. */
 export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, extensions}: {
   onClose: () => void; ai: AiSettingsPreviewState; onAiChange: Dispatch<SetStateAction<AiSettingsPreviewState>>; aiReady: boolean; aiError: string;
   extensions?: SummaryExtensions;
@@ -37,14 +38,13 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
   const s = useSettingsScale();
   const {sheet: page, sheetKey: pageKey, setSheet: setPage, closeSheet: closePage} = useSettingsSheetState<Page>();
   const {sheet, sheetKey, setSheet, closeSheet} = useSettingsSheetState<Sheet>();
-  const [name, setName] = useState('사용자');
+  const {value: profile} = useUserProfile();
   const [language, setLanguage] = useState('한국어');
   const [persona, setPersona] = useState<Persona>({name: '기본', description: ''});
   const [prompt, setPrompt] = useState('');
   const choose = (setter: (value: string) => void, value: string, close: () => void) => {setter(value); close();};
   const values = {ai: aiServices.find(service => service.id === ai.service)?.name, persona: persona.name, prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
-  const renderSheet = () => sheet !== null && <SettingsSheet key={sheetKey} title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
-    {sheet === 'profile' && <ProfileEditor value={name} onApply={value => {setName(value); dismiss();}}/>}
+  const renderSheet = () => sheet === 'profile' ? <ProfileSheet key={sheetKey} onClose={closeSheet}/> : sheet !== null && <SettingsSheet key={sheetKey} title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
     {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
     {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}
     {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
@@ -52,13 +52,9 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 
   return <SwipeBackModal onClose={onClose}>{close => <>
     <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
-      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{marginBottom: r.profileBottom * s}} contentStyle={{flexDirection: 'row', alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, minHeight: r.profileSize * s}}>
-        <View accessible={false} style={{width: r.profileSize * s, height: r.profileSize * s, borderRadius: r.profileSize * s / 2, backgroundColor: p.avatarBackground, alignItems: 'center'}}>
-          <View style={{position: 'absolute', top: 20 * s, width: 26 * s, height: 26 * s, borderRadius: 13 * s, backgroundColor: p.avatarForeground}}/>
-          <View style={{position: 'absolute', top: 49 * s, width: 51 * s, height: 26 * s, borderTopLeftRadius: 30 * s, borderTopRightRadius: 30 * s, borderBottomLeftRadius: 14 * s, borderBottomRightRadius: 14 * s, backgroundColor: p.avatarForeground}}/>
-        </View>
-        <View style={{flex: 1, gap: 8 * s}}><Text numberOfLines={1} style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', includeFontPadding: false}}>{name}</Text><Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 34 * s, includeFontPadding: false}}>내 정보</Text></View>
-        <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
+      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{alignSelf: 'center', maxWidth: '100%', marginBottom: r.profileBottom * s}} contentStyle={{alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, paddingVertical: 16 * s}}>
+        <UserAvatar testID="settings-user-avatar" image={profile.image} size={r.profileSize * s}/>
+        <Text numberOfLines={1} style={{color: p.text, textAlign: 'center', fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{profile.name}</Text>
       </RowPressable>
       {settingsGroups.map((group, index) => <SettingsGroup key={index}>
         {group.map(key => <SettingsRow key={key} label={key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
@@ -89,11 +85,6 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 function SettingsField({label, value, onChange, placeholder, multiline = false, maxLength = 100}: {label: string; value: string; onChange: (value: string) => void; placeholder: string; multiline?: boolean; maxLength?: number}) {
   const s = useSettingsScale();
   return <View style={{marginTop: 24 * s}}><SettingsTextField label={label} value={value} onChange={onChange} placeholder={placeholder} multiline={multiline} maxLength={maxLength} autoCapitalize="sentences"/></View>;
-}
-
-function ProfileEditor({value, onApply}: {value: string; onApply: (value: string) => void}) {
-  const [name, setName] = useState(value);
-  return <><SettingsField label="이름" value={name} onChange={setName} placeholder="이름을 입력해 주세요" maxLength={24}/><SettingsSave disabled={!name.trim()} onPress={() => onApply(name.trim())}/></>;
 }
 
 function PersonaEditor({value, onApply}: {value: Persona; onApply: (value: Persona) => void}) {

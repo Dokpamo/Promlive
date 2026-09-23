@@ -16,6 +16,8 @@ import {AiCatalogContext} from './src/features/settings/AiCatalogContext';
 import {AiSettingsPreferences} from './src/features/settings/aiSettingsPreferences';
 import {credentialStore} from './src/adapters/credentials/store';
 import {AppearanceProvider, storedTheme, themeSettingKey, useAppearance, type ThemeMode} from './src/features/appearance/AppAppearance';
+import {UserProfilePreferences} from './src/features/profile/userProfile';
+import {UserProfileProvider} from './src/features/profile/UserProfileContext';
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -63,6 +65,7 @@ function AppContent({workspace, error}: {workspace: Workspace | null; error: str
 function ChatApp({workspace: w}: {workspace: Workspace}) {
   useSyncExternalStore(w.subscribe, w.snapshot);
   useSyncExternalStore(w.history.subscribe, w.history.snapshot);
+  const profile = useMemo(() => new UserProfilePreferences(w.runtime.repo), [w.runtime.repo]);
   const catalogCache = useMemo(() => new AiCatalogCache(w.runtime.repo), [w.runtime.repo]);
   useEffect(() => {void catalogCache.load();}, [catalogCache]);
   const aiPreferences = useMemo(() => w.runtime.aiPreferences ?? new AiSettingsPreferences(w.runtime.repo, credentialStore), [w.runtime]);
@@ -71,10 +74,10 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {Keyboard.dismiss(); setSettingsOpen(true);};
   const {width} = useWindowDimensions();
-  return <><ChatDrawer cardItems={w.cards} cardActions={w.cardActions} historyList={w.history} startChat={card => card ? w.startChat(card, true) : w.newGeneralChat()} openConversation={item => w.openConversation(item)} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen}>{openHistory => <View style={{flex: 1}}>
+  return <UserProfileProvider store={profile}><ChatDrawer cardItems={w.cards} cardActions={w.cardActions} historyList={w.history} startChat={card => card ? w.startChat(card, true) : w.newGeneralChat()} openConversation={item => w.openConversation(item)} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen}>{openHistory => <View style={{flex: 1}}>
     <WorkspaceChat key={w.history.selected?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.history.selected?.title ?? '새로운 대화'} conversationId={w.history.selected?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>}/>
     <NotificationToast notifications={w.notifications} width={width}/>
   </View>}</ChatDrawer>
     {settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>}
-  </>;
+  </UserProfileProvider>;
 }
