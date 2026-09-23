@@ -5,8 +5,10 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.widget.EditText
 import android.widget.ScrollView
+import com.facebook.react.views.scroll.ReactScrollView
 import kotlin.math.abs
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** Preserve the reading position; only reveal the active insertion/selection end. */
 internal class EditorCaretVisibility(private val host: View) {
@@ -20,6 +22,9 @@ internal class EditorCaretVisibility(private val host: View) {
     val start: Int,
     val end: Int,
     val length: Int,
+    val viewport: Int,
+    val caretTop: Int,
+    val caretBottom: Int,
   )
   private var previous: Frame? = null
   private var downX = 0f
@@ -29,8 +34,20 @@ internal class EditorCaretVisibility(private val host: View) {
   private val slop = ViewConfiguration.get(host.context).scaledTouchSlop
   private val location = IntArray(2)
   private val rootLocation = IntArray(2)
+  private var transitionActive = false
+  private var anchor: EditorScrollAnchor? = null
+  val isTransitioning: Boolean get() = transitionActive || anchor != null
 
-  fun reset() { previous = null; touchingEditor = false; userScrolling = false }
+  fun reset() { previous = null; touchingEditor = false; userScrolling = false; anchor = null }
+
+  fun setTransitioning(active: Boolean, ime: Int) {
+    transitionActive = active
+    if (!active) return // Apply the anchor to the final layout before releasing it.
+    val editor = host.findFocus() as? EditText ?: return
+    val source = previous?.takeIf { it.editor === editor } ?: frame(editor, ime)
+    anchor = EditorScrollAnchor(source.scroll, source.viewport, source.caretTop, source.caretBottom, !userScrolling)
+    previous = source
+  }
 
   fun touch(event: MotionEvent) {
     when (event.actionMasked) {
@@ -41,7 +58,12 @@ internal class EditorCaretVisibility(private val host: View) {
           event.rawY >= location[1] && event.rawY < location[1] + editor.height
         downX = event.rawX; downY = event.rawY; userScrolling = false
       }
-      MotionEvent.ACTION_MOVE -> if (touchingEditor && (abs(event.rawX - downX) > slop || abs(event.rawY - downY) > slop)) userScrolling = true
+      MotionEvent.ACTION_MOVE -> if (touchingEditor && (abs(event.rawX - downX) > slop || abs(event.rawY - downY) > slop)) {
+        userScrolling = true
+        // A new editing/reading gesture can interrupt the morph immediately.
+        transitionActive = false
+        anchor = null
+      }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touchingEditor = false
     }
   }
@@ -62,8 +84,23 @@ internal class EditorCaretVisibility(private val host: View) {
 
   private fun frame(editor: EditText, ime: Int): Frame {
     val scroller = editorScroller(editor)
+    val layout = editor.layout
+    val line = layout?.getLineForOffset(editor.selectionEnd.coerceIn(0, editor.length())) ?: 0
     return Frame(editor, scroller, scroller?.scrollY ?: editor.scrollY, scroller?.height ?: editor.height, editor.width, ime,
-      editor.selectionStart, editor.selectionEnd, editor.length())
+      editor.selectionStart, editor.selectionEnd, editor.length(), viewport(editor, scroller, ime),
+      layout?.getLineTop(line) ?: 0, layout?.getLineBottom(line) ?: 0)
+  }
+
+  private fun viewport(editor: EditText, scroller: ScrollView?, ime: Int): Int {
+    editor.getLocationOnScreen(location)
+    editor.rootView.getLocationOnScreen(rootLocation)
+    val keyboardTop = rootLocation[1] + editor.rootView.height - ime
+    if (scroller == null) return maxOf(1, min(editor.height, keyboardTop - location[1]) - editor.totalPaddingTop - editor.totalPaddingBottom)
+    val editorTop = location[1]
+    scroller.getLocationOnScreen(location)
+    val topInset = maxOf(0, editorTop - location[1] + scroller.scrollY)
+    val bottomInset = maxOf(0, (scroller.getChildAt(0)?.height ?: 0) - topInset - editor.height)
+    return composerCaretViewport(scroller.height, keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
   }
 
   /** Runs after TextView's pre-draw auto-scroll, before any pixels are drawn. */
@@ -75,6 +112,22 @@ internal class EditorCaretVisibility(private val host: View) {
     if (old == null || old.editor !== editor || old.scroller !== current.scroller) { previous = current; return }
     val selectionChanged = editor.selectionStart != old.start || editor.selectionEnd != old.end
     val textChanged = editor.length() != old.length
+    val scroller = current.scroller
+    if (isTransitioning && scroller != null) {
+      if (anchor == null || selectionChanged || textChanged) {
+        val baseline = if (selectionChanged || textChanged) current else old
+        anchor = EditorScrollAnchor(baseline.scroll, baseline.viewport, current.caretTop, current.caretBottom, !userScrolling)
+      }
+      // ScrollView starts its own focus/resize smooth-scroll. Cancel that competing
+      // animation and derive this frame from the one anchor captured at the start.
+      (scroller as? ReactScrollView)?.let { it.abortAnimation(); it.flingAnimator.cancel() }
+      if (editor.scrollY != 0) editor.scrollTo(editor.scrollX, 0)
+      val next = anchor!!.offset(current.viewport, maxOf(0, layout.height - current.viewport))
+      if (next != scroller.scrollY) scroller.scrollTo(scroller.scrollX, next)
+      previous = frame(editor, ime)
+      if (!transitionActive) anchor = null
+      return
+    }
     val resized = current.height != old.height || editor.width != old.width
     val keyboardChanged = ime != old.ime
     if (!resized && !keyboardChanged && !selectionChanged && !textChanged) { capture(ime); return }
@@ -86,21 +139,7 @@ internal class EditorCaretVisibility(private val host: View) {
     val offset = (if (editor.selectionStart != old.start && editor.selectionEnd == old.end) editor.selectionStart else editor.selectionEnd)
       .coerceIn(0, editor.length())
     val line = layout.getLineForOffset(offset)
-    editor.getLocationOnScreen(location)
-    editor.rootView.getLocationOnScreen(rootLocation)
-    val keyboardTop = rootLocation[1] + editor.rootView.height - ime
-    val scroller = current.scroller
-    val viewport = if (scroller == null) {
-      maxOf(1, min(editor.height, keyboardTop - location[1]) - editor.totalPaddingTop - editor.totalPaddingBottom)
-    } else {
-      val editorTop = location[1]
-      scroller.getLocationOnScreen(location)
-      // These spacers belong to the scroll content, so reading can pass behind
-      // the floating buttons. Only the active caret must stay in the clear area.
-      val topInset = maxOf(0, editorTop - location[1] + scroller.scrollY)
-      val bottomInset = maxOf(0, (scroller.getChildAt(0)?.height ?: 0) - topInset - editor.height)
-      composerCaretViewport(scroller.height, keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
-    }
+    val viewport = current.viewport
     val maxScroll = maxOf(0, layout.height - viewport)
     val baseline = if (textChanged) current.scroll else old.scroll
     val reveal = selectionChanged || textChanged || ime > old.ime || current.height < old.height || editor.width != old.width
@@ -111,6 +150,16 @@ internal class EditorCaretVisibility(private val host: View) {
     }
     previous = frame(editor, ime)
   }
+}
+
+/** Keep a visible caret at the same relative height; offscreen reading stays at its top line. */
+internal class EditorScrollAnchor(scroll: Int, viewport: Int, caretTop: Int, caretBottom: Int, follow: Boolean) {
+  private val visible = follow && caretTop >= scroll && caretBottom <= scroll + viewport
+  private val point = if (visible) caretBottom else scroll
+  private val fraction = if (visible) (point - scroll).toFloat() / maxOf(1, viewport) else 0f
+
+  fun offset(viewport: Int, maxScroll: Int): Int =
+    (point - fraction * viewport).roundToInt().coerceIn(0, maxOf(0, maxScroll))
 }
 
 internal fun composerCaretViewport(height: Int, keyboardTop: Int, topInset: Int, bottomInset: Int): Int =

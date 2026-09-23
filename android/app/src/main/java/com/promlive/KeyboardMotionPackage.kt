@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.view.ViewGroup
 import android.view.MotionEvent
 import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
@@ -18,6 +19,7 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -47,16 +49,27 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   var followCaret = false
     set(value) {
       if (value && !field) caret.capture(caretIme)
-      if (!value) caret.reset()
+      if (!value && !caret.isTransitioning) caret.reset()
       field = value
     }
+  var anchorEditor = false
+    set(value) {
+      if (value != field) caret.setTransitioning(value, caretIme)
+      field = value
+    }
+  internal var composerGeometry: ComposerDockGeometry? = null
+    set(value) { field = value; positionDock() }
+  private var composerSurface: View? = null
   private var frozenIme = 0
   private var imeHeight = 0
   private val caretIme: Int get() = if (Build.VERSION.SDK_INT >= 30) imeHeight else 0
   private var lastReported = -1
   private val motion = KeyboardInsetMotion(publish = ::updateHeight)
   private val caret = EditorCaretVisibility(this)
-  private val beforeDraw = ViewTreeObserver.OnDrawListener { if (followCaret) caret.beforeDraw(caretIme) }
+  private val beforeDraw = ViewTreeObserver.OnDrawListener {
+    if (composerGeometry != null) positionDock()
+    if (followCaret || caret.isTransitioning) caret.beforeDraw(caretIme)
+  }
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean {
     if (followCaret) caret.touch(event)
@@ -66,7 +79,26 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   private fun positionDock() {
     // Older Android versions still use the window's adjustResize fallback.
     val dockIme = if (freezeKeyboard) frozenIme else imeHeight
-    translationY = if (Build.VERSION.SDK_INT >= 30) -maxOf(0f, dockIme - bottomInset) * dockFraction else 0f
+    val geometry = composerGeometry
+    val surface = if (geometry == null) null else findComposerSurface()
+    val fraction = if (geometry != null && surface != null && surface.height > 0) geometry.fraction(surface.height) else dockFraction
+    translationY = if (Build.VERSION.SDK_INT >= 30) -maxOf(0f, dockIme - bottomInset) * fraction else 0f
+  }
+
+  private fun findComposerSurface(): View? {
+    composerSurface?.takeIf { it.isAttachedToWindow }?.let { return it }
+    fun matches(view: View) = view.getTag(com.facebook.react.R.id.view_tag_native_id) == "promlive-composer-surface"
+    var ancestor = parent
+    while (ancestor is View) {
+      if (matches(ancestor)) { composerSurface = ancestor; return ancestor }
+      ancestor = ancestor.parent
+    }
+    fun descendant(view: View): View? {
+      if (matches(view)) return view
+      if (view is ViewGroup) for (i in 0 until view.childCount) descendant(view.getChildAt(i))?.let { return it }
+      return null
+    }
+    return descendant(this)?.also { composerSurface = it }
   }
 
   private fun updateHeight(height: Int) {
@@ -126,6 +158,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   override fun onDetachedFromWindow() {
     if (viewTreeObserver.isAlive) viewTreeObserver.removeOnDrawListener(beforeDraw)
     caret.reset()
+    composerSurface = null
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
     ViewCompat.setWindowInsetsAnimationCallback(this, null)
     motion.reset()
@@ -149,6 +182,16 @@ class KeyboardMotionViewManager : ReactViewManager() {
   fun setFreezeKeyboard(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).freezeKeyboard = value }
   @ReactProp(name = "followCaret", defaultBoolean = false)
   fun setFollowCaret(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).followCaret = value }
+  @ReactProp(name = "anchorEditor", defaultBoolean = false)
+  fun setAnchorEditor(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).anchorEditor = value }
+  @ReactProp(name = "composerGeometry")
+  fun setComposerGeometry(view: ReactViewGroup, value: ReadableMap?) {
+    val density = view.resources.displayMetrics.density
+    (view as KeyboardMotionView).composerGeometry = value?.let {
+      ComposerDockGeometry(it.getDouble("compactHeight").toFloat() * density,
+        it.getDouble("expandedHeight").toFloat() * density, it.hasKey("footer") && it.getBoolean("footer"))
+    }
+  }
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     (super.getExportedCustomDirectEventTypeConstants() ?: emptyMap()).toMutableMap().apply {
       put("topKeyboardFrame", mapOf("registrationName" to "onKeyboardFrame"))

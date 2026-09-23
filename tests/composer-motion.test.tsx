@@ -89,6 +89,17 @@ it('restores the whole available editor viewport after the keyboard disappears',
   expect(change).not.toHaveBeenCalled();
 });
 
+it('keeps the text column width unchanged through expansion and collapse', async () => {
+  await render();
+  const viewport = () => document.querySelector<HTMLElement>('[data-testid="composer-scroll-viewport"]')!;
+  const compactWidth = parseFloat(viewport().style.width);
+  expect(compactWidth).toBeGreaterThan(300);
+  await press('입력창 크게 열기');
+  expect(parseFloat(viewport().style.width)).toBe(compactWidth);
+  await press('입력창 접기');
+  expect(parseFloat(viewport().style.width)).toBe(compactWidth);
+});
+
 it('requests focus immediately and starts the morph when the keyboard starts moving', async () => {
   opening.defer = true;
   await render();

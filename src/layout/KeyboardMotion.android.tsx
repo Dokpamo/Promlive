@@ -6,6 +6,8 @@ interface KeyboardProps extends ViewProps {
   bottomInset?: number;
   freezeKeyboard?: boolean;
   followCaret?: boolean;
+  anchorEditor?: boolean;
+  composerGeometry?: {compactHeight: number; expandedHeight: number; footer?: boolean} | undefined;
   onKeyboardFrame?: (event: NativeSyntheticEvent<{height: number}>) => void;
 }
 const NativeKeyboardView = requireNativeComponent<KeyboardProps>('PromliveKeyboardView');
@@ -22,6 +24,6 @@ export function KeyboardMotionProvider({children}: {children: ReactNode}) {
 
 export function useKeyboardFrame() {return useContext(KeyboardFrame);}
 
-export function KeyboardDock({children, fraction, bottomInset, freezeKeyboard, followCaret}: {children: ReactNode; fraction: Animated.AnimatedInterpolation<number>; bottomInset: number; freezeKeyboard: boolean; followCaret: boolean}) {
-  return <AnimatedKeyboardView testID="keyboard-dock" pointerEvents="box-none" dockFraction={fraction} bottomInset={bottomInset} freezeKeyboard={freezeKeyboard} followCaret={followCaret} style={{position: 'absolute', inset: 0}}>{children}</AnimatedKeyboardView>;
+export function KeyboardDock({children, fraction, bottomInset, freezeKeyboard, followCaret, anchorEditor = false, composerGeometry}: {children: ReactNode; fraction: Animated.AnimatedInterpolation<number>; bottomInset: number; freezeKeyboard: boolean; followCaret: boolean; anchorEditor?: boolean; composerGeometry?: KeyboardProps['composerGeometry']}) {
+  return <AnimatedKeyboardView testID="keyboard-dock" pointerEvents="box-none" dockFraction={composerGeometry ? 0 : fraction} bottomInset={bottomInset} freezeKeyboard={freezeKeyboard} followCaret={followCaret} anchorEditor={anchorEditor} composerGeometry={composerGeometry} style={{position: 'absolute', inset: 0}}>{children}</AnimatedKeyboardView>;
 }

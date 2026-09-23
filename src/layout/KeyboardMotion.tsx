@@ -24,7 +24,7 @@ export function KeyboardMotionProvider({children}: {children: ReactNode}) {
 
 export function useKeyboardFrame() {return useContext(KeyboardFrame);}
 
-export function KeyboardDock({children, fraction, bottomInset, freezeKeyboard}: {children: ReactNode; fraction: Animated.AnimatedInterpolation<number>; bottomInset: number; freezeKeyboard: boolean; followCaret: boolean}) {
+export function KeyboardDock({children, fraction, bottomInset, freezeKeyboard}: {children: ReactNode; fraction: Animated.AnimatedInterpolation<number>; bottomInset: number; freezeKeyboard: boolean; followCaret: boolean; anchorEditor?: boolean; composerGeometry?: {compactHeight: number; expandedHeight: number; footer?: boolean} | undefined}) {
   const {motion} = useContext(KeyboardFrame);
   const live = useRef(0);
   const frozen = useRef(new Animated.Value(0)).current;
