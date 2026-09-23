@@ -53,7 +53,7 @@ export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: s
     <PressSurface testID={field.testID} accessibilityRole="button" accessibilityLabel={field.label}
       accessibilityValue={{text: field.secret ? field.value ? '등록됨' : '입력 안 함' : field.value || '입력 안 함'}}
       accessibilityHint="눌러서 입력창 열기" onPress={() => open?.(field)} radius={r.controlRadius * s} highlightColor={p.selected}
-      contentStyle={{minHeight: 84 * s, paddingHorizontal: 24 * s, paddingVertical: 20 * s, backgroundColor: p.surface, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
+      contentStyle={{minHeight: 84 * s, paddingHorizontal: r.rowInset * s, paddingVertical: 20 * s, backgroundColor: p.surface, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
       <Text numberOfLines={3} ellipsizeMode="tail" style={{flex: 1, color: field.value ? p.text : p.faint, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}>{preview}</Text>
       <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
     </PressSurface>

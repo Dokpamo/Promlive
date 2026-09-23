@@ -15,16 +15,28 @@ describe('Grok wire format, tested without any external request', () => {
   it('keeps Unicode order across transport chunks and completes only on DONE', async () => {
     let sent: TextStreamRequest | undefined;
     const transport: TextStreamTransport = {async *stream(input) {sent = input; yield 'data: {"choices":[{"delta":{"content":"별빛"},"finish_reason":null}]}\n'; yield '\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';}};
-    const provider = new GrokProvider({model: 'model-selected-at-connection', credentialReference: 'host-owned', inputCharacterLimit: 12000}, credentials, transport);
+    const provider = new GrokProvider({model: 'model-selected-at-connection', credentialReference: 'host-owned', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, transport);
     const events: AiEvent[] = []; await new GenerationCoordinator(provider).run(request, event => {events.push(event);});
     expect(events).toEqual([{type: 'delta', text: '별빛'}, {type: 'done'}]);
     expect(sent?.url).toBe('https://api.x.ai/v1/chat/completions'); expect(sent?.body).not.toContain('test-only-credential');
+    expect(JSON.parse(sent!.body).max_completion_tokens).toBe(10000);
   });
   it('does not reinterpret token exhaustion or EOF as normal completion', async () => {
-    const limited: TextStreamTransport = {async *stream() {yield 'data: {"choices":[{"delta":{"content":"부분"},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n';}};
-    const provider = new GrokProvider({model: 'test', credentialReference: 'test', inputCharacterLimit: 12000}, credentials, limited);
-    await expect(new GenerationCoordinator(provider).run(request, () => {})).rejects.toThrow('길이');
+    let requests = 0;
+    const limited: TextStreamTransport = {async *stream() {requests++; yield 'data: {"choices":[{"delta":{"content":"부분"},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n';}};
+    const provider = new GrokProvider({model: 'test', credentialReference: 'test', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, limited);
+    const events: AiEvent[] = [];
+    await expect(new GenerationCoordinator(provider).run(request, event => {events.push(event);})).rejects.toThrow('길이');
+    expect(events).toEqual([{type: 'delta', text: '부분'}]);
+    expect(requests).toBe(1);
     const eof: TextStreamTransport = {async *stream() {yield 'data: {"choices":[{"delta":{"content":"부분"},"finish_reason":null}]}\n\n';}};
-    await expect(new GenerationCoordinator(new GrokProvider({model: 'test', credentialReference: 'test', inputCharacterLimit: 12000}, credentials, eof)).run(request, () => {})).rejects.toThrow('완료 신호');
+    await expect(new GenerationCoordinator(new GrokProvider({model: 'test', credentialReference: 'test', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, eof)).run(request, () => {})).rejects.toThrow('완료 신호');
+  });
+  it('does not send a model that cannot enforce the token limit', async () => {
+    let requests = 0;
+    const transport: TextStreamTransport = {async *stream() {requests++; yield '';}};
+    const provider = new GrokProvider({model: 'grok-4.20-multi-agent', credentialReference: 'test', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, transport);
+    await expect(new GenerationCoordinator(provider).run(request, () => {})).rejects.toThrow('생성 토큰 상한을 지원하지 않아');
+    expect(requests).toBe(0);
   });
 });

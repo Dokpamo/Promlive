@@ -3,6 +3,7 @@ import type {SettingsStore} from '../../ports/settings';
 import type {CredentialStore} from '../../ports/ai';
 import {aiServices, chooseConnectionRoute, connectionRoutes, createAiSettingsPreview, type AiSettingsPreviewState} from './aiSettingsModel';
 import {aiModelSchema} from './aiModelSchema';
+import {outputLimitValue} from './aiOutputLimit';
 
 export const aiPreferencesKey = 'ai:preferences:v1';
 const text = z.string();
@@ -22,13 +23,13 @@ const profileSchema = z.object({
 });
 const connectionSchema = profileSchema.extend({routeId: text, routes: z.record(text, profileSchema)});
 const preferencesSchema = z.object({
-  version: z.literal(1), service: text,
+  version: z.union([z.literal(1), z.literal(2)]), service: text,
   appPreset: z.object({length: z.enum(['default', 'short', 'balanced', 'long'])}),
   connections: z.record(text, z.unknown()),
 });
 
 export function serializeAiPreferences(value: AiSettingsPreviewState): string {
-  return JSON.stringify({version: 1, service: value.service, appPreset: value.appPreset,
+  return JSON.stringify({version: 2, service: value.service, appPreset: value.appPreset,
     connections: Object.fromEntries(Object.entries(value.connections).map(([id, connection]) => [id, connectionSchema.parse(connection)])),
   });
 }
@@ -47,6 +48,14 @@ export function restoreAiPreferences(raw: string | undefined): AiSettingsPreview
       const routes = connectionRoutes(service);
       if (!parsed.success) continue;
       const connection = parsed.data;
+      // Replace the old API defaults once, including inactive regions/accounts.
+      // Version 2 preserves any subsequently chosen 4096-token Claude limit.
+      for (const profile of [connection, ...Object.values(connection.routes)]) {
+        for (const preset of Object.values(profile.modelPresets)) {
+          const wasClaudeDefault = saved.version === 1 && service.id === 'anthropic' && preset.maxTokens === '4096';
+          preset.maxTokens = outputLimitValue(wasClaudeDefault ? '' : preset.maxTokens);
+        }
+      }
       const activeRouteExists = routes.some(route => route.id === connection.routeId);
       const routeId = activeRouteExists ? connection.routeId : routes[0]!.id;
       // Retiring an unsupported login preview must restore the saved API profile,

@@ -1,5 +1,6 @@
 /** API catalogs are versioned against official sources in aiOfficialCatalog. */
 import {officialModels} from './aiOfficialCatalog';
+import {outputLimitValue} from './aiOutputLimit';
 export type AiService = 'openai' | 'anthropic' | 'google' | 'xai' | 'deepseek' | 'openrouter' | 'minimax' | 'xiaomi' | 'qwen' | 'zai' | 'kimi' | 'ollama' | 'custom';
 export type AiTool = 'web' | 'x' | 'files' | 'code';
 export type AiModelPreview = import('zod').infer<typeof import('./aiModelSchema').aiModelSchema>;
@@ -88,9 +89,9 @@ export interface AiSettingsPreviewState {
   connections: Record<AiService, AiConnectionPreview>;
 }
 
-export function createModelPreset(service: AiService): AiModelPresetPreview {
+export function createModelPreset(modelMaximum?: number): AiModelPresetPreview {
   return {
-    effort: 'default', thinking: 'default', verbosity: 'default', maxTokens: service === 'anthropic' ? '4096' : '',
+    effort: 'default', thinking: 'default', verbosity: 'default', maxTokens: outputLimitValue('', modelMaximum),
     temperature: '', topP: '', stop: '', tools: [], routing: 'auto', hosts: '', fallback: true,
     dataPolicy: 'default', inputPrice: '', outputPrice: '', context: '', keepAlive: 'default',
     filters: {harassment: 'default', hate: 'default', sexual: 'default', dangerous: 'default'},
@@ -119,8 +120,9 @@ export function connectionRoute(service: AiServicePreview, connection: AiConnect
 }
 
 function createConnectionProfile(service: AiServicePreview, route: AiConnectionRoute): AiConnectionProfile {
-  const model = (route.models ?? service.models)[0]?.id ?? '';
-  return {name: service.name, key: '', url: route.url, model, project: '', ollamaMode: route.id === 'cloud' ? 'cloud' : 'local', protocol: 'chat', modelPresets: {[model]: createModelPreset(service.id)}, catalogModel: null, media: {image: '', video: '', audio: '', voice: '', voiceName: ''}};
+  const first = (route.models ?? service.models)[0];
+  const model = first?.id ?? '';
+  return {name: service.name, key: '', url: route.url, model, project: '', ollamaMode: route.id === 'cloud' ? 'cloud' : 'local', protocol: 'chat', modelPresets: {[model]: createModelPreset(first?.maxOutputTokens)}, catalogModel: null, media: {image: '', video: '', audio: '', voice: '', voiceName: ''}};
 }
 
 /** Different endpoints/accounts must not inherit another route's credentials or model settings. */
@@ -156,9 +158,9 @@ export function previewModel(service: AiServicePreview, id: string, connection?:
 }
 
 export function modelPresetFor(service: AiService, connection: AiConnectionPreview): AiModelPresetPreview {
-  const saved = connection.modelPresets[connection.model] ?? createModelPreset(service);
   const model = previewModel(aiServices.find(item => item.id === service)!, connection.model, connection);
-  return {...saved, effort: resolveEffort(service, model, saved)};
+  const saved = connection.modelPresets[connection.model] ?? createModelPreset(model.maxOutputTokens);
+  return {...saved, maxTokens: outputLimitValue(saved.maxTokens, model.maxOutputTokens), effort: resolveEffort(service, model, saved)};
 }
 
 function availableEfforts(service: AiService, model: AiModelPreview, thinking: string) {
@@ -176,9 +178,9 @@ function resolveEffort(service: AiService, model: AiModelPreview, saved: AiModel
 }
 
 export function choosePreviewModel(service: AiService, connection: AiConnectionPreview, model: AiModelPreview): AiConnectionPreview {
-  const saved = connection.modelPresets[model.id] ?? createModelPreset(service);
   const resolved = previewModel(aiServices.find(item => item.id === service)!, model.id, {...connection, catalogModel: model});
-  const preset = {...saved, effort: resolveEffort(service, resolved, saved), tools: saved.tools.filter(tool => model.tools.includes(tool))};
+  const saved = connection.modelPresets[model.id] ?? createModelPreset(resolved.maxOutputTokens);
+  const preset = {...saved, maxTokens: outputLimitValue(saved.maxTokens, resolved.maxOutputTokens), effort: resolveEffort(service, resolved, saved), tools: saved.tools.filter(tool => model.tools.includes(tool))};
   return {...connection, model: model.id, catalogModel: model.source === 'api' ? model : null, modelPresets: {...connection.modelPresets, [model.id]: preset}};
 }
 

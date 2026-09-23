@@ -8,6 +8,7 @@ import {aiChoiceCaptions, providerCaption} from './aiSheetCaptions';
 import {useSettingsSheetState} from './useSettingsSheetState';
 import {catalogKinds, catalogLabels} from './aiModelCatalog';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
+import {outputLimitValue} from './aiOutputLimit';
 import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, connectionRoute, connectionRoutes, createConnectionPreview, dataPolicyLabels, effortLabels, filterLabels, lengthLabels, modelPresetCapabilities, modelPresetFor, previewModel, routingLabels, safetyCategories, toolLabels, type AiConnectionPreview, type AiModelPresetPreview, type AiSettingsPreviewState} from './aiSettingsModel';
 
 type StringSetting<T> = {[K in keyof T]: T[K] extends string ? K : never}[keyof T];
@@ -116,7 +117,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
         {capabilities.efforts.length > 0 && <SettingsRow label="추론 레벨" value={preset.effort === 'default' ? '선택' : effortLabels[preset.effort] ?? preset.effort} onPress={() => select('추론 레벨', preset.effort, capabilities.efforts.map(effort => ({value: effort, label: effortLabels[effort] ?? effort})), effort => patchPreset({effort}))}/>}
         {model.verbosity && <SettingsRow label="답변 상세도" value={verbosityLabels[preset.verbosity] ?? 'API 기본값'} onPress={() => select('답변 상세도', preset.verbosity, choicesFrom(verbosityLabels), verbosity => patchPreset({verbosity}))}/>}
       </SettingsGroup>
-      {capabilities.output && field('최대 생성 토큰', 'maxTokens', service.id === 'anthropic' ? '토큰 수 입력 · 필수' : 'API 기본값', model.maxOutputTokens ? `최대 ${model.maxOutputTokens.toLocaleString()} 토큰까지 지원해요.` : service.id === 'anthropic' ? '이 API는 토큰 한도를 반드시 지정해야 해요.' : '비워 두면 API 기본값을 사용해요.', true)}
+      {capabilities.output && field('최대 생성 토큰', 'maxTokens', outputLimitValue('', model.maxOutputTokens), model.maxOutputTokens ? `최대 ${model.maxOutputTokens.toLocaleString()} 토큰까지 지원해요.` : undefined, true)}
       {capabilities.tools && <>
         <AiSection>사용할 도구</AiSection>
         <SettingsGroup>{model.tools.map(tool => <AiToggle key={tool} label={toolLabels[tool].name} detail={toolLabels[tool].detail} value={preset.tools.includes(tool)} onChange={enabled => patchPreset({tools: enabled ? [...preset.tools, tool] : preset.tools.filter(item => item !== tool)})}/>)}</SettingsGroup>
@@ -132,10 +133,8 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       <AiSection>공통 앱 프리셋</AiSection>
       <SettingsGroup><SettingsRow label="답변 길이" value={lengthLabels[value.appPreset.length] ?? '지정 안 함'} onPress={() => select('답변 길이', value.appPreset.length, choicesFrom(lengthLabels), length => onChange(old => ({...old, appPreset: {...old.appPreset, length}})), '모든 모델에 공통으로 적용하는 대화 지침이에요. 최대 생성 토큰과는 별개예요.')}/></SettingsGroup>
       {route.auth !== 'oauth' && service.id !== 'ollama' && service.id !== 'custom' && <>
-        <AiSection>연결 상세</AiSection>
         {connectionField('API 주소', 'url', route.url, service.id === 'qwen' ? 'Model Studio에 표시된 리전·워크스페이스 주소를 사용해 주세요.' : undefined)}
       </>}
-      <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
     </SettingsPage>
 
     {sheet && sheet.kind !== 'models' && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.title} {...(sheet.kind === 'services' ? {caption: providerCaption} : sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>

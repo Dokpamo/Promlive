@@ -47,7 +47,7 @@ describe('AI preset separation', () => {
     first.modelPresets[first.model] = {...modelPresetFor('xai', first), effort: 'high', maxTokens: '8192', tools: ['x']};
 
     const second = choosePreviewModel('xai', first, previewModel(service, 'grok-4.5'));
-    expect(modelPresetFor('xai', second)).toMatchObject({effort: 'high', maxTokens: '', tools: []});
+    expect(modelPresetFor('xai', second)).toMatchObject({effort: 'high', maxTokens: '10000', tools: []});
     const restored = choosePreviewModel('xai', second, previewModel(service, first.model));
     expect(modelPresetFor('xai', restored)).toMatchObject({effort: 'high', maxTokens: '8192', tools: ['x']});
     expect(restored.key).toBe(first.key);
@@ -102,7 +102,7 @@ describe('provider connection previews', () => {
 
     const china = chooseConnectionRoute(service, api, 'api-cn');
     expect(china).toMatchObject({key: '', url: 'https://api.minimaxi.com/v1'});
-    expect(modelPresetFor('minimax', china).maxTokens).toBe('');
+    expect(modelPresetFor('minimax', china).maxTokens).toBe('10000');
     china.key = 'china-preview-key';
 
     const restored = chooseConnectionRoute(service, china, 'api');
