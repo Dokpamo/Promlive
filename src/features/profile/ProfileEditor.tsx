@@ -1,7 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Keyboard, Text, TextInput, View} from 'react-native';
 import {pickProfileImage} from '../../adapters/profile/pickProfileImage';
-import {PressSurface} from '../../layout/PressSurface';
 import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackBoundary} from '../../layout/SwipeBackModal';
 import {useAppearance} from '../appearance/AppAppearance';
@@ -11,8 +10,9 @@ import {SettingsNote, useSettingsScale, panelReference as r} from '../settings/S
 import {UserAvatar} from './UserAvatar';
 import {useUserProfile} from './UserProfileContext';
 import type {UserProfile, UserProfilePreferences} from './userProfile';
+import type {ProfilePhoto} from './photoCrop';
 
-export function ProfileEditor({closing = false}: {closing?: boolean}) {
+export function ProfileEditor({closing = false, onEditPhoto}: {closing?: boolean; onEditPhoto: (photo: ProfilePhoto) => void}) {
   const {value, ready, error: loadError, store} = useUserProfile();
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
@@ -20,10 +20,10 @@ export function ProfileEditor({closing = false}: {closing?: boolean}) {
     <SettingsNote>{loadError}</SettingsNote>
     <RowPressable accessibilityRole="button" accessibilityLabel="프로필 다시 불러오기" onPress={() => {void store?.load();}} radius={r.controlRadius * s} contentStyle={{padding: 20 * s}}><Text style={{color: p.text, fontSize: r.rowFont * s}}>다시 불러오기</Text></RowPressable>
   </> : <ActivityIndicator color={p.secondary}/>;
-  return <ProfileEditorFields value={value} store={store} closing={closing}/>;
+  return <ProfileEditorFields value={value} store={store} closing={closing} onEditPhoto={onEditPhoto}/>;
 }
 
-function ProfileEditorFields({value, store, closing}: {value: UserProfile; store: UserProfilePreferences; closing: boolean}) {
+function ProfileEditorFields({value, store, closing, onEditPhoto}: {value: UserProfile; store: UserProfilePreferences; closing: boolean; onEditPhoto: (photo: ProfilePhoto) => void}) {
   const [name, setName] = useState(value.name);
   const [focused, setFocused] = useState(false);
   const [initialSelection, setInitialSelection] = useState<{start: number; end: number} | undefined>({start: 0, end: 0});
@@ -54,8 +54,8 @@ function ProfileEditorFields({value, store, closing}: {value: UserProfile; store
     Keyboard.dismiss();
     try {
       const photo = await pickProfileImage();
-      if (!photo) return;
-      await store.update({image: photo});
+      if (!photo || !mounted.current) return;
+      onEditPhoto(photo);
     } catch (cause) {
       if (mounted.current) setPhotoError(cause instanceof Error ? cause.message : '사진을 저장하지 못했어요. 다시 시도해 주세요.');
     } finally {
@@ -64,15 +64,13 @@ function ProfileEditorFields({value, store, closing}: {value: UserProfile; store
     }
   };
   return <>
-    <View style={{alignSelf: 'center', padding: 12 * s}}>
+    <RowPressable testID="profile-photo-picker" accessibilityRole="button" accessibilityLabel="프로필 사진 선택" accessibilityState={{busy}} disabled={busy || closing} onPress={() => {void changePhoto();}}
+      radius={r.controlRadius * s} style={{alignSelf: 'center'}} contentStyle={{padding: 12 * s}}>
       <UserAvatar testID="profile-photo-preview" image={value.image} size={r.profileSize * s}/>
-      <PressSurface testID="profile-photo-picker" accessibilityRole="button" accessibilityLabel="프로필 사진 선택" accessibilityState={{busy}} disabled={busy || closing} onPress={() => {void changePhoto();}}
-        compact radius={30 * s} highlightColor={p.selected} hitSlop={6 * s}
-        style={{position: 'absolute', right: 8 * s, bottom: 8 * s, width: 60 * s, height: 60 * s}}
-        contentStyle={{alignItems: 'center', justifyContent: 'center', backgroundColor: p.surface, borderWidth: 1.5 * s, borderColor: p.divider}}>
+      <View pointerEvents="none" style={{position: 'absolute', right: 8 * s, bottom: 8 * s, width: 60 * s, height: 60 * s, borderRadius: 30 * s, alignItems: 'center', justifyContent: 'center', backgroundColor: p.surface, borderWidth: 1.5 * s, borderColor: p.divider}}>
         {busy ? <ActivityIndicator color={p.secondary}/> : <SettingsIcon name="edit" color={p.text} size={28 * s}/>}
-      </PressSurface>
-    </View>
+      </View>
+    </RowPressable>
     <SwipeBackBoundary style={{marginTop: 26 * s, marginBottom: 20 * s}}>
       <Text style={{color: focused ? p.text : p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>이름</Text>
       <View style={{flexDirection: 'row', alignItems: 'center', minHeight: r.rowHeight * s}}>

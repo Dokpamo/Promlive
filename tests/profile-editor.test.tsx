@@ -7,6 +7,7 @@ import {UserProfileProvider, useUserProfile} from '../src/features/profile/UserP
 import {UserProfilePreferences} from '../src/features/profile/userProfile';
 
 const picker = vi.hoisted(() => vi.fn());
+const editPhoto = vi.hoisted(() => vi.fn());
 vi.mock('../src/adapters/profile/pickProfileImage', () => ({pickProfileImage: picker}));
 vi.mock('react-native', () => ({
   View: ({children}: {children: ReactNode}) => <div>{children}</div>, Text: ({children}: {children: ReactNode}) => <span>{children}</span>, ActivityIndicator: () => <span>loading</span>, Keyboard: {dismiss: vi.fn()},
@@ -14,7 +15,6 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('../src/features/appearance/AppAppearance', () => ({useAppearance: () => ({settings: {text: '#222', secondary: '#888'}})}));
 vi.mock('../src/layout/RowPressable', () => ({RowPressable: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled?: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} onClick={onPress} disabled={disabled}>{children}</button>}));
-vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled?: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} onClick={onPress} disabled={disabled}>{children}</button>}));
 vi.mock('../src/layout/SwipeBackModal', () => ({SwipeBackBoundary: ({children}: {children: ReactNode}) => <div>{children}</div>}));
 vi.mock('../src/features/chat/ChatIcon', () => ({ChatIcon: () => <span/>}));
 vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => <span/>}));
@@ -23,13 +23,13 @@ vi.mock('../src/features/profile/UserAvatar', () => ({UserAvatar: ({image, testI
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 const oldImage = 'data:image/png;base64,b2xk';
-const newImage = 'data:image/png;base64,bmV3';
+const newPhoto = {uri: 'file:///selected.jpg', width: 800, height: 1200};
 let root: Root | undefined;
-afterEach(async () => {await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); picker.mockReset();});
+afterEach(async () => {await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); picker.mockReset(); editPhoto.mockReset();});
 function Account({location}: {location: string}) {const {value} = useUserProfile(); return <span data-account={location} data-photo={value.image}>{value.name}</span>;}
 async function render(profile: UserProfilePreferences) {
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
-  await act(async () => root!.render(<UserProfileProvider store={profile}><Account location="settings"/><Account location="sidebar"/><ProfileEditor/></UserProfileProvider>));
+  await act(async () => root!.render(<UserProfileProvider store={profile}><Account location="settings"/><Account location="sidebar"/><ProfileEditor onEditPhoto={editPhoto}/></UserProfileProvider>));
 }
 async function click(label: string) {await act(async () => {
   const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
@@ -51,16 +51,19 @@ it('starts the editor with the restored profile even when loading finishes after
   expect(document.querySelector('[data-testid="profile-photo-preview"]')?.getAttribute('data-photo')).toBe(oldImage);
 });
 
-it('saves a picked photo directly to both accounts, while cancellation keeps the existing photo', async () => {
+it('opens crop editing from the avatar and keeps both saved photos unchanged until confirmation', async () => {
   const profile = new UserProfilePreferences({getSetting: async () => JSON.stringify({name: '사용자', image: oldImage}), setSetting: async () => {}});
   await render(profile);
   picker.mockResolvedValueOnce(null); await click('프로필 사진 선택');
   expect(profile.snapshot().value.image).toBe(oldImage);
-  picker.mockResolvedValueOnce(newImage); await click('프로필 사진 선택');
-  expect([...document.querySelectorAll('[data-account]')].map(item => item.getAttribute('data-photo'))).toEqual([newImage, newImage]);
+  expect(editPhoto).not.toHaveBeenCalled();
+  picker.mockResolvedValueOnce(newPhoto);
+  await act(async () => document.querySelector<HTMLElement>('[data-testid="profile-photo-preview"]')!.click());
+  expect(editPhoto).toHaveBeenCalledExactlyOnceWith(newPhoto);
+  expect([...document.querySelectorAll('[data-account]')].map(item => item.getAttribute('data-photo'))).toEqual([oldImage, oldImage]);
   expect(document.body.textContent).not.toContain('적용');
   expect(document.querySelector('[aria-label="기본 이미지로 변경"]')).toBeNull();
-  expect(profile.snapshot().value.image).toBe(newImage);
+  expect(profile.snapshot().value.image).toBe(oldImage);
 });
 
 it('edits the name in place, automatically saves, and restores the saved name if cleared and abandoned', async () => {
