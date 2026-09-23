@@ -45,5 +45,6 @@ export function HeaderButton({width, icon, label, onPress, testID, variant = 'fi
     style={{width: height, height, flexShrink: 0}}
     contentStyle={{backgroundColor: filled ? bright ? c.send : c.header : 'transparent', boxShadow: !filled || isDark ? undefined : '0px 8px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
     <ChatIcon name={icon} size={r.icon * s} color={bright ? c.sendIcon : icon === 'back' ? c.backIcon : c.text}/>
+    {filled && !bright && <View pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: height / 2, borderWidth: s, borderColor: c.headerBorder}}/>}
   </PressSurface>;
 }

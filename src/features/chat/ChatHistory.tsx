@@ -122,7 +122,8 @@ export function CreateChatButton({scale: s, label, onPress, testID = 'sidebar-cr
   const size = r.searchHeight * s;
   return <PressSurface compact testID={testID} surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     radius={size / 2} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
-    contentStyle={{backgroundColor: c.search, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
+    contentStyle={{backgroundColor: c.header, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
     <ChatIcon name="new-chat" size={35 * s} color={c.text}/>
+    <View pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, borderWidth: s, borderColor: c.headerBorder}}/>
   </PressSurface>;
 }
