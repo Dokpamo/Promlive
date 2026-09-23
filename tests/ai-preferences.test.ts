@@ -1,6 +1,6 @@
 import {expect, it, vi} from 'vitest';
 import {repository} from './helpers';
-import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, createAiSettingsPreview, modelPresetCapabilities} from '../src/features/settings/aiSettingsModel';
+import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, createAiSettingsPreview, modelPresetCapabilities, modelPresetFor} from '../src/features/settings/aiSettingsModel';
 import {aiPreferencesKey, AiSettingsPreferences, restoreAiPreferences, serializeAiPreferences} from '../src/features/settings/aiSettingsPreferences';
 import type {CredentialStore} from '../src/ports/ai';
 
@@ -38,6 +38,18 @@ it('migrates earlier preferences without clearing the selected provider or model
   delete saved.connections.xai.media;
   delete saved.connections.xai.catalogModel;
   expect(restoreAiPreferences(JSON.stringify(saved)).connections.xai).toMatchObject({model: 'previous-selection', catalogModel: null, media: {image: '', video: '', voice: '', voiceName: ''}});
+});
+
+it('retains a server default and the explicitly chosen level after restarting', () => {
+  const state = createAiSettingsPreview();
+  const model = {id: 'api-levels', name: 'API levels', detail: '', effort: ['low', 'high'], defaultEffort: 'high', tools: [], source: 'api' as const};
+  state.connections.xai = choosePreviewModel('xai', state.connections.xai, model);
+  let restored = restoreAiPreferences(serializeAiPreferences(state));
+  expect(modelPresetFor('xai', restored.connections.xai).effort).toBe('high');
+  state.connections.xai.modelPresets[model.id]!.effort = 'low';
+  restored = restoreAiPreferences(serializeAiPreferences(state));
+  expect(restored.connections.xai.catalogModel?.defaultEffort).toBe('high');
+  expect(modelPresetFor('xai', restored.connections.xai).effort).toBe('low');
 });
 
 it('preserves available account previews and migrates removed routes without carrying account state across', () => {

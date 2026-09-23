@@ -42,7 +42,7 @@ export function SwipeBackScrollContent({children, sheetScroll}: {children: React
 }
 
 /** A transparent modal keeps the previous screen visible beneath a back swipe. */
-export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, children, sheet = false, sheetHeight = 0, active = true}: {
+export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, children, sheet = false, sheetHeight = 0, slideFrom = 'bottom', dismiss = false, active = true}: {
   onClose: () => void;
   onDismissStart?: () => void;
   onBackRequest?: () => boolean;
@@ -50,6 +50,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>) => ReactNode;
   sheet?: boolean;
   sheetHeight?: number;
+  slideFrom?: 'bottom' | 'right';
+  dismiss?: boolean;
   active?: boolean;
 }) {
   const {isDark} = useAppearance();
@@ -64,7 +66,9 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   const exitingPanels = useRef(new Set<symbol>());
   const gestureView = useRef<View>(null);
   const {width, height} = useWindowDimensions();
-  const travel = sheet ? sheetHeight || height : width;
+  const horizontal = !sheet || slideFrom === 'right';
+  const travel = horizontal ? width : sheetHeight || height;
+  const crossLimit = horizontal ? sheetPullLimits.upward : sheetPullLimits.sideways;
   const corners = useScreenCorners();
   const progress = useRef(new Animated.Value(1)).current;
   const pull = useRef(new Animated.Value(0)).current;
@@ -168,6 +172,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
     animation.start(({finished}) => {if (finished) finish();});
   }, [inline, parentExitingPanels, parentPanels, progress, pull, reduceMotion, sheet, panelId, sideways, travel]);
   const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
+  useEffect(() => {if (dismiss) close();}, [close, dismiss]);
   const requestClose = useCallback(() => {
     const topPanel = Array.from(panels.current.values()).at(-1);
     if (topPanel) topPanel(); else if (!onBackRequestRef.current?.()) close();
@@ -190,28 +195,28 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   const moveDrag = useCallback((dx: number, dy: number) => {
     const m = dragState.current;
     m.delta = {x: dx, y: dy}; m.lastMoveAt = Date.now();
-    const distance = origin.current * travel + (sheet ? dy : dx);
+    const distance = origin.current * travel + (horizontal ? dx : dy);
     if (sheet) {
       pullPosition.current.upward = sheetPullDistance(Math.max(0, -distance), sheetPullLimits.upward);
-      pullPosition.current.side = sheetPullDistance(sidewaysOrigin.current + dx, sheetPullLimits.sideways);
+      pullPosition.current.side = sheetPullDistance(sidewaysOrigin.current + (horizontal ? dy : dx), crossLimit);
       pull.setValue(pullPosition.current.upward);
       sideways.setValue(pullPosition.current.side);
     }
     const downward = sheet && m.returnOnly ? sheetPullDistance(Math.max(0, distance), m.returnLimit) : distance;
     position.current = Math.max(0, Math.min(1, downward / travel));
     progress.setValue(position.current);
-  }, [progress, pull, sheet, sideways, travel]);
+  }, [crossLimit, horizontal, progress, pull, sheet, sideways, travel]);
 
   const releaseDrag = useCallback((dx: number, dy: number, vx: number, vy: number, cancelled: boolean) => {
     const m = dragState.current;
-    const distance = Math.max(0, origin.current * travel + (sheet ? dy : dx));
-    const velocity = Date.now() - m.lastMoveAt > 100 ? 0 : sheet ? vy : vx;
+    const distance = Math.max(0, origin.current * travel + (horizontal ? dx : dy));
+    const velocity = Date.now() - m.lastMoveAt > 100 ? 0 : horizontal ? vx : vy;
     const moved = Math.hypot(dx + m.captured.x, dy + m.captured.y) > 10;
     const back = !moved ? m.resumeClose : sheet
-      ? shouldDismissSheet(sidewaysOrigin.current + dx, distance, velocity, travel)
+      ? shouldDismissSheet(sidewaysOrigin.current + (horizontal ? dy : dx), distance, velocity, travel)
       : velocity > -0.45 && (distance >= travel * 0.3 || (distance >= 24 && velocity >= 0.45));
     settle(!cancelled && !m.returnOnly && back);
-  }, [settle, sheet, travel]);
+  }, [horizontal, settle, sheet, travel]);
 
   const beginDrag = useCallback((dx = 0, dy = 0, returnOnly = false) => {
     const attempt = ++generation.current;
@@ -226,8 +231,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       // Keep a returning/entering sheet at its displayed position when grabbed.
       m.returnLimit = Math.max(sheetPullLimits.upward, slide * travel * 2);
       const downward = sheet && returnOnly ? sheetPullOrigin(slide * travel, m.returnLimit) : slide * travel;
-      origin.current = (downward + (sheet ? dy - sheetPullOrigin(upward, sheetPullLimits.upward) : dx)) / travel;
-      sidewaysOrigin.current = sheetPullOrigin(side, sheetPullLimits.sideways) + dx;
+      origin.current = (downward + (horizontal ? dx : dy) - (sheet ? sheetPullOrigin(upward, sheetPullLimits.upward) : 0)) / travel;
+      sidewaysOrigin.current = sheetPullOrigin(side, crossLimit) + (horizontal ? dy : dx);
     };
     setOrigin(position.current, pullPosition.current.upward, pullPosition.current.side);
     // A new touch takes ownership even during entrance, dismissal or recovery.
@@ -237,7 +242,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       moveDrag(m.delta.x, m.delta.y);
     });
     moveDrag(0, 0);
-  }, [moveDrag, progress, pull, sheet, sideways, travel]);
+  }, [crossLimit, horizontal, moveDrag, progress, pull, sheet, sideways, travel]);
 
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: (_, gesture) => {
@@ -316,8 +321,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
 
   const radius = (value: number) => progress.interpolate({inputRange: [0, 0.15, 1], outputRange: [0, value, value], extrapolate: 'clamp'});
   const sheetMotion: Animated.WithAnimatedObject<ViewStyle> = {transform: [
-    {translateX: sideways},
-    {translateY: Animated.subtract(Animated.multiply(progress, travel), pull)},
+    {translateX: horizontal ? Animated.subtract(Animated.multiply(progress, travel), pull) : sideways},
+    {translateY: horizontal ? sideways : Animated.subtract(Animated.multiply(progress, travel), pull)},
   ]};
   const content = <GestureGuard.Provider value={{blocked, sheet, scroller, panels, exitingPanels, canInteract, sheetDrag: {
     canStart: () => sheet && canInteract() && entered.current && !blocked.current,

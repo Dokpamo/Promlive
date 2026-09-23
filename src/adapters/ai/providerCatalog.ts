@@ -16,6 +16,7 @@ const model = z.object({
   max_input_tokens: number, max_tokens: number, supported_parameters: strings.nullish(), capabilities,
   architecture: z.object({input_modalities: strings.nullish(), output_modalities: strings.nullish()}).nullish(),
   top_provider: z.object({max_completion_tokens: number}).nullish(),
+  reasoning: z.object({supported_efforts: strings.nullish(), default_effort: z.string().max(100).nullish(), default_enabled: z.boolean().nullish(), mandatory: z.boolean().nullish()}).nullish(),
 });
 const compatible = z.object({data: z.array(model).max(10000), has_more: z.boolean().optional(), last_id: z.string().nullish()});
 const gemini = z.object({models: z.array(z.object({
@@ -119,6 +120,14 @@ export function parseProviderCatalog(provider: string, body: unknown, kind: AiCa
     };
     const caps = row.capabilities;
     if (caps?.effort) entry.reasoningEfforts = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].filter(level => supported.safeParse(caps.effort?.[level]).data?.supported);
+    if (provider === 'openrouter') {
+      const reasoning = row.reasoning;
+      // The router's own contract takes precedence over a model vendor's options.
+      const efforts = reasoning?.supported_efforts === null ? ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] : reasoning?.supported_efforts ?? [];
+      entry.reasoningEfforts = efforts.filter(effort => effort !== 'none' || !reasoning?.mandatory);
+      if (reasoning?.default_enabled === false && !reasoning.mandatory) entry.defaultReasoningEffort = 'none';
+      else if (reasoning?.default_effort) entry.defaultReasoningEffort = reasoning.default_effort;
+    }
     if (caps?.thinking) {entry.thinking = caps.thinking.supported; entry.adaptiveThinking = caps.thinking.types?.adaptive?.supported ?? false;}
     if (caps?.image_input?.supported) entry.inputModalities = ['text', 'image'];
     if (caps?.code_execution || caps?.web_search) entry.tools = [...(caps.code_execution?.supported ? ['code' as const] : []), ...(caps.web_search?.supported ? ['web' as const] : [])];

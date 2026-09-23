@@ -3,7 +3,7 @@ import {Keyboard} from 'react-native';
 import {SettingsChoice, SettingsGroup, SettingsPage, SettingsRow, SettingsSheet} from './SettingsLayout';
 import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {AiAction, AiCaption, AiField, AiSection, AiToggle} from './AiSettingsControls';
-import {AiModelPicker} from './AiModelPicker';
+import {AiModelSelectionSheet} from './AiModelSelectionSheet';
 import {useSettingsSheetState} from './useSettingsSheetState';
 import {catalogKinds, catalogLabels} from './aiModelCatalog';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
@@ -111,7 +111,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
           {value: 'enabled', label: adaptiveThinking ? '적응형' : '사용'},
           {value: 'disabled', label: '사용 안 함'},
         ], thinking => patchPreset({thinking, effort: 'default'}))}/>}
-        {capabilities.efforts.length > 0 && <SettingsRow label="생각 깊이" value={effortLabels[preset.effort] ?? 'API 기본값'} onPress={() => select('생각 깊이', preset.effort, ['default', ...capabilities.efforts].map(effort => ({value: effort, label: effortLabels[effort] ?? effort})), effort => patchPreset({effort}))}/>}
+        {capabilities.efforts.length > 0 && <SettingsRow label="추론 레벨" value={preset.effort === 'default' ? '선택' : effortLabels[preset.effort] ?? preset.effort} onPress={() => select('추론 레벨', preset.effort, capabilities.efforts.map(effort => ({value: effort, label: effortLabels[effort] ?? effort})), effort => patchPreset({effort}))}/>}
         {model.verbosity && <SettingsRow label="답변 상세도" value={verbosityLabels[preset.verbosity] ?? 'API 기본값'} onPress={() => select('답변 상세도', preset.verbosity, choicesFrom(verbosityLabels), verbosity => patchPreset({verbosity}))}/>}
       </SettingsGroup>
       {capabilities.output && field('최대 생성 토큰', 'maxTokens', service.id === 'anthropic' ? '토큰 수 입력 · 필수' : 'API 기본값', model.maxOutputTokens ? `최대 ${model.maxOutputTokens.toLocaleString()} 토큰까지 지원해요.` : service.id === 'anthropic' ? '이 API는 토큰 한도를 반드시 지정해야 해요.' : '비워 두면 API 기본값을 사용해요.', true)}
@@ -136,12 +136,13 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
       <AiCaption>{liveCatalog ? '선택한 설정은 자동으로 저장돼요. 모델 목록만 조회하며, 대화·이미지·영상·음성 생성은 아직 실행하지 않아요.' : '선택한 설정은 자동으로 저장돼요. 기본 모델 목록을 제공해요.'}</AiCaption>
     </SettingsPage>
 
-    {sheet && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.kind === 'models' ? catalogLabels[sheet.catalog] : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
+    {sheet && sheet.kind !== 'models' && <SettingsSheet key={sheetKey} title={sheet.kind === 'services' ? '프로바이더' : sheet.title} {...(sheet.kind === 'choices' && sheet.caption ? {caption: sheet.caption} : {})} onClose={closeSheet}>{close => sheet.kind === 'services' ? <>
       {aiServices.map(item => <SettingsChoice key={item.id} label={item.name} selected={service.id === item.id} onPress={() => {
         onChange(old => ({...old, service: item.id, connections: {...old.connections, [item.id]: old.connections[item.id] ?? createConnectionPreview(item)}}));
         setNotice(''); close();
       }}/>)}
-    </> : sheet.kind === 'models' ? <AiModelPicker service={service} connection={connection} kind={sheet.catalog} onRefresh={models => {
+    </> : <>{sheet.choices.map(item => <SettingsChoice key={item.value} label={item.label} {...(item.detail ? {detail: item.detail} : {})} selected={sheet.value === item.value} onPress={() => {sheet.choose(item.value); close();}}/>)}</>}</SettingsSheet>}
+    {sheet?.kind === 'models' && <AiModelSelectionSheet key={sheetKey} service={service} connection={connection} kind={sheet.catalog} onClose={closeSheet} onRefresh={models => {
       if (sheet.catalog !== 'chat') return;
       onChange(old => {
         const current = old.connections[service.id];
@@ -149,9 +150,12 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
         const refreshed = models.find(item => item.id === current.model);
         return refreshed ? {...old, connections: {...old.connections, [service.id]: {...current, catalogModel: refreshed}}} : old;
       });
-    }} onSelect={next => {
-      onChange(old => ({...old, connections: {...old.connections, [service.id]: sheet.catalog === 'chat' ? choosePreviewModel(service.id, old.connections[service.id], next) : chooseMediaModel(old.connections[service.id], sheet.catalog, next)}}));
-      close();
-    }} onManualChange={model => patch({model, catalogModel: null})}/> : <>{sheet.choices.map(item => <SettingsChoice key={item.value} label={item.label} {...(item.detail ? {detail: item.detail} : {})} selected={sheet.value === item.value} onPress={() => {sheet.choose(item.value); close();}}/>)}</>}</SettingsSheet>}
+    }} onSelect={(next, effort) => {
+      onChange(old => {
+        const chosen = sheet.catalog === 'chat' ? choosePreviewModel(service.id, old.connections[service.id], next) : chooseMediaModel(old.connections[service.id], sheet.catalog, next);
+        if (effort && modelPresetCapabilities(service, chosen).efforts.includes(effort)) chosen.modelPresets = {...chosen.modelPresets, [next.id]: {...modelPresetFor(service.id, chosen), effort}};
+        return {...old, connections: {...old.connections, [service.id]: chosen}};
+      });
+    }} onManualChange={model => patch({model, catalogModel: null})}/>}
   </>}</SwipeBackModal>;
 }

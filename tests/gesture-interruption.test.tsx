@@ -172,6 +172,35 @@ it('moves a settings sheet while its native position read is still pending', asy
   expect(native.values[0]!.displayed).toBeCloseTo(0.3);
 });
 
+it('drags a right-entering sheet horizontally, returns vertical pulls, and dismisses to the right', async () => {
+  const close = vi.fn();
+  await render(<SwipeBackModal sheet slideFrom="right" sheetHeight={600} onClose={close}>{() => null}</SwipeBackModal>);
+  native.values[0]!.setValue(0);
+  await act(async () => {touchDown(); native.flush(); pan().onPanResponderMove!(event, gesture(0, 100));});
+  expect(native.values[0]!.displayed).toBe(0);
+  expect(native.values[2]!.displayed).toBeGreaterThan(0);
+  await act(async () => pan().onPanResponderRelease!(event, gesture(0, 100, 0, 0.8)));
+  expect(native.springs.slice(-3)[0]?.target).toBe(0);
+  native.values[2]!.setValue(0);
+  await act(async () => {touchDown(); native.flush(); pan().onPanResponderMove!(event, gesture(160));});
+  expect(native.values[0]!.displayed).toBeCloseTo(0.4);
+  await act(async () => pan().onPanResponderRelease!(event, gesture(160, 0, 0.8)));
+  expect(native.springs.slice(-3)[0]?.target).toBe(1);
+  expect(close).not.toHaveBeenCalled();
+  await act(async () => native.springs.slice(-3).forEach(spring => spring.finish()));
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('animates a declarative dismiss instead of immediately removing a sheet', async () => {
+  const close = vi.fn();
+  await render(<SwipeBackModal sheet slideFrom="right" sheetHeight={400} onClose={close}>{() => null}</SwipeBackModal>);
+  await render(<SwipeBackModal sheet slideFrom="right" sheetHeight={400} dismiss onClose={close}>{() => null}</SwipeBackModal>);
+  expect(native.springs.slice(-3)[0]?.target).toBe(1);
+  expect(close).not.toHaveBeenCalled();
+  await act(async () => native.springs.slice(-3).forEach(spring => spring.finish()));
+  expect(close).toHaveBeenCalledOnce();
+});
+
 it('reverses a closing settings page without being removed by its stale completion', async () => {
   const close = vi.fn();
   let dismiss!: () => void;

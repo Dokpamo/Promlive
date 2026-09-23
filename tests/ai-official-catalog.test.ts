@@ -18,6 +18,7 @@ describe('documented model catalogs', () => {
       for (const row of provider.models) {
         expect(schema.safeParse(row).success, `${service.id}: ${row.id}`).toBe(true);
         expect(row.source).toBeUndefined(); // Documentation is never mislabeled as a live account result.
+        if (row.defaultEffort) expect(row.effort, `${service.id}: ${row.id} default`).toContain(row.defaultEffort);
       }
       expect(new Set(provider.models.map(row => `${row.kind}:${row.id}`)).size).toBe(provider.models.length);
     }
@@ -62,6 +63,8 @@ describe('documented model catalogs', () => {
 
   it('does not invent installed models or undocumented consumer account logins', () => {
     for (const id of ['ollama', 'custom'] as const) expect(officialModels(id, 'chat')).toEqual([]);
-    for (const id of ['xai', 'minimax', 'qwen']) expect(connectionRoutes(aiServices.find(service => service.id === id)!).some(route => route.auth === 'oauth')).toBe(false);
+    for (const id of ['minimax', 'qwen']) expect(connectionRoutes(aiServices.find(service => service.id === id)!).some(route => route.auth === 'oauth')).toBe(false);
+    const xai = aiServices.find(service => service.id === 'xai')!;
+    expect(defaultCatalog(xai, {...createAiSettingsPreview().connections.xai, routeId: 'oauth'}, 'chat')).toEqual([]);
   });
 });

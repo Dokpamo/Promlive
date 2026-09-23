@@ -20,6 +20,7 @@ export const loadAiModels: AiModelLoader = async (service, connection, signal, k
       ...known, id: entry.id, name: known?.name ?? entry.name,
       detail: kind === 'voice' ? entry.id : [input && `${input} 입력`, output && `${output} 출력`, entry.contextLength && `문맥 ${entry.contextLength.toLocaleString()} 토큰`].filter(Boolean).join(' · ') || catalogLabels[kind],
       effort: entry.reasoningEfforts ?? known?.effort ?? [], tools: entry.tools ?? known?.tools ?? [], source: 'api',
+      ...(entry.defaultReasoningEffort ? {defaultEffort: entry.defaultReasoningEffort} : {}),
       ...(entry.maxOutputTokens ? {maxOutputTokens: entry.maxOutputTokens} : {}),
       ...(entry.thinking !== undefined ? {thinking: entry.thinking} : {}),
       ...(entry.adaptiveThinking !== undefined ? {adaptiveThinking: entry.adaptiveThinking} : {}),

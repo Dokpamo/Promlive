@@ -77,12 +77,12 @@ describe('xAI live catalogs', () => {
     const service = aiServices.find(item => item.id === 'xai')!;
     const saved = {...createAiSettingsPreview().connections.xai, ...connection};
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({models: [
-      {id: 'grok-4.6', capabilities: {reasoning_effort: ['none', 'high']}},
+      {id: 'grok-4.6', capabilities: {reasoning_effort: ['none', 'high'], default_reasoning_effort: 'none'}},
       {id: 'new-model-from-api', capabilities: {reasoning_effort: ['medium']}, input_modalities: ['text', 'image'], output_modalities: ['text']},
     ]}))));
     const models = await loadAiModels(service, saved, signal());
     expect(models).toHaveLength(2);
-    expect(models[0]).toMatchObject({id: 'grok-4.6', effort: ['none', 'high'], source: 'api'});
+    expect(models[0]).toMatchObject({id: 'grok-4.6', effort: ['none', 'high'], defaultEffort: 'none', source: 'api'});
     expect(models[1]).toMatchObject({id: 'new-model-from-api', effort: ['medium'], tools: [], source: 'api'});
     expect(models[1]?.detail).toContain('이미지');
   });

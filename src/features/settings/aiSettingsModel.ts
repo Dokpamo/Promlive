@@ -150,17 +150,35 @@ export const toolLabels: Record<AiTool, {name: string; detail: string}> = {
 };
 
 export function previewModel(service: AiServicePreview, id: string, connection?: AiConnectionPreview): AiModelPreview {
-  if (connection?.catalogModel?.id === id) return connection.catalogModel;
-  return connectionModels(service, connection).find(model => model.id === id) ?? {id, name: id || '모델 선택', detail: '직접 입력한 모델', effort: [], tools: []};
+  const documented = connectionModels(service, connection).find(model => model.id === id);
+  if (connection?.catalogModel?.id === id) return {...documented, ...connection.catalogModel};
+  return documented ?? {id, name: id || '모델 선택', detail: '직접 입력한 모델', effort: [], tools: []};
 }
 
 export function modelPresetFor(service: AiService, connection: AiConnectionPreview): AiModelPresetPreview {
-  return connection.modelPresets[connection.model] ?? createModelPreset(service);
+  const saved = connection.modelPresets[connection.model] ?? createModelPreset(service);
+  const model = previewModel(aiServices.find(item => item.id === service)!, connection.model, connection);
+  return {...saved, effort: resolveEffort(service, model, saved)};
+}
+
+function availableEfforts(service: AiService, model: AiModelPreview, thinking: string) {
+  return model.effort.filter(effort => {
+    if (model.effortNeedsThinking && thinking === 'disabled') return false;
+    return !(service === 'anthropic' && model.id === 'claude-opus-5' && thinking === 'disabled' && ['xhigh', 'max'].includes(effort));
+  });
+}
+
+/** Legacy/default preferences resolve only to a documented or server-provided level. */
+function resolveEffort(service: AiService, model: AiModelPreview, saved: AiModelPresetPreview) {
+  const efforts = availableEfforts(service, model, saved.thinking);
+  if (efforts.includes(saved.effort)) return saved.effort;
+  return model.defaultEffort && efforts.includes(model.defaultEffort) ? model.defaultEffort : 'default';
 }
 
 export function choosePreviewModel(service: AiService, connection: AiConnectionPreview, model: AiModelPreview): AiConnectionPreview {
   const saved = connection.modelPresets[model.id] ?? createModelPreset(service);
-  const preset = {...saved, effort: model.effort.includes(saved.effort) ? saved.effort : 'default', tools: saved.tools.filter(tool => model.tools.includes(tool))};
+  const resolved = previewModel(aiServices.find(item => item.id === service)!, model.id, {...connection, catalogModel: model});
+  const preset = {...saved, effort: resolveEffort(service, resolved, saved), tools: saved.tools.filter(tool => model.tools.includes(tool))};
   return {...connection, model: model.id, catalogModel: model.source === 'api' ? model : null, modelPresets: {...connection.modelPresets, [model.id]: preset}};
 }
 
@@ -173,10 +191,7 @@ export function modelPresetCapabilities(service: AiServicePreview, connection: A
   const preset = modelPresetFor(service.id, connection);
   const known = model.source === 'api' || connectionModels(service, connection).some(item => item.id === model.id);
   const thinkingOff = preset.thinking === 'disabled';
-  const efforts = model.effort.filter(effort => {
-    if (model.effortNeedsThinking && thinkingOff) return false;
-    return !(service.id === 'anthropic' && model.id === 'claude-opus-5' && thinkingOff && ['xhigh', 'max'].includes(effort));
-  });
+  const efforts = availableEfforts(service.id, model, preset.thinking);
   const sampling = !!model.sampling && (!model.samplingWithoutThinking || thinkingOff);
   const reasoningTopP = known && service.id === 'deepseek' && !thinkingOff;
   const routing = service.id === 'openrouter';

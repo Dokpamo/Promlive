@@ -37,6 +37,26 @@ MiniMax's OpenAI-compatible discovery documentation shows language-model example
 
 Reasoning controls are model-specific: Grok 4.5 exposes low/medium/high; 4.6 also exposes xhigh. GLM-5.3/Flash use forced thinking, so no off switch is offered. Kimi K3 offers low/high/max; K2.7 Code always thinks; K2.6 can disable thinking. Unknown capabilities remain conservative, and actual API metadata takes precedence. Fields exposed by an API-compatible gateway are not assumed to be hosted tools.
 
+## Reasoning selection, checked 2026-09-23
+
+Choosing a conversation model saves it immediately. Models with selectable reasoning levels open a second sheet from the right. Back returns to the still-mounted catalog without restarting discovery or resetting its scroll position. Choosing a level saves that model's preset and closes both sheets after their exit animations finish. Models without level choices finish at the model picker.
+
+The level picker contains actual levels only, with no `default` row. A valid saved level wins; otherwise `defaultEffort` resolves the old/default preference to the documented or server-reported level. Defaults are model-specific: Grok 4.5/4.6, the bundled Claude effort models and DeepSeek use high; GLM and Kimi K3 use max; current Qwen 3.8 uses xhigh; Gemini Flash defaults vary by version. Gemini 2.5 uses token budgets, so fabricated low/medium/high choices were removed. Qwen-hosted third-party models do not inherit their native provider's controls automatically.
+
+xAI's `capabilities.default_reasoning_effort` and OpenRouter's `reasoning.supported_efforts`, `default_effort`, `default_enabled` and `mandatory` override bundled metadata. Older cached rows can inherit newly documented defaults, but an empty server effort list remains authoritative. Unknown or unsupported defaults stay unselected (the settings row reads 선택); choosing the first or middle item is not a substitute for knowing a default. No inference request is introduced by this flow.
+
+Default/level sources:
+
+- OpenAI: https://developers.openai.com/api/docs/guides/reasoning and the individual model pages (model-dependent defaults; unconfirmed models remain unselected).
+- Claude: https://platform.claude.com/docs/en/build-with-claude/effort
+- Gemini: https://ai.google.dev/gemini-api/docs/generate-content/thinking
+- xAI: https://docs.x.ai/developers/model-capabilities/text/reasoning and https://docs.x.ai/developers/rest-api-reference/inference/models
+- DeepSeek: https://api-docs.deepseek.com/guides/thinking_mode/
+- Qwen: https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions
+- GLM: https://docs.z.ai/api-reference/llm/chat-completion
+- Kimi: https://platform.kimi.ai/docs/api/models-overview
+- OpenRouter: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+
 Grok's account-login UI has been restored alongside the API-key route, following the Hermes device-code flow documentation. It remains a preview with no login or account catalog implemented. Removed MiniMax and Qwen login routes restore their separately saved API profile, without moving account-only models between routes. ChatGPT/Codex, Google Cloud and OpenRouter login entries also remain explicitly labeled as not yet integrated.
 
 Qwen's China discovery route uses the documented workspace host (`{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api/v1/models`), rather than assuming the old inference host has the same listing API. Its connection UI collects that workspace ID, validates it before sending a key, and includes it in cache isolation. Singapore continues to use the documented public DashScope catalog endpoint with account authentication.

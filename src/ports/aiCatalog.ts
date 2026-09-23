@@ -7,6 +7,7 @@ export interface AiCatalogEntry {
   inputModalities: string[];
   outputModalities: string[];
   reasoningEfforts?: string[];
+  defaultReasoningEffort?: string;
   contextLength?: number;
   maxOutputTokens?: number;
   parameters?: string[];

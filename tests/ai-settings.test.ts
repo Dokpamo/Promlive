@@ -2,6 +2,42 @@ import {describe, expect, it} from 'vitest';
 import {aiServices, chooseConnectionRoute, choosePreviewModel, connectionModels, connectionRoute, connectionRoutes, createAiSettingsPreview, modelPresetCapabilities, modelPresetFor, previewModel} from '../src/features/settings/aiSettingsModel';
 
 describe('AI preset separation', () => {
+  it.each([
+    ['xai', 'grok-4.6', 'high'], ['anthropic', 'claude-opus-4-6', 'high'],
+    ['openai', 'gpt-5.4', 'none'], ['openai', 'gpt-5.6-sol', 'medium'],
+    ['google', 'gemini-3.8-flash', 'medium'], ['google', 'gemini-3.1-pro-preview', 'high'],
+    ['deepseek', 'deepseek-v4-pro', 'high'], ['qwen', 'qwen3.8-max', 'xhigh'],
+    ['zai', 'glm-5.3', 'max'], ['kimi', 'kimi-k3', 'max'],
+  ] as const)('selects the actual default for %s / %s', (id, model, effort) => {
+    const service = aiServices.find(item => item.id === id)!;
+    const selected = choosePreviewModel(id, createAiSettingsPreview().connections[id], previewModel(service, model));
+    expect(selected.modelPresets[model]?.effort).toBe(effort);
+    expect(modelPresetFor(id, selected).effort).toBe(effort);
+  });
+
+  it('resolves legacy defaults and old cached metadata without overwriting an explicit choice', () => {
+    const service = aiServices.find(item => item.id === 'xai')!;
+    const connection = createAiSettingsPreview().connections.xai;
+    const {defaultEffort: _, ...legacy} = previewModel(service, connection.model);
+    connection.catalogModel = {...legacy, source: 'api'};
+    expect(modelPresetFor('xai', connection).effort).toBe('high');
+    connection.modelPresets[connection.model]!.effort = 'low';
+    expect(modelPresetFor('xai', connection).effort).toBe('low');
+    expect(choosePreviewModel('xai', connection, legacy).modelPresets[connection.model]?.effort).toBe('low');
+  });
+
+  it('uses a valid API default and leaves unknown or incompatible defaults unselected', () => {
+    const connection = createAiSettingsPreview().connections.xai;
+    const fresh = {id: 'api-new', name: 'API new', detail: '', source: 'api' as const, effort: ['low', 'high'], tools: []};
+    const choose = (defaultEffort?: string) => modelPresetFor('xai', choosePreviewModel('xai', connection, {...fresh, ...(defaultEffort ? {defaultEffort} : {})}));
+    expect(choose('low').effort).toBe('low');
+    expect(choose().effort).toBe('default');
+    expect(choose('unsupported').effort).toBe('default');
+    const service = aiServices.find(item => item.id === 'xai')!;
+    const changed = {...previewModel(service, connection.model), source: 'api' as const, defaultEffort: 'low'};
+    expect(modelPresetFor('xai', choosePreviewModel('xai', connection, changed)).effort).toBe('low');
+  });
+
   it('restores each model preset without moving app instructions or connection credentials into it', () => {
     const state = createAiSettingsPreview();
     const service = aiServices.find(item => item.id === 'xai')!;
@@ -11,7 +47,7 @@ describe('AI preset separation', () => {
     first.modelPresets[first.model] = {...modelPresetFor('xai', first), effort: 'high', maxTokens: '8192', tools: ['x']};
 
     const second = choosePreviewModel('xai', first, previewModel(service, 'grok-4.5'));
-    expect(modelPresetFor('xai', second)).toMatchObject({effort: 'default', maxTokens: '', tools: []});
+    expect(modelPresetFor('xai', second)).toMatchObject({effort: 'high', maxTokens: '', tools: []});
     const restored = choosePreviewModel('xai', second, previewModel(service, first.model));
     expect(modelPresetFor('xai', restored)).toMatchObject({effort: 'high', maxTokens: '8192', tools: ['x']});
     expect(restored.key).toBe(first.key);

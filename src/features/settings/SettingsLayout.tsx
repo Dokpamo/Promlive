@@ -74,7 +74,10 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   </RowPressable>;
 }
 
-export function SettingsSheet({title, caption, onClose, children, fillHeight = false}: {title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode; fillHeight?: boolean}) {
+export function SettingsSheet({title, caption, onClose, children, fillHeight = false, slideFrom = 'bottom', dismiss = false, overlay, obscured = false}: {
+  title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode; fillHeight?: boolean;
+  slideFrom?: 'bottom' | 'right'; dismiss?: boolean; overlay?: ReactNode; obscured?: boolean;
+}) {
   const {settings: p} = useAppearance();
   const insets = useSafeAreaInsets();
   const s = useSettingsScale();
@@ -97,7 +100,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   scroll.current.maxOffset = Math.max(0, bodyHeight - (height - handleHeight));
   scroll.current.canScroll = scroll.current.maxOffset > 1;
-  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: panelReference.sheetInset * s, paddingBottom: bottom}}>
+  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} slideFrom={slideFrom} dismiss={dismiss} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View pointerEvents={obscured ? 'none' : 'auto'} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'} style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: panelReference.sheetInset * s, paddingBottom: bottom}}>
     <SwipeBackBoundary style={{position: 'absolute', inset: 0}}><Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <Animated.View testID="settings-sheet" accessibilityViewIsModal style={[{width: '100%', maxWidth: 560, height, borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: handleHeight, flexShrink: 0, alignItems: 'center', paddingTop: panelReference.sheetHandle.top * s}}><View style={{width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
@@ -113,7 +116,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
         </SwipeBackScrollContent>
       </SheetScrollView>
     </Animated.View>
-  </View></SettingsTextEditorHost>}</SwipeBackModal>;
+  </View>{overlay}</SettingsTextEditorHost>}</SwipeBackModal>;
 }
 
 export function SettingsChoice({label, detail, selected, onPress}: {label: string; detail?: string; selected: boolean; onPress: () => void}) {

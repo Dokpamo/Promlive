@@ -13,7 +13,7 @@ const modelSchema = z.object({
   id: z.string().min(1).max(500), name: z.string().nullish(), aliases: strings.nullish(),
   input_modalities: strings.nullish(), output_modalities: strings.nullish(),
   context_length: z.number().positive().nullish(),
-  capabilities: z.object({reasoning_effort: strings.nullish()}).nullish(),
+  capabilities: z.object({reasoning_effort: strings.nullish(), default_reasoning_effort: z.string().max(100).nullish()}).nullish(),
 });
 const modelsSchema = z.object({models: z.array(modelSchema).max(10000)});
 const voicesSchema = z.object({voices: z.array(z.object({voice_id: z.string().min(1).max(500), name: z.string().nullish()})).max(1000)});
@@ -42,6 +42,7 @@ export function parseXaiCatalog(kind: AiCatalogKind, data: unknown): AiCatalogEn
     id: model.id, name: model.name || model.id, aliases: model.aliases ?? [],
     inputModalities: model.input_modalities ?? [], outputModalities: model.output_modalities ?? [],
     ...(model.capabilities?.reasoning_effort ? {reasoningEfforts: model.capabilities.reasoning_effort} : {}),
+    ...(model.capabilities?.default_reasoning_effort ? {defaultReasoningEffort: model.capabilities.default_reasoning_effort} : {}),
     ...(model.context_length ? {contextLength: model.context_length} : {}),
   })));
 }

@@ -5,6 +5,22 @@ import type {CatalogRequest} from '../src/adapters/ai/catalogRequest';
 const signal = () => new AbortController().signal;
 const response = (body: unknown) => new Response(JSON.stringify(body));
 describe('provider catalog contracts', () => {
+  it('reads the router effort/default contract instead of guessing the original provider settings', () => {
+    const {entries} = parseProviderCatalog('openrouter', {data: [
+      {id: 'vendor/levels', reasoning: {supported_efforts: ['high', 'medium', 'low'], default_effort: 'medium', mandatory: true}},
+      {id: 'vendor/unrestricted', reasoning: {supported_efforts: null, default_effort: 'none'}},
+      {id: 'vendor/always-on', reasoning: {supported_efforts: ['none', 'low', 'high'], default_effort: 'high', mandatory: true}},
+      {id: 'vendor/budget-only', reasoning: {supports_max_tokens: true}},
+      {id: 'vendor/no-reasoning'},
+      {id: 'vendor/off-by-default', reasoning: {supported_efforts: ['none', 'low', 'high'], default_effort: 'high', default_enabled: false}},
+    ]}, 'chat');
+    expect(entries[0]).toMatchObject({reasoningEfforts: ['high', 'medium', 'low'], defaultReasoningEffort: 'medium'});
+    expect(entries[1]?.reasoningEfforts).toContain('none');
+    expect(entries[2]?.reasoningEfforts).toEqual(['low', 'high']);
+    expect(entries[3]?.reasoningEfforts).toEqual([]);
+    expect(entries[4]?.reasoningEfforts).toEqual([]);
+    expect(entries[5]?.defaultReasoningEffort).toBe('none');
+  });
   it.each([
     ['openai', 'https://api.openai.com/v1', 'https://api.openai.com/v1/models'],
     ['anthropic', 'https://api.anthropic.com', 'https://api.anthropic.com/v1/models'],
