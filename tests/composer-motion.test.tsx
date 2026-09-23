@@ -2,17 +2,19 @@
 import {act, useImperativeHandle, useLayoutEffect, useRef, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
+import {Animated} from 'react-native';
 import {ChatComposer} from '../src/features/chat/ChatComposer';
 import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
 import type {ComposerInputProps} from '../src/features/chat/ComposerInput.types';
 
 const keyboard = vi.hoisted(() => ({height: 0}));
 const opening = vi.hoisted(() => ({defer: false, callbacks: [] as (() => void)[]}));
+const accessibility = vi.hoisted(() => ({reduceMotion: true}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native,
     useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),
-    AccessibilityInfo: {isReduceMotionEnabled: async () => true, addEventListener: () => ({remove() {}})},
+    AccessibilityInfo: {isReduceMotionEnabled: async () => accessibility.reduceMotion, addEventListener: () => ({remove() {}})},
   };
 });
 vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 24, right: 0, bottom: 24, left: 0})}));
@@ -52,6 +54,7 @@ afterEach(async () => {
   if (root) await act(async () => root!.unmount());
   root = undefined; keyboard.height = 0; change.mockClear();
   opening.defer = false; opening.callbacks = [];
+  accessibility.reduceMotion = true; vi.restoreAllMocks();
   document.body.replaceChildren();
 });
 
@@ -98,6 +101,39 @@ it('keeps the text column width unchanged through expansion and collapse', async
   expect(parseFloat(viewport().style.width)).toBe(compactWidth);
   await press('입력창 접기');
   expect(parseFloat(viewport().style.width)).toBe(compactWidth);
+});
+
+it('reverses an unfinished expansion from its displayed layout without replacing or blurring the editor', async () => {
+  accessibility.reduceMotion = false;
+  await render();
+  const editor = document.querySelector('textarea')!;
+  editor.focus(); editor.setSelectionRange(3, 7);
+  const surfaceHeight = () => parseFloat(document.querySelector<HTMLElement>('[data-testid="expanded-composer-surface"], [data-testid="chat-composer"]')!.style.height);
+  const compactHeight = surfaceHeight();
+  const runs: {value: Animated.Value; target: number; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
+  vi.spyOn(Animated, 'spring').mockImplementation((value, config) => {
+    const run = {value: value as Animated.Value, target: config.toValue as number, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
+    runs.push(run);
+    return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
+  });
+  await press('입력창 크게 열기');
+  await act(async () => runs[0]!.value.setValue(0.65));
+  const midway = surfaceHeight();
+  expect(midway).toBeGreaterThan(compactHeight);
+  await press('입력창 접기');
+  expect(surfaceHeight()).toBe(midway);
+  await act(async () => runs[3]!.value.setValue(0.25));
+  expect(surfaceHeight()).toBeGreaterThan(compactHeight);
+  expect(surfaceHeight()).toBeLessThan(midway);
+  await act(async () => {
+    for (const run of runs.slice(3)) {run.value.setValue(run.target); run.finish?.({finished: true});}
+  });
+  expect(surfaceHeight()).toBe(compactHeight);
+  expect(document.querySelector('textarea')).toBe(editor);
+  expect(document.activeElement).toBe(editor);
+  expect([editor.selectionStart, editor.selectionEnd]).toEqual([3, 7]);
+  expect(locks.current).toBe(0);
+  expect(change).not.toHaveBeenCalled();
 });
 
 it('requests focus immediately and starts the morph when the keyboard starts moving', async () => {

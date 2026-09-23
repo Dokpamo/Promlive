@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, BackHandler, Platform, Pressable, View, useWindowDimensions} from 'react-native';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {AccessibilityInfo, Animated, BackHandler, PixelRatio, Platform, Pressable, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
@@ -20,6 +20,7 @@ import {SheetScrollView} from '../../layout/SheetScrollView';
 import {SheetGestureRoot} from '../../layout/SheetGestureRoot';
 import type {SheetScrollState} from '../../layout/sheetMotion';
 import {useComposerPull} from './useComposerPull';
+import {useComposerLayoutFrame} from './useComposerLayoutFrame';
 import type {ComposerAction} from './ChatSession';
 
 interface Props {
@@ -72,6 +73,7 @@ export function ChatComposer(p: Props) {
     height: new Animated.Value(height), input: new Animated.Value(inputHeight),
     filled: new Animated.Value(filled ? 1 : 0), expand: new Animated.Value(expandable ? 1 : 0), send: new Animated.Value(hasSend ? 1 : 0),
   }).current;
+  const frame = useComposerLayoutFrame(progress, motion, {height, input: inputHeight, filled: filled ? 1 : 0});
   useDrawerModalLock(modal);
   useLayoutEffect(() => {callbacks.current.onExpandedChange?.(modal);}, [modal]);
   useEffect(() => {
@@ -173,14 +175,18 @@ export function ChatComposer(p: Props) {
     restore: () => settle(true), close, scroll,
     canScrollPull: canScrollInput,
   });
-  const blend = (from: number | Animated.Animated, to: number) => Animated.add(from, Animated.multiply(progress, Animated.subtract(to, from)));
-  const shape = (empty: number, full: number) => motion.filled.interpolate({inputRange: [0, 1], outputRange: [empty * s, full * s]});
+  const blend = (from: number, to: number) => from + (to - from) * frame.progress;
+  const shape = (empty: number, full: number) => (empty + (full - empty) * frame.filled) * s;
   const collapsedWidth = Math.min(800, window.width - insets.left - insets.right) - 2 * r.inset * s;
   const collapsedLeft = insets.left + (window.width - insets.left - insets.right - collapsedWidth) / 2;
   // Morph the surface around a stable text column instead of rewrapping every frame.
   const textWidth = Math.max(1, Math.min(collapsedWidth - 54 * s, sheet.width - 52 * s));
   const compactTextLeft = filled ? (collapsedWidth - textWidth) / 2 - s : 116 * s;
   const compactTextWidth = filled ? textWidth : collapsedWidth - 144 * s;
+  const surfaceLeft = PixelRatio.roundToNearestPixel(blend(collapsedLeft, sheet.x));
+  const surfaceBorder = PixelRatio.roundToNearestPixel(blend(s, 0));
+  // Round the final screen position once; nested rounded offsets can wobble by a pixel.
+  const textLeft = PixelRatio.roundToNearestPixel(blend(collapsedLeft + compactTextLeft + s, sheet.x + (sheet.width - textWidth) / 2)) - surfaceLeft - surfaceBorder;
   const sheetInset = panelReference.sheetInset * s;
   const headerSize = headerScale(p.width);
   const inputTop = sheetInset + referenceHeader.barHeight * headerSize + 16 * s;
@@ -192,29 +198,32 @@ export function ChatComposer(p: Props) {
   scroll.current.maxOffset = Math.max(0, measured + (visible ? inputTop + footerHeight : 0) - activeHeight);
   const button = r.button * s;
   const actionBottom = shape((r.compactHeight - r.button) / 2, 14);
-  const collapsedOpacity = progress.interpolate({inputRange: [0, 0.3, 1], outputRange: [1, 0, 0], extrapolate: 'clamp'});
-  const expandedOpacity = progress.interpolate({inputRange: [0, 0.45, 1], outputRange: [0, 0, 1], extrapolate: 'clamp'});
-  const fraction = progress.interpolate({inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp'});
-  const footerFraction = progress.interpolate({inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp'});
+  const collapsedOpacity = Math.max(0, 1 - frame.progress / 0.3);
+  const expandedOpacity = Math.max(0, (frame.progress - 0.45) / 0.55);
+  const {fraction, footerFraction} = useMemo(() => ({
+    fraction: progress.interpolate({inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp'}),
+    footerFraction: progress.interpolate({inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp'}),
+  }), [progress]);
+  const backgroundColor = useMemo(() => progress.interpolate({inputRange: [0, 1], outputRange: [c.composer, settings.sheet]}), [c.composer, progress, settings.sheet]);
   const composerGeometry = modal && Math.abs(height - sheet.height) > 1 ? {compactHeight: height, expandedHeight: sheet.height} : undefined;
 
   return <KeyboardDock fraction={fraction} bottomInset={p.bottom} freezeKeyboard={expanded || preparing} followCaret={modal} anchorEditor={transitioning} composerGeometry={composerGeometry}>
     <DrawerGestureBoundary style={{flex: 1}}>
     <DragClickBoundary cancelClick={pull.cancelClick}>
-      <Animated.View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: Animated.add(motion.height, p.bottom + (r.bottom + 40) * s), opacity: fraction}}>
+      <Animated.View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: frame.height + p.bottom + (r.bottom + 40) * s, opacity: fraction}}>
         <EdgeTint edge="bottom" testID="composer-tint" style={{flex: 1}}/>
       </Animated.View>
       {modal && <Pressable accessibilityRole="button" accessibilityLabel="입력창 바깥 눌러 접기" onPress={close} style={{position: 'absolute', inset: 0}}/>}
       <Animated.View nativeID="promlive-composer-surface" testID={visible ? 'expanded-composer-surface' : 'chat-composer'} accessibilityViewIsModal={visible} onAccessibilityEscape={visible ? close : undefined} {...pull.panHandlers} style={{
-        position: 'absolute', left: blend(collapsedLeft, sheet.x), width: blend(collapsedWidth, sheet.width),
-        bottom: blend(p.bottom + r.bottom * s, window.height - sheet.y - sheet.height), height: blend(motion.height, sheet.height),
-        borderRadius: blend(shape(r.compactHeight / 2, 40), sheet.radius), borderWidth: blend(s, 0), borderColor: c.border,
-        backgroundColor: progress.interpolate({inputRange: [0, 1], outputRange: [c.composer, settings.sheet]}), overflow: 'hidden',
+        position: 'absolute', left: surfaceLeft, width: blend(collapsedWidth, sheet.width),
+        bottom: blend(p.bottom + r.bottom * s, window.height - sheet.y - sheet.height), height: blend(frame.height, sheet.height),
+        borderRadius: blend(shape(r.compactHeight / 2, 40), sheet.radius), borderWidth: surfaceBorder, borderColor: c.border,
+        backgroundColor, overflow: 'hidden',
         boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)', transform: [{translateX: drag.x}, {translateY: drag.y}],
       }}>
         {/* Keep native gesture hit testing inside the composer, away from chat navigation. */}
         <SheetGestureRoot>
-        <Animated.View testID="composer-scroll-viewport" onStartShouldSetResponderCapture={pull.blockScroll} style={{position: 'absolute', left: blend(compactTextLeft, (sheet.width - textWidth) / 2), width: blend(compactTextWidth, textWidth), top: blend(shape((r.compactHeight - line / s) / 2, 25), 0), height: blend(motion.input, editorHeight), overflow: 'hidden'}}>
+        <Animated.View testID="composer-scroll-viewport" onStartShouldSetResponderCapture={pull.blockScroll} style={{position: 'absolute', left: textLeft, width: blend(compactTextWidth, textWidth), top: blend(shape((r.compactHeight - line / s) / 2, 25), 0), height: blend(frame.input, editorHeight), overflow: 'hidden'}}>
           <SheetScrollView testID="composer-scroll" nativeID="promlive-composer-scroll" sheetScroll={scroll} sheetDrag={pull.scrollDrag} canStartInputScroll={canScrollInput} scrollEnabled={scrollable} keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={16} style={{flex: 1}} onScroll={event => {
             const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
             const state = scroll.current;
@@ -222,11 +231,11 @@ export function ChatComposer(p: Props) {
             state.offset = contentOffset.y;
             state.maxOffset = Math.max(0, contentSize.height - layoutMeasurement.height);
           }}>
-            <Animated.View pointerEvents="none" style={{height: Animated.multiply(progress, inputTop)}}/>
+            <View pointerEvents="none" style={{height: frame.progress * inputTop}}/>
             <View onStartShouldSetResponderCapture={pull.blockInput} style={{height: measured}}>
               <ComposerInput focusRef={input} testID={visible ? 'expanded-composer-input' : 'chat-input'} label={visible ? '확장 메시지 입력' : '메시지 입력'} value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={measured} fillHeight scroll={false} ready={p.ready}/>
             </View>
-            <Animated.View pointerEvents="none" style={{height: Animated.multiply(progress, footerHeight)}}/>
+            <View pointerEvents="none" style={{height: frame.progress * footerHeight}}/>
           </SheetScrollView>
         </Animated.View>
         <Animated.View pointerEvents={modal ? 'none' : 'box-none'} aria-hidden={modal} accessibilityElementsHidden={modal} importantForAccessibility={modal ? 'no-hide-descendants' : 'auto'} style={{position: 'absolute', inset: 0, opacity: collapsedOpacity}}>

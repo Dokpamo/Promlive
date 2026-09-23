@@ -96,9 +96,16 @@ internal class EditorCaretVisibility(private val host: View) {
     editor.rootView.getLocationOnScreen(rootLocation)
     val keyboardTop = rootLocation[1] + editor.rootView.height - ime
     if (scroller == null) return maxOf(1, min(editor.height, keyboardTop - location[1]) - editor.totalPaddingTop - editor.totalPaddingBottom)
-    val editorTop = location[1]
     scroller.getLocationOnScreen(location)
-    val topInset = maxOf(0, editorTop - location[1] + scroller.scrollY)
+    // Read the scrolling inset in content coordinates. Subtracting two rounded
+    // screen positions adds a pixel of noise while the dock is translating.
+    var contentTop = editor.top
+    var ancestor = editor.parent
+    while (ancestor is View && ancestor !== scroller) {
+      contentTop += ancestor.top - ancestor.scrollY
+      ancestor = ancestor.parent
+    }
+    val topInset = maxOf(0, contentTop)
     val bottomInset = maxOf(0, (scroller.getChildAt(0)?.height ?: 0) - topInset - editor.height)
     return composerCaretViewport(scroller.height, keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
   }
