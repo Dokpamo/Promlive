@@ -1,19 +1,18 @@
-import {useRef, useState} from 'react';
-import {Animated, Platform, Pressable, Text, TextInput, View} from 'react-native';
+import {useState} from 'react';
+import {Animated, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {Card} from '../cards/model';
 import type {CardListActions} from '../cards/store';
 import {CardList} from '../cards/CardList';
 import {CardThumbnail} from '../cards/CardThumbnail';
-import {ChatIcon} from './ChatIcon';
 import {referenceSidebar as r} from './chatAppearance';
 import {referenceHeader, referenceTypography} from '../../layout/metrics';
 import {HeaderButton} from '../../layout/ScreenHeader';
-import {PressSurface} from '../../layout/PressSurface';
+import {ListSearch, ListCreateButton as CreateChatButton} from '../../layout/ListSearch';
+export {ListCreateButton as CreateChatButton} from '../../layout/ListSearch';
 import {useAppearance} from '../appearance/AppAppearance';
 import {DrawerGestureBoundary} from './DrawerGestureBoundary';
-import {usePressFeedback} from '../../layout/usePressFeedback';
-import {rowPressedScale, RowPressable} from '../../layout/RowPressable';
+import {RowPressable} from '../../layout/RowPressable';
 import {panelReference} from '../../layout/panelGeometry';
 import {UserAvatar} from '../profile/UserAvatar';
 import {useUserProfile} from '../profile/UserProfileContext';
@@ -88,42 +87,7 @@ export function CardConversationHeader({card, scale: s, onClose, closeLabel = '�
   </View>;
 }
 
-export function SidebarSearch({scale: s, history, historyProgress, value, onChange}: {scale: number; history: boolean; historyProgress: Animated.AnimatedInterpolation<number>; value: string; onChange: (value: string) => void}) {
-  const {colors: c, settings: p, isDark} = useAppearance();
-  const input = useRef<TextInput>(null);
-  const {progress, onPressIn, onPressOut} = usePressFeedback();
-  const size = r.searchHeight * s;
-  const labelTravel = 144 * s;
-  // The input keeps its native selection gestures; only its visual surface reacts.
-  const mouseFeedback = Platform.OS === 'web' ? {onMouseDown: onPressIn, onMouseUp: onPressOut, onMouseLeave: onPressOut} : {};
-  return <Pressable testID={history ? 'history-search' : 'sidebar-search'} accessible={false} onPress={() => input.current?.focus()} onPressIn={onPressIn} onPressOut={onPressOut} style={{height: size}}>
-    <Animated.View testID="sidebar-search-surface" style={{height: size, borderRadius: size / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 27 * s, gap: 14 * s, transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]})}]}}>
-      <Animated.View testID="sidebar-search-tint" pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, backgroundColor: p.selected, opacity: progress}}/>
-      <ChatIcon name="search" size={29 * s} color={c.text}/>
-      <View style={{flex: 1, minWidth: 0, height: size, overflow: 'hidden'}}>
-        {/* Keep one native input for focus/selection; only the empty-field labels move.
-            The popup's own progress also reverses these labels during a back drag. */}
-        <TextInput ref={input} testID={history ? 'history-search-input' : 'sidebar-search-input'} accessibilityLabel={history ? '이 카드의 채팅 검색' : '카드 검색'} value={value} onChangeText={onChange} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut} onBlur={onPressOut} {...mouseFeedback} style={{width: '100%', padding: 0, color: c.text, height: size, fontSize: 27 * s, includeFontPadding: false}}/>
-        <View pointerEvents="none" accessible={false} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', inset: 0, opacity: value ? 0 : 1}}>
-          <Animated.View testID="search-card-placeholder" style={{position: 'absolute', inset: 0, justifyContent: 'center', opacity: historyProgress.interpolate({inputRange: [0, 0.8, 1], outputRange: [1, 0, 0]}), transform: [{translateX: historyProgress.interpolate({inputRange: [0, 1], outputRange: [0, labelTravel]})}]}}>
-            <Text numberOfLines={1} style={{color: c.placeholder, fontSize: 27 * s, includeFontPadding: false}}>검색</Text>
-          </Animated.View>
-          <Animated.View testID="search-history-placeholder" style={{position: 'absolute', inset: 0, justifyContent: 'center', opacity: historyProgress.interpolate({inputRange: [0, 0.2, 1], outputRange: [0, 0, 1]}), transform: [{translateX: historyProgress.interpolate({inputRange: [0, 1], outputRange: [-labelTravel, 0]})}]}}>
-            <Text numberOfLines={1} style={{color: c.placeholder, fontSize: 27 * s, includeFontPadding: false}}>채팅 검색</Text>
-          </Animated.View>
-        </View>
-      </View>
-    </Animated.View>
-  </Pressable>;
-}
-
-export function CreateChatButton({scale: s, label, onPress, testID = 'sidebar-create'}: {scale: number; label: string; onPress: () => void; testID?: string}) {
-  const {colors: c, settings: p, isDark} = useAppearance();
-  const size = r.searchHeight * s;
-  return <PressSurface compact testID={testID} surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-    radius={size / 2} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
-    contentStyle={{backgroundColor: c.header, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
-    <ChatIcon name="new-chat" size={35 * s} color={c.text}/>
-    <View pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, borderWidth: s, borderColor: c.headerBorder}}/>
-  </PressSurface>;
+export function SidebarSearch({scale, history, historyProgress, value, onChange}: {scale: number; history: boolean; historyProgress: Animated.AnimatedInterpolation<number>; value: string; onChange: (value: string) => void}) {
+  return <ListSearch scale={scale} value={value} onChange={onChange} label={history ? '이 카드의 채팅 검색' : '카드 검색'}
+    testID={history ? 'history-search' : 'sidebar-search'} transition={{progress: historyProgress, from: '검색', to: '채팅 검색'}}/>;
 }
