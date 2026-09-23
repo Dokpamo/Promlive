@@ -2,6 +2,7 @@ import {useImperativeHandle, useRef} from 'react';
 import {findNodeHandle, NativeModules, Platform, TextInput} from 'react-native';
 import type {ComposerInputProps, ComposerSelection} from './ComposerInput.types';
 import {useAppearance} from '../appearance/AppAppearance';
+import {SheetTextInput} from '../../layout/SheetTextInput';
 
 export function ComposerInput(p: ComposerInputProps) {
   const {colors: c} = useAppearance();
@@ -38,7 +39,7 @@ export function ComposerInput(p: ComposerInputProps) {
       setSelection,
     };
   }, []);
-  return <TextInput
+  return <SheetTextInput
     ref={input}
     testID={p.testID ?? 'chat-input'}
     accessibilityLabel={p.label ?? '메시지 입력'}

@@ -75,14 +75,16 @@ it('keeps the same editor, selection and draft through repeated expansion and co
 it('restores the whole available editor viewport after the keyboard disappears', async () => {
   await render(); await press('입력창 크게 열기');
   const editor = document.querySelector('textarea')!;
-  const full = Number(editor.dataset.viewport);
+  const viewport = document.querySelector<HTMLElement>('[data-testid="composer-scroll-viewport"]')!;
+  const full = parseFloat(viewport.style.height);
+  expect(parseFloat(viewport.style.top)).toBe(0);
   keyboard.height = 336;
   await render();
-  const reduced = Number(editor.dataset.viewport);
+  const reduced = parseFloat(viewport.style.height);
   expect(reduced).toBeLessThan(full - 250);
   keyboard.height = 0;
   await render();
-  expect(Number(editor.dataset.viewport)).toBe(full);
+  expect(parseFloat(viewport.style.height)).toBe(full);
   expect(document.querySelector('textarea')).toBe(editor);
   expect(change).not.toHaveBeenCalled();
 });

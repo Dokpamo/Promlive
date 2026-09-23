@@ -15,8 +15,8 @@ export function expandedComposerFrame(viewport: Viewport, insets: Insets): Compo
   return {x: insets.left + (viewport.width - insets.left - insets.right - width) / 2, y: viewport.height - bottom - height, width, height, radius: panelReference.radius * scale};
 }
 
-/** Only the editor's scroll viewport ends above the keyboard, inside the fixed sheet. */
+/** The insets scroll with the text; the viewport reaches behind both floating controls. */
 export function composerEditorHeight(sheet: ComposerFrame, inputTop: number, contentHeight: number, line: number, bottomPadding: number, visibleBottom: number) {
-  const available = Math.min(sheet.y + sheet.height, visibleBottom) - sheet.y - inputTop - bottomPadding;
-  return Math.min(Math.max(line, contentHeight), Math.max(line, available));
+  const available = Math.min(sheet.y + sheet.height, visibleBottom) - sheet.y;
+  return Math.min(Math.max(line, contentHeight) + inputTop + bottomPadding, Math.max(line, available));
 }

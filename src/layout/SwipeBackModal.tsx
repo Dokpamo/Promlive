@@ -10,7 +10,7 @@ import {sheetPullDistance, sheetPullLimits, sheetPullOrigin, shouldDismissSheet,
 import {createSheetScrollHandoff, type SheetScrollPull} from './sheetScrollHandoff';
 import {SheetGestureRoot} from './SheetGestureRoot';
 
-interface SheetDrag {
+export interface SheetDrag {
   canStart: () => boolean;
   begin: (dx: number, dy: number, returnOnly?: boolean) => void;
   move: (dx: number, dy: number) => void;

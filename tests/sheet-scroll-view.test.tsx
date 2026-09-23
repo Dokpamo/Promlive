@@ -3,9 +3,10 @@ import {act, type ReactNode, type Ref} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {SheetScrollView} from '../src/layout/SheetScrollView.touch';
+import {SheetInputGesture} from '../src/layout/SheetTextInput.touch';
 
 const native = vi.hoisted(() => ({
-  callbacks: {} as Record<string, (event: {absoluteX: number; absoluteY: number; numberOfPointers: number; velocityX: number; velocityY: number}, success?: boolean) => void>,
+  callbacks: {} as Record<string, (...args: any[]) => void>,
   props: [] as {scrollEnabled: boolean}[],
   drag: {canStart: () => true, begin: vi.fn(), move: vi.fn(), release: vi.fn()},
 }));
@@ -21,7 +22,7 @@ vi.mock('react-native-gesture-handler', () => {
   function builder() {
     const chain: Record<string, (...args: any[]) => unknown> = {};
     for (const name of ['minDistance', 'runOnJS', 'maxPointers', 'shouldCancelWhenOutside', 'simultaneousWithExternalGesture']) chain[name] = () => chain;
-    for (const name of ['onBegin', 'onUpdate', 'onFinalize']) chain[name] = callback => {native.callbacks[name] = callback; return chain;};
+    for (const name of ['onBegin', 'onUpdate', 'onFinalize', 'onTouchesDown', 'onTouchesMove']) chain[name] = callback => {native.callbacks[name] = callback; return chain;};
     return chain;
   }
   return {Gesture: {Native: builder, Pan: builder}, GestureDetector: ({children}: {children: ReactNode}) => children};
@@ -29,12 +30,14 @@ vi.mock('react-native-gesture-handler', () => {
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-async function render(offset = 100) {
+async function render(offset = 100, canStartInputScroll = () => true) {
   const container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   const scroll = {current: {offset, canScroll: true, maxOffset: 300}};
-  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll}/>));
+  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll} canStartInputScroll={canStartInputScroll}>
+    <SheetInputGesture.Consumer>{binding => <span data-testid="input-gesture" data-enabled={binding?.enabled}/>}</SheetInputGesture.Consumer>
+  </SheetScrollView>));
   return scroll;
 }
 function touch(name: string, y: number, extra = {}, success = true) {
@@ -121,4 +124,15 @@ it.each([false, true])('restores scrolling after a cancelled native pull (second
   touch('onFinalize', 170, {}, secondFinger);
   expect(native.drag.release).toHaveBeenCalledWith(0, 50, 0, 0.6, true);
   expect(native.props.at(-1)).toEqual({scrollEnabled: true});
+});
+
+it.each([false, true])('cancels an editor long press for scrolling, but keeps existing selection (selected: %s)', async selected => {
+  await render(100, () => !selected);
+  native.callbacks.onTouchesDown!({allTouches: [{absoluteX: 50, absoluteY: 100}], numberOfTouches: 1});
+  await act(async () => native.callbacks.onTouchesMove!({allTouches: [{absoluteX: 50, absoluteY: 105}], numberOfTouches: 1}));
+  expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe('true');
+  await act(async () => native.callbacks.onTouchesMove!({allTouches: [{absoluteX: 50, absoluteY: 150}], numberOfTouches: 1}));
+  expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe(String(selected));
+  await act(async () => touch('onFinalize', 150));
+  expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe('true');
 });

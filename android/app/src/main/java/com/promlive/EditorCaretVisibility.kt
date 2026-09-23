@@ -4,6 +4,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.EditText
+import android.widget.ScrollView
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -11,6 +12,7 @@ import kotlin.math.min
 internal class EditorCaretVisibility(private val host: View) {
   private data class Frame(
     val editor: EditText,
+    val scroller: ScrollView?,
     val scroll: Int,
     val height: Int,
     val width: Int,
@@ -49,18 +51,31 @@ internal class EditorCaretVisibility(private val host: View) {
     previous = frame(editor, ime)
   }
 
-  private fun frame(editor: EditText, ime: Int) = Frame(editor, editor.scrollY, editor.height, editor.width, ime,
-    editor.selectionStart, editor.selectionEnd, editor.length())
+  private fun editorScroller(editor: EditText): ScrollView? {
+    var ancestor = editor.parent
+    while (ancestor is View && ancestor !== host) {
+      if (ancestor is ScrollView && ancestor.getTag(com.facebook.react.R.id.view_tag_native_id) == "promlive-composer-scroll") return ancestor
+      ancestor = ancestor.parent
+    }
+    return null
+  }
+
+  private fun frame(editor: EditText, ime: Int): Frame {
+    val scroller = editorScroller(editor)
+    return Frame(editor, scroller, scroller?.scrollY ?: editor.scrollY, scroller?.height ?: editor.height, editor.width, ime,
+      editor.selectionStart, editor.selectionEnd, editor.length())
+  }
 
   /** Runs after TextView's pre-draw auto-scroll, before any pixels are drawn. */
   fun beforeDraw(ime: Int) {
     val editor = host.findFocus() as? EditText ?: run { reset(); return }
     val layout = editor.layout ?: return
+    val current = frame(editor, ime)
     val old = previous
-    if (old == null || old.editor !== editor) { capture(ime); return }
+    if (old == null || old.editor !== editor || old.scroller !== current.scroller) { previous = current; return }
     val selectionChanged = editor.selectionStart != old.start || editor.selectionEnd != old.end
     val textChanged = editor.length() != old.length
-    val resized = editor.height != old.height || editor.width != old.width
+    val resized = current.height != old.height || editor.width != old.width
     val keyboardChanged = ime != old.ime
     if (!resized && !keyboardChanged && !selectionChanged && !textChanged) { capture(ime); return }
 
@@ -74,15 +89,32 @@ internal class EditorCaretVisibility(private val host: View) {
     editor.getLocationOnScreen(location)
     editor.rootView.getLocationOnScreen(rootLocation)
     val keyboardTop = rootLocation[1] + editor.rootView.height - ime
-    val viewport = maxOf(1, min(editor.height, keyboardTop - location[1]) - editor.totalPaddingTop - editor.totalPaddingBottom)
+    val scroller = current.scroller
+    val viewport = if (scroller == null) {
+      maxOf(1, min(editor.height, keyboardTop - location[1]) - editor.totalPaddingTop - editor.totalPaddingBottom)
+    } else {
+      val editorTop = location[1]
+      scroller.getLocationOnScreen(location)
+      // These spacers belong to the scroll content, so reading can pass behind
+      // the floating buttons. Only the active caret must stay in the clear area.
+      val topInset = maxOf(0, editorTop - location[1] + scroller.scrollY)
+      val bottomInset = maxOf(0, (scroller.getChildAt(0)?.height ?: 0) - topInset - editor.height)
+      composerCaretViewport(scroller.height, keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
+    }
     val maxScroll = maxOf(0, layout.height - viewport)
-    val baseline = if (textChanged) editor.scrollY else old.scroll
-    val reveal = selectionChanged || textChanged || ime > old.ime || editor.height < old.height || editor.width != old.width
+    val baseline = if (textChanged) current.scroll else old.scroll
+    val reveal = selectionChanged || textChanged || ime > old.ime || current.height < old.height || editor.width != old.width
     val next = caretScrollOffset(baseline, layout.getLineTop(line), layout.getLineBottom(line), viewport, maxScroll, reveal)
-    if (next != editor.scrollY) editor.scrollTo(editor.scrollX, next)
+    if (next != current.scroll) {
+      if (scroller == null) editor.scrollTo(editor.scrollX, next)
+      else scroller.scrollTo(scroller.scrollX, next)
+    }
     previous = frame(editor, ime)
   }
 }
+
+internal fun composerCaretViewport(height: Int, keyboardTop: Int, topInset: Int, bottomInset: Int): Int =
+  maxOf(1, min(height, keyboardTop) - topInset - bottomInset)
 
 /** No centering or scroll-to-end: move only the covered part of the caret's line. */
 internal fun caretScrollOffset(scroll: Int, top: Int, bottom: Int, viewport: Int, maxScroll: Int, reveal: Boolean): Int {

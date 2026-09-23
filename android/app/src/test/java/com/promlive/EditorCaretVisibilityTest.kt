@@ -22,4 +22,18 @@ class EditorCaretVisibilityTest {
   @Test fun keyboardHidingRemovesUnusedScrollSpaceWhenTheWholeTextFits() {
     assertEquals(0, caretScrollOffset(300, 50, 80, 700, 0, false))
   }
+  @Test fun composerCaretClearsBothFloatingControlsWhileItsScrollerUsesTheFullHeight() {
+    val viewport = composerCaretViewport(800, 500, 84, 70)
+    assertEquals(346, viewport)
+    assertEquals(654, caretScrollOffset(0, 970, 1000, viewport, 1000 - viewport, true))
+  }
+  @Test fun composerKeyboardHidingKeepsTheReadingPositionWhenItStillFits() {
+    val viewport = composerCaretViewport(800, 900, 84, 70)
+    assertEquals(646, viewport)
+    assertEquals(120, caretScrollOffset(120, 970, 1000, viewport, 1000 - viewport, false))
+  }
+  @Test fun selectingTextBehindTheHeaderRevealsOnlyThatLine() {
+    val viewport = composerCaretViewport(800, 500, 84, 70)
+    assertEquals(460, caretScrollOffset(500, 460, 490, viewport, 1000 - viewport, true))
+  }
 }

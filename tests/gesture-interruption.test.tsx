@@ -524,7 +524,7 @@ it('regrabs composer recovery immediately while preserving the text gesture boun
   const x = new native.Value(0), y = new native.Value(0);
   const grab = vi.fn(), restore = vi.fn(), close = vi.fn();
   let pull!: ReturnType<typeof useComposerPull>;
-  function Host() {pull = useComposerPull({x, y} as unknown as {x: Animated.Value; y: Animated.Value}, {travel: 700, ready: () => true, grab, restore, close}); return null;}
+  function Host() {pull = useComposerPull({x, y} as unknown as {x: Animated.Value; y: Animated.Value}, {travel: 700, ready: () => true, grab, restore, close, scroll: {current: {offset: 0, canScroll: false}}, canScrollPull: () => true}); return null;}
   await render(<Host/>);
   await act(async () => {
     touchDown();
@@ -540,4 +540,29 @@ it('regrabs composer recovery immediately while preserving the text gesture boun
   expect(pan().onStartShouldSetPanResponder!(event, gesture())).toBe(false);
   expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 80))).toBe(false);
   expect(close).not.toHaveBeenCalled();
+});
+
+it('returns the first composer edge pull even at dismissal velocity and leaves text selection alone', async () => {
+  const x = new native.Value(0), y = new native.Value(0);
+  const restore = vi.fn(), close = vi.fn();
+  let selecting = false;
+  let pull!: ReturnType<typeof useComposerPull>;
+  function Host() {
+    pull = useComposerPull({x, y} as unknown as {x: Animated.Value; y: Animated.Value}, {
+      travel: 700, ready: () => true, grab: vi.fn(), restore, close,
+      scroll: {current: {offset: 0, canScroll: true, nativeGesture: true}}, canScrollPull: () => !selecting,
+    });
+    return null;
+  }
+  await render(<Host/>);
+  pull.blockScroll();
+  expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 90))).toBe(false);
+  await act(async () => {pull.scrollDrag.begin(0, 90, true); pull.scrollDrag.move(0, 300);});
+  expect(y.displayed).toBeGreaterThan(0);
+  expect(y.displayed).toBeLessThan(72);
+  await act(async () => pull.scrollDrag.release(0, 300, 0, 2, false));
+  expect(restore).toHaveBeenCalledOnce();
+  expect(close).not.toHaveBeenCalled();
+  selecting = true;
+  expect(pull.scrollDrag.canStart()).toBe(false);
 });
