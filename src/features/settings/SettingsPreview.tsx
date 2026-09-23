@@ -52,7 +52,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 
   return <SwipeBackModal onClose={onClose}>{close => <>
     <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
-      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{alignSelf: 'center', maxWidth: '100%', marginBottom: r.profileBottom * s}} contentStyle={{alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, paddingVertical: 16 * s}}>
+      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{alignSelf: 'center', maxWidth: '100%', marginBottom: r.profileBottom * s}} contentStyle={{alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, paddingVertical: r.profilePadding * s}}>
         <UserAvatar testID="settings-user-avatar" image={profile.image} size={r.profileSize * s}/>
         <Text numberOfLines={1} style={{color: p.text, textAlign: 'center', fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{profile.name}</Text>
       </RowPressable>

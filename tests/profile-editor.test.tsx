@@ -14,10 +14,12 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('../src/features/appearance/AppAppearance', () => ({useAppearance: () => ({settings: {text: '#222', secondary: '#888'}})}));
 vi.mock('../src/layout/RowPressable', () => ({RowPressable: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled?: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} onClick={onPress} disabled={disabled}>{children}</button>}));
+vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled?: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} onClick={onPress} disabled={disabled}>{children}</button>}));
 vi.mock('../src/layout/SwipeBackModal', () => ({SwipeBackBoundary: ({children}: {children: ReactNode}) => <div>{children}</div>}));
 vi.mock('../src/features/chat/ChatIcon', () => ({ChatIcon: () => <span/>}));
+vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => <span/>}));
 vi.mock('../src/features/settings/SettingsLayout', () => ({SettingsNote: ({children}: {children: ReactNode}) => <span>{children}</span>, useSettingsScale: () => 1, panelReference: {}}));
-vi.mock('../src/features/profile/UserAvatar', () => ({UserAvatar: ({image}: {image: string | null}) => <span data-photo={image ?? ''}/> }));
+vi.mock('../src/features/profile/UserAvatar', () => ({UserAvatar: ({image, testID}: {image: string | null; testID?: string}) => <span data-testid={testID} data-photo={image ?? ''}/> }));
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 const oldImage = 'data:image/png;base64,b2xk';
@@ -46,7 +48,7 @@ it('starts the editor with the restored profile even when loading finishes after
   expect(document.querySelector('input')).toBeNull();
   await act(async () => loaded(JSON.stringify({name: '저장된 이름', image: oldImage})));
   expect(document.querySelector('input')?.value).toBe('저장된 이름');
-  expect(document.querySelector('[aria-label="프로필 사진 선택"] [data-photo]')?.getAttribute('data-photo')).toBe(oldImage);
+  expect(document.querySelector('[data-testid="profile-photo-preview"]')?.getAttribute('data-photo')).toBe(oldImage);
 });
 
 it('saves a picked photo directly to both accounts, while cancellation keeps the existing photo', async () => {
@@ -57,8 +59,8 @@ it('saves a picked photo directly to both accounts, while cancellation keeps the
   picker.mockResolvedValueOnce(newImage); await click('프로필 사진 선택');
   expect([...document.querySelectorAll('[data-account]')].map(item => item.getAttribute('data-photo'))).toEqual([newImage, newImage]);
   expect(document.body.textContent).not.toContain('적용');
-  await click('기본 이미지로 변경');
-  expect(profile.snapshot().value.image).toBeNull();
+  expect(document.querySelector('[aria-label="기본 이미지로 변경"]')).toBeNull();
+  expect(profile.snapshot().value.image).toBe(newImage);
 });
 
 it('edits the name in place, automatically saves, and restores the saved name if cleared and abandoned', async () => {

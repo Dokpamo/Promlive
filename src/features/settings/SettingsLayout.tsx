@@ -36,7 +36,7 @@ export function SettingsPage({children, onBack, title, titleInHeader = false, ho
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
   return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
-    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: panelReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + panelReference.top * s, paddingBottom: insets.bottom + 36 * s}}>
+    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: panelReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + (home ? panelReference.profileTop : panelReference.top) * s, paddingBottom: insets.bottom + 36 * s}}>
       <SwipeBackScrollContent>
         {title && !titleInHeader && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
         {children}

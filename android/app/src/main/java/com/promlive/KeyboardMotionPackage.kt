@@ -53,8 +53,8 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   private var frozenIme = 0
   private var imeHeight = 0
   private val caretIme: Int get() = if (Build.VERSION.SDK_INT >= 30) imeHeight else 0
-  private var animating = false
   private var lastReported = -1
+  private val motion = KeyboardInsetMotion(publish = ::updateHeight)
   private val caret = EditorCaretVisibility(this)
   private val beforeDraw = ViewTreeObserver.OnDrawListener { if (followCaret) caret.beforeDraw(caretIme) }
 
@@ -69,8 +69,8 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     translationY = if (Build.VERSION.SDK_INT >= 30) -maxOf(0f, dockIme - bottomInset) * dockFraction else 0f
   }
 
-  private fun update(insets: WindowInsetsCompat) {
-    imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+  private fun updateHeight(height: Int) {
+    imeHeight = height
     positionDock()
     // A fixed sheet otherwise has no reason to redraw while the IME moves.
     // Keep caret avoidance on the same native frames, even if JS layout is late.
@@ -92,30 +92,34 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     viewTreeObserver.addOnDrawListener(beforeDraw)
     lastReported = -1
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-      // These are the final insets during an animation. Wait for onProgress
-      // instead of jumping to them before the keyboard has moved.
-      if (!animating) update(insets)
+      val height = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      if (Build.VERSION.SDK_INT >= 30) {
+        // Even disabled animations deliver an IME progress/final frame. A
+        // layout target must never bypass that stream in the focused window.
+        motion.layout(height, followsAnimation = hasWindowFocus())
+      } else updateHeight(height)
       insets
     }
     ViewCompat.setWindowInsetsAnimationCallback(this, object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
       override fun onPrepare(animation: WindowInsetsAnimationCompat) {
         if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) {
-          animating = true
+          motion.prepare(animation)
           reactContext.getNativeModule(KeyboardControlModule::class.java)?.keyboardWillAnimate()
         }
       }
       override fun onProgress(insets: WindowInsetsCompat, animations: MutableList<WindowInsetsAnimationCompat>): WindowInsetsCompat {
-        update(insets)
+        if (animations.any { it.typeMask and WindowInsetsCompat.Type.ime() != 0 }) {
+          motion.progress(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+        }
         return insets
       }
       override fun onEnd(animation: WindowInsetsAnimationCompat) {
         if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) {
-          animating = false
-          ViewCompat.getRootWindowInsets(this@KeyboardMotionView)?.let(::update)
+          motion.end(animation)
         }
       }
     })
-    ViewCompat.getRootWindowInsets(this)?.let(::update)
+    ViewCompat.getRootWindowInsets(this)?.let { updateHeight(it.getInsets(WindowInsetsCompat.Type.ime()).bottom) }
     ViewCompat.requestApplyInsets(this)
   }
 
@@ -124,7 +128,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     caret.reset()
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
     ViewCompat.setWindowInsetsAnimationCallback(this, null)
-    animating = false
+    motion.reset()
     super.onDetachedFromWindow()
   }
 }
