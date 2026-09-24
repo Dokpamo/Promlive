@@ -1,3 +1,5 @@
+import {SqliteLibraryFolderStore} from './libraryFolderStore';
+import type {FolderRemoval} from '../../features/library/FolderLibrary';
 import {z} from 'zod';
 import type {SqlDatabase, SqlSession} from '../../ports/storage';
 import type {StoryRepository} from '../../ports/repository';
@@ -11,7 +13,8 @@ const bufferSchema = cardSchema.extend({title: z.string().max(120)});
 export class RevisionConflict extends Error { constructor() { super('원본 카드가 변경되었습니다. 최신 내용과 초안을 비교한 뒤 다시 적용해 주세요.'); this.name = 'RevisionConflict'; } }
 export class Repository implements StoryRepository {
   private readonly chatStore: SqliteChatSessionStore;
-  constructor(readonly db: SqlDatabase) {this.chatStore = new SqliteChatSessionStore(db);}
+  readonly folderStore: SqliteLibraryFolderStore;
+  constructor(readonly db: SqlDatabase) {this.chatStore = new SqliteChatSessionStore(db); this.folderStore = new SqliteLibraryFolderStore(db);}
   loadComposerDraft(id: string) {return this.chatStore.loadComposerDraft(id);}
   writeComposerDraft(id: string, draft: Pick<ComposerDraft, 'text' | 'revision'>) {return this.chatStore.writeComposerDraft(id, draft);}
   acceptChatSubmission(submission: ChatSubmission) {return this.chatStore.acceptChatSubmission(submission);}
@@ -64,8 +67,9 @@ export class Repository implements StoryRepository {
     });
   }
   async deleteCard(id: string) {await this.deleteCards([id]);}
-  async deleteCards(ids: readonly string[]) {
+  async deleteCards(ids: readonly string[], folders?: FolderRemoval) {
     await this.db.transaction(async tx => {
+      if (folders) await this.folderStore.removeIn(tx, folders, ids, 'card');
       for (const id of new Set(ids)) {
         await tx.execute("DELETE FROM settings WHERE key IN (SELECT 'composer:' || id FROM conversations WHERE card_id=?)", [id]);
         await tx.execute('DELETE FROM cards WHERE id=?', [id]);
@@ -114,8 +118,9 @@ export class Repository implements StoryRepository {
     const result = await this.db.execute('UPDATE conversations SET pinned_at=? WHERE id=?', [pinned ? Date.now() : null, id]);
     if (result.changes !== 1) throw new Error('채팅내역을 찾을 수 없습니다.');
   }
-  async deleteConversations(ids: readonly string[]) {
+  async deleteConversations(ids: readonly string[], folders?: FolderRemoval) {
     await this.db.transaction(async tx => {
+      if (folders) await this.folderStore.removeIn(tx, folders, ids, 'history');
       for (const id of new Set(ids)) {
         await tx.execute('DELETE FROM conversations WHERE id=?', [id]);
         await tx.execute('DELETE FROM settings WHERE key=?', [`composer:${id}`]);

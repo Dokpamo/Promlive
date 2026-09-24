@@ -82,7 +82,7 @@ function ProfileEditorFields({value, store, closing, onEditPhoto}: {value: UserP
           style={{flex: 1, color: p.text, fontSize: r.rowFont * s, paddingHorizontal: 0, paddingVertical: r.rowPadding * s, includeFontPadding: false, backgroundColor: 'transparent'}}/>
         {!!name && <RowPressable testID="profile-name-clear" accessibilityRole="button" accessibilityLabel="이름 지우기" disabled={closing} onPress={() => {changeName(''); input.current?.focus();}} radius={28 * s} contentStyle={{width: 56 * s, height: 56 * s, alignItems: 'center', justifyContent: 'center'}}><ChatIcon name="close" size={26 * s} color={p.secondary}/></RowPressable>}
       </View>
-      <View testID="profile-name-underline" pointerEvents="none" style={{height: 3 * s, justifyContent: 'flex-end'}}><View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/></View>
+      <View testID="profile-name-underline" pointerEvents="none" style={{height: 3 * s, marginTop: -r.inputUnderlineInset * s, justifyContent: 'flex-end'}}><View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/></View>
     </SwipeBackBoundary>
     {nameError && <RowPressable accessibilityRole="button" accessibilityLabel="이름 저장 다시 시도" onPress={() => saveName(name)} radius={r.controlRadius * s} contentStyle={{paddingVertical: 16 * s}}><Text style={{color: p.secondary, fontSize: 24 * s}}>이름을 저장하지 못했어요. 눌러서 다시 시도</Text></RowPressable>}
     {!!photoError && <SettingsNote>{photoError}</SettingsNote>}

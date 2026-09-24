@@ -7,6 +7,8 @@ export const panelReference = {
   contentMaxWidth: 560,
   inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
   rowHeight: 82, rowInset, rowPadding: 17, rowFont: referenceTypography.titleFontSize, rowLine: 40, valueFont: 26,
+  // Bring the underline into the field's padding without moving text or its touch target.
+  inputUnderlineInset: 8,
   subtitle: {fontSize: 24, lineHeight: 34, bottom: 16, sectionTop: 14},
   highlightInset: 8,
   toggle: {width: 76, height: 44, inset: 4},

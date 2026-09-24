@@ -1,3 +1,4 @@
+import type {FolderRemoval} from '../library/FolderLibrary';
 import type {Conversation, Message} from './model';
 import type {ChatSessionStore} from './sessionStore';
 import type {DraftWriter, CardLibraryStore} from '../cards/store';
@@ -7,7 +8,7 @@ export interface ConversationStore {
   conversations(cardId?: string): Promise<Conversation[]>;
   renameConversation(id: string, title: string): Promise<void>;
   pinConversation(id: string, pinned: boolean): Promise<void>;
-  deleteConversations(ids: readonly string[]): Promise<void>;
+  deleteConversations(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
 }
 
 export interface MessageReader {

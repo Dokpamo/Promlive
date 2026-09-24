@@ -1,3 +1,4 @@
+import {FolderLibrary, type FolderStore, type FolderRemoval} from '../library/FolderLibrary';
 import type {Conversation} from './model';
 import type {ConversationStore} from './store';
 
@@ -12,8 +13,17 @@ export class ConversationList {
   private opening = new Map<string, Promise<Conversation>>();
   private removingCards = new Set<string>();
 
+  private readonly libraries = new Map<string, FolderLibrary>();
+  folderLibrary(cardId: string) {
+    if (!this.folderStore) return undefined;
+    let library = this.libraries.get(cardId);
+    if (!library) {library = new FolderLibrary({kind: 'history', cardId}, this.folderStore); this.libraries.set(cardId, library);}
+    return library;
+  }
+
   constructor(private readonly store: Pick<ConversationStore, 'conversations' | 'createConversation' | 'renameConversation' | 'pinConversation'>,
-    private readonly removeStored: (ids: readonly string[]) => Promise<void>) {}
+    private readonly removeStored: (ids: readonly string[], folders?: FolderRemoval) => Promise<void>,
+    private readonly folderStore?: FolderStore) {}
 
   get items(): readonly Conversation[] {return this.list;}
   get selected(): Conversation | null {return this.list.find(item => item.id === this.selectedId) ?? null;}
@@ -61,10 +71,10 @@ export class ConversationList {
     await this.store.pinConversation(id, pinned);
     await this.refresh();
   }
-  async remove(ids: readonly string[]) {
+  async remove(ids: readonly string[], folders?: FolderRemoval) {
     const unique = [...new Set(ids)];
-    if (!unique.length) return;
-    await this.removeStored(unique);
+    if (!unique.length && !folders?.folderIds.length) return;
+    await this.removeStored(unique, folders);
     this.forget(unique);
     // Even if reloading fails, deleted rows/selection must stay removed locally.
     await this.refresh();
@@ -75,6 +85,7 @@ export class ConversationList {
       // An already-started room creation must finish before the card cascade.
       await Promise.allSettled([...this.opening].filter(([key]) => cardIds.some(id => key.startsWith(`${id}:`))).map(([, task]) => task));
       const removed = await removeStored();
+      cardIds.forEach(id => this.libraries.delete(id));
       this.forget([...removed, ...this.list.filter(item => cardIds.includes(item.cardId)).map(item => item.id)]);
     } finally {cardIds.forEach(id => this.removingCards.delete(id));}
   }

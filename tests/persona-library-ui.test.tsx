@@ -313,7 +313,8 @@ it('selects through the item menu; selection survives search and deletes exactly
 
   expect(button('선택한 항목 폴더 이동').disabled).toBe(false);
   await search('작가'); await press('작가');
-  expect(button('선택한 항목 삭제').textContent).toBe(''); // Icon only, with an accessible label.
+  expect(button('선택한 항목 삭제').textContent).toBe('');
+  expect(button('선택한 항목 폴더 이동').textContent).toBe('');
   await press('선택한 항목 삭제');
   expect(store.snapshot().value.items).toHaveLength(3);
   expect(document.querySelector('[data-testid="persona-delete-confirm"]')).not.toBeNull();
@@ -386,7 +387,7 @@ it('selects folders and personas together and clears selection when deletion is 
   expect(button('작가').getAttribute('aria-checked')).toBe('true');
   expect(button('보관 폴더').getAttribute('aria-checked')).toBe('true');
   expect(button('페르소나 목록으로 돌아가기')).toBeNull();
-  expect(document.body.textContent).toContain('2개 선택');
+  expect(document.body.textContent).not.toContain('개 선택');
   await press('선택한 항목 삭제'); await press('삭제 취소');
   expect(button('보관 폴더').getAttribute('aria-checked')).toBeNull();
   expect(document.querySelector('[data-testid="persona-selection-footer"]')).toBeNull();

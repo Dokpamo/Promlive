@@ -11,7 +11,7 @@ import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
 
 interface RenameProps {
   item: {title: string};
-  scope?: 'history' | 'card' | 'persona-folder';
+  scope?: string;
   heading?: string;
   inputLabel?: string;
   maxLength?: number;
@@ -115,7 +115,7 @@ function RenameEditor({item, scope, heading, inputLabel, maxLength, onSave, clos
             selectionColor={isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)'} cursorColor={p.accent} underlineColorAndroid="transparent"
             style={{color: p.text, backgroundColor: 'transparent', paddingHorizontal: g.rowInset * s,
               paddingVertical: g.rowPadding * s, fontSize: g.rowFont * s, height: g.rowHeight * s, includeFontPadding: false}}/>
-          <View testID={`${scope}-rename-underline`} pointerEvents="none" style={{height: 3 * s, marginHorizontal: g.rowInset * s, justifyContent: 'flex-end'}}>
+          <View testID={`${scope}-rename-underline`} pointerEvents="none" style={{height: 3 * s, marginTop: -g.inputUnderlineInset * s, marginHorizontal: g.rowInset * s, justifyContent: 'flex-end'}}>
             <View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/>
           </View>
         </SwipeBackBoundary>

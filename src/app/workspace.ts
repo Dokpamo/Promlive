@@ -1,3 +1,4 @@
+import {FolderLibrary, type FolderRemoval} from '../features/library/FolderLibrary';
 import type {Runtime} from './runtime';
 import {Notifications} from './Notifications';
 import {newCard, type Card} from '../features/cards/model';
@@ -24,21 +25,26 @@ export class Workspace {
   readonly cardEditor: CardEditor;
   readonly history: ConversationList;
   readonly chats: ChatSessions;
-  readonly cardActions: CardListActions = {
+  readonly cardFolders: FolderLibrary;
+  readonly cardActions: CardListActions;
+  private createCardActions(): CardListActions {return {
+    folders: this.cardFolders,
     rename: (id, title) => this.changeCardMetadata(id, {title}),
     pin: (id, pinned) => this.changeCardMetadata(id, {pinnedAt: pinned ? Date.now() : null}),
-    remove: ids => {
-      const task = this.cardRemoval.then(() => this.removeCards([...new Set(ids)]));
+    remove: (ids, folders) => {
+      const task = this.cardRemoval.then(() => this.removeCards([...new Set(ids)], folders));
       this.cardRemoval = task.catch(() => {});
       return task;
     },
-  };
+  };}
 
   constructor(readonly runtime: Runtime) {
-    this.history = new ConversationList(runtime.repo, async ids => {
-      await runtime.creation.deleteConversations(ids);
+    this.cardFolders = new FolderLibrary({kind: 'card'}, runtime.repo.folderStore);
+    this.cardActions = this.createCardActions();
+    this.history = new ConversationList(runtime.repo, async (ids, folders) => {
+      await runtime.creation.deleteConversations(ids, folders);
       this.chats.forget(ids);
-    });
+    }, runtime.repo.folderStore);
     this.cardEditor = new CardEditor(runtime.repo, {
       report: this.notifications.report,
       committed: async (card, draft) => {
@@ -130,15 +136,15 @@ export class Workspace {
     this.cardEditor.updateMetadata(saved, patch);
     await this.refreshCards();
   }
-  private async removeCards(ids: readonly string[]) {
-    if (!ids.length) return;
+  private async removeCards(ids: readonly string[], folders?: FolderRemoval) {
+    if (!ids.length && !folders?.folderIds.length) return;
     const attempt = ++this.navigation;
     ids.forEach(id => this.removingCards.add(id));
     try {
       if (ids.includes('promlive-general-chat')) await this.generalOpening;
       await this.history.removeCards(ids, () => this.cardEditor.withRemoval(ids, async () => {
         for (const room of this.history.items) if (ids.includes(room.cardId)) this.runtime.extensions?.cancel(room.id);
-        const removed = await this.runtime.creation.deleteCards(ids);
+        const removed = await this.runtime.creation.deleteCards(ids, folders);
         this.chats.forget(removed);
         this.refreshVersion++;
         this.cards = this.cards.filter(card => !ids.includes(card.id));

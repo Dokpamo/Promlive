@@ -12,8 +12,9 @@ export function CardConversationPanel({history, openConversation, report, scale,
 }) {
   useSyncExternalStore(history.subscribe, history.snapshot);
   const query = search.trim().toLocaleLowerCase();
-  const conversations = useMemo(() => history.items.filter(item => item.cardId === card.id && `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query)), [history.items, card.id, query]);
-  return <ManagedItemList scope="history" items={conversations} allItems={history.items} selectedId={history.selected?.id} scale={scale}
+  const allItems = useMemo(() => history.items.filter(item => item.cardId === card.id), [history.items, card.id]);
+  const conversations = useMemo(() => allItems.filter(item => `${item.title} ${item.preview ?? ''}`.toLocaleLowerCase().includes(query)), [allItems, query]);
+  return <ManagedItemList scope="history" items={conversations} allItems={allItems} library={history.folderLibrary(card.id)} search={search} selectedId={history.selected?.id} scale={scale}
     actions={history} report={report} resetKey={`${card.id}:${query}`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'}
     onOpen={item => {void openConversation(item).then(close).catch(report);}} scroll={scroll} onListTouch={onListTouch}
     header={({selecting, cancel}) => <CardConversationHeader card={card} scale={scale} onClose={selecting ? cancel : onClose} closeLabel={selecting ? '선택 취소' : '채팅내역 닫기'}/>}/>;

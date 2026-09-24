@@ -114,7 +114,7 @@ function PersonaEditorSurface({draft, editing, closing, saving, obscured, error,
             onFocus={() => {setFocused(true); setSelection(undefined);}} onBlur={() => setFocused(false)} placeholder="이름을 입력해 주세요" placeholderTextColor={p.faint} maxLength={40} autoCorrect={false}
             returnKeyType="done" underlineColorAndroid="transparent" cursorColor={p.accent} selectionColor={isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)'} selectionHandleColor={p.accent}
             style={{height: g.rowHeight * s, color: p.text, fontSize: g.rowFont * s, paddingHorizontal: 0, paddingVertical: g.rowPadding * s, includeFontPadding: false}}/>
-          <View pointerEvents="none" style={{height: 3 * s, justifyContent: 'flex-end'}}><View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/></View>
+          <View pointerEvents="none" style={{height: 3 * s, marginTop: -g.inputUnderlineInset * s, justifyContent: 'flex-end'}}><View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/></View>
         </SwipeBackBoundary>
         <SettingsTextField testID="persona-description" label="설명" value={draft.description} onChange={description => change({description})} placeholder="대화에서 사용할 나의 설정" multiline maxLength={2000}/>
         {!!error && <RowPressable accessibilityRole="button" accessibilityLabel="페르소나 저장 다시 시도" onPress={editing ? retry : create} radius={g.controlRadius * s} contentStyle={{paddingHorizontal: g.rowInset * s, paddingVertical: 12 * s}}><Text accessibilityRole="alert" style={{color: p.secondary, fontSize: 22 * s}}>{error}</Text></RowPressable>}

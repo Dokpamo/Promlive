@@ -1,3 +1,4 @@
+import type {FolderRemoval} from '../library/FolderLibrary';
 import type {CreationStore} from './store';
 import {AiUnavailableError} from '../../ports/ai';
 import {cardContext, newId, type Card, type Draft} from '../cards/model';
@@ -37,7 +38,7 @@ export class CreationService {
     tasks.add(task);
     return task;
   }
-  async deleteConversations(ids: readonly string[]) {
+  async deleteConversations(ids: readonly string[], folders?: FolderRemoval) {
     const unique = [...new Set(ids)];
     unique.forEach(id => this.deleting.add(id));
     try {
@@ -47,12 +48,12 @@ export class CreationService {
       }
       // Let cancellation finish its last write before cascading the messages away.
       await Promise.allSettled(unique.flatMap(id => [...this.sends.get(id) ?? []]));
-      await this.repo.deleteConversations(unique);
+      await this.repo.deleteConversations(unique, folders);
       unique.forEach(id => this.active.delete(id));
     } finally {unique.forEach(id => this.deleting.delete(id)); this.emit();}
   }
   /** Card removal waits for every last message/draft write before the FK cascade. */
-  async deleteCards(ids: readonly string[]) {
+  async deleteCards(ids: readonly string[], folders?: FolderRemoval) {
     const cards = [...new Set(ids)];
     cards.forEach(id => this.deletingCards.add(id));
     let rooms: string[] = [];
@@ -70,7 +71,7 @@ export class CreationService {
         return [job.task];
       });
       await Promise.allSettled([...drafts, ...rooms.flatMap(id => [...this.sends.get(id) ?? []])]);
-      await this.repo.deleteCards(cards);
+      await this.repo.deleteCards(cards, folders);
       cards.forEach(id => this.drafts.delete(id));
       rooms.forEach(id => this.active.delete(id));
       return rooms;

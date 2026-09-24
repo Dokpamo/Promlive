@@ -1,21 +1,31 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from 'react';
-import {Animated, BackHandler, FlatList, Keyboard, Platform, Text, View, useWindowDimensions, type CellRendererProps, type GestureResponderEvent} from 'react-native';
+import {useCallback, useEffect, useRef, useState, type ReactNode, type RefObject} from 'react';
+import {Animated, BackHandler, FlatList, Keyboard, Platform, Pressable, Text, View, useWindowDimensions, type CellRendererProps, type GestureResponderEvent} from 'react-native';
 import type {MenuPoint} from './itemMenuGeometry';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {SettingsIcon} from '../features/settings/SettingsIcon';
 import {RowPressable} from './RowPressable';
-import {PressSurface} from './PressSurface';
-import {ItemActionMenu, type ItemMenuTarget} from './ItemActions';
+import {AnchoredActionMenu, type ItemMenuTarget} from './ItemActions';
 import {ItemRenameSheet} from './ItemRenameSheet';
+import {HeaderButton} from './ScreenHeader';
+import {referenceHeader} from './metrics';
+import {referenceSidebar} from '../features/chat/chatAppearance';
 import {panelReference as g} from './panelGeometry';
 import {selectionHaptic} from './selectionHaptic';
 import {itemListLayout, useItemPresence, useItemReducedMotion, useItemRowOffset, type ItemLayout, type ListItem} from './itemListMotion';
 import type {SheetScrollState} from './sheetMotion';
+import type {FolderLibrary, FolderRemoval} from '../features/library/FolderLibrary';
+import {folderPath} from '../features/library/folderTree';
+import {FolderBreadcrumbs} from '../features/library/FolderBreadcrumbs';
+import {LibraryFolderSheet} from '../features/library/LibraryFolderSheet';
+import {LibraryDeleteDialog} from '../features/library/LibraryDeleteDialog';
+import {LibrarySelectionBar, librarySelectionHeight} from '../features/library/LibrarySelectionBar';
+import {SelectionMark} from '../features/library/SelectionMark';
+import {useLibrarySelection, type LibraryEntry} from './useLibrarySelection';
 
 interface ListActions {
   rename(id: string, title: string): Promise<void>;
   pin(id: string, pinned: boolean): Promise<void>;
-  remove(ids: readonly string[]): Promise<void>;
+  remove(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
 }
 export interface ListHeaderState {
   selecting: boolean; count: number; cancel: () => void;
@@ -23,7 +33,8 @@ export interface ListHeaderState {
 }
 interface Props<T extends ListItem> {
   items: readonly T[]; allItems: readonly T[]; selectedId?: string | undefined;
-  actions: ListActions; onOpen: (item: T) => void; report: (error: unknown) => void;
+  actions: ListActions; library?: FolderLibrary | undefined; search?: string;
+  onOpen: (item: T) => void; report: (error: unknown) => void;
   scope: 'history' | 'card'; scale: number; resetKey: string; empty: string; active?: boolean;
   header?: (state: ListHeaderState) => ReactNode;
   leading?: (item: T) => ReactNode;
@@ -31,33 +42,54 @@ interface Props<T extends ListItem> {
   scroll?: RefObject<SheetScrollState>; onListTouch?: () => void;
 }
 
-/** Card and conversation lists share actions, selection and motion, keeping their own row geometry. */
-export function ManagedItemList<T extends ListItem>({items, allItems, selectedId, actions, onOpen, report, scope, scale: s, resetKey, empty, active = true, header, leading, geometry, scroll, onListTouch}: Props<T>) {
+/** Shared library behavior; cards and histories retain their original row geometry. */
+export function ManagedItemList<T extends ListItem>({items, allItems, selectedId, actions, library, search = '', onOpen, report, scope, scale: s, resetKey, empty, active = true, header, leading, geometry, scroll, onListTouch}: Props<T>) {
   const {colors: c} = useAppearance();
   const panel = useRef<View>(null);
+  const list = useRef<FlatList<ItemLayout<LibraryEntry<T>>>>(null);
   const menuRow = useRef<View | null>(null);
+  const menuRequest = useRef(0);
   const dimensions = useRef({content: 0, viewport: 0});
   const {fontScale} = useWindowDimensions();
-  const [menu, setMenu] = useState<ItemMenuTarget | null>(null);
-  const [rename, setRename] = useState<T | null>(null);
-  const [selected, setSelected] = useState<Set<string> | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const deletion = useRef(false);
+  const [menu, setMenu] = useState<(Pick<ItemMenuTarget, 'bounds' | 'anchor' | 'point'> & {entry: LibraryEntry<T>}) | null>(null);
+  const [rename, setRename] = useState<LibraryEntry<T> | null>(null);
+  const state = useLibrarySelection(allItems, library, active, report);
+  const {value, folderId, setFolderId, entries, selected, selectedEntries, setSelected, organize, setOrganize, deletion, setDeletion} = state;
   const reduced = useItemReducedMotion();
   const selection = useItemPresence(selected !== null, reduced);
-  const selectionCount = allItems.filter(item => selected?.has(item.id)).length;
   const geo = geometry ?? {rowHeight: g.rowHeight, lineHeight: g.rowLine, fontSize: g.rowFont, padding: g.rowInset, inset: 0, radius: g.controlRadius, highlightInset: g.highlightInset};
   const rowHeight = Math.max(geo.rowHeight, geo.lineHeight * fontScale + 2 * g.rowPadding) * s;
-  const rows = useMemo(() => items.length ? itemListLayout(items, rowHeight, 1 + 24 * s) : [], [items, rowHeight, s]);
-  const layoutKey = `${resetKey}:${rowHeight}`;
-  const footerHeight = 78 * s, footerBottom = 10 * s;
-  const overlay = !!menu || !!rename;
-  useEffect(() => {if (selected && selectionCount === 0) setSelected(null);}, [selected, selectionCount]);
-  useEffect(() => {if (!active) {setSelected(null); setMenu(null); setRename(null);}}, [active]);
+  const query = search.trim().toLocaleLowerCase();
+  const visibleIds = new Set(items.map(item => item.id));
+  const locations = new Map(value.items.map(item => [item.id, item.folderId]));
+  const visible = entries.filter(entry => entry.kind === 'folder'
+    ? (entry.folder.parentId === folderId || (!folderId && !!query)) && entry.title.toLocaleLowerCase().includes(query)
+    : visibleIds.has(entry.item.id) && ((!folderId && !!query) || (locations.get(entry.item.id) ?? null) === folderId));
+  const rows = (() => {
+    const folders = visible.filter(entry => entry.kind === 'folder');
+    const leaves = visible.filter(entry => entry.kind === 'item');
+    const offset = folders.length * rowHeight;
+    return [
+      ...folders.map((item, index): ItemLayout<LibraryEntry<T>> => ({kind: 'item', key: item.id, item, top: index * rowHeight, height: rowHeight})),
+      ...(leaves.length ? itemListLayout(leaves, rowHeight, 1 + 24 * s).map(row => ({...row, top: row.top + offset})) : []),
+    ];
+  })();
+  const layoutKey = `${resetKey}:${folderId}:${rowHeight}`;
+  const footerHeight = librarySelectionHeight * s, footerBottom = 10 * s;
+  const overlay = !!menu || !!rename || !!organize || !!deletion;
+  const currentFolder = value.folders.find(folder => folder.id === folderId);
+  const parentId = currentFolder?.parentId ?? null;
+  const rootName = scope === 'card' ? '카드' : '채팅내역';
+  const parentName = value.folders.find(folder => folder.id === parentId)?.name ?? rootName;
+  useEffect(() => {if (!active) {setSelected(null); setMenu(null); setRename(null); setOrganize(null); setDeletion(null); menuRequest.current++;}}, [active, setSelected, setOrganize, setDeletion]);
+  useEffect(() => () => {menuRequest.current++;}, []);
+  useEffect(() => {list.current?.scrollToOffset({offset: 0, animated: false}); if (scroll) scroll.current.offset = 0;}, [folderId, scroll]);
   const back = useCallback(() => {
-    if (!active || !selected || menu || rename) return false;
-    setSelected(null); return true;
-  }, [active, menu, rename, selected]);
+    if (!active || overlay) return false;
+    if (selected) {setSelected(null); return true;}
+    if (folderId) {setFolderId(parentId); return true;}
+    return false;
+  }, [active, overlay, selected, folderId, parentId, setFolderId, setSelected]);
   useEffect(() => {
     const native = Platform.OS === 'android' ? BackHandler.addEventListener('hardwareBackPress', back) : undefined;
     if (Platform.OS !== 'web') return () => native?.remove();
@@ -65,70 +97,91 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
     document.addEventListener('keydown', escape, true);
     return () => {native?.remove(); document.removeEventListener('keydown', escape, true);};
   }, [back]);
-  const select = (item: T) => {
-    if (deletion.current) return;
-    if (selected) {
-      setSelected(current => {const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next.size ? next : null;});
-    } else {Keyboard.dismiss(); onOpen(item);}
-  };
-  const remove = async (ids: string[]) => {
-    if (deletion.current || !ids.length) return;
-    deletion.current = true; setDeleting(true);
-    try {await actions.remove(ids); setSelected(null);}
-    catch (error) {report(error);}
-    finally {deletion.current = false; setDeleting(false);}
+  const navigate = (id: string | null) => {Keyboard.dismiss(); setSelected(null); setFolderId(id);};
+  const select = (entry: LibraryEntry<T>) => {
+    if (overlay) return;
+    if (selected) state.toggle(entry);
+    else if (entry.kind === 'folder') navigate(entry.folder.id);
+    else {Keyboard.dismiss(); onOpen(entry.item);}
   };
   const measureMenu = (row: View, accept: (placement: Pick<ItemMenuTarget, 'bounds' | 'anchor'>) => void) => {
     panel.current?.measureInWindow((left, top, width, height) => {
       if (width <= 0 || height <= 0) return;
       row.measureInWindow((rowLeft, rowTop, rowWidth, rowHeight) => {
-        if (rowWidth <= 0 || rowHeight <= 0) return;
-        accept({bounds: {left, top, width, height}, anchor: {left: rowLeft, top: rowTop, width: rowWidth, height: rowHeight}});
+        if (rowWidth > 0 && rowHeight > 0) accept({bounds: {left, top, width, height}, anchor: {left: rowLeft, top: rowTop, width: rowWidth, height: rowHeight}});
       });
     });
   };
-  const openMenu = (item: T, row: View, point?: MenuPoint) => {
-    if (selected || deletion.current || !active) return;
+  const openMenu = (entry: LibraryEntry<T>, row: View, point?: MenuPoint) => {
+    if (overlay || !active) return;
+    const request = ++menuRequest.current;
     Keyboard.dismiss();
     measureMenu(row, placement => {
-      menuRow.current = row;
-      selectionHaptic();
-      setMenu({item, ...placement, ...(point ? {point} : {})});
+      if (request !== menuRequest.current) return;
+      menuRow.current = row; selectionHaptic();
+      setMenu({entry, ...placement, ...(point ? {point} : {})});
     });
   };
   const measureList = (kind: 'content' | 'viewport', height: number) => {
     dimensions.current[kind] = height;
     if (scroll) scroll.current.canScroll = dimensions.current.content > dimensions.current.viewport + 1;
   };
+  const menuEntries = menu ? selected?.has(menu.entry.id) ? selectedEntries : [menu.entry] : [];
   return <View ref={panel} collapsable={false} testID={`${scope}-content`} style={{flex: 1}} onLayout={() => {
     if (menu && menuRow.current) measureMenu(menuRow.current, placement => setMenu(current => current ? {...current, ...placement} : null));
   }}>
     <View style={{flex: 1}} pointerEvents={overlay ? 'none' : 'auto'} aria-hidden={overlay} accessibilityElementsHidden={overlay} importantForAccessibility={overlay ? 'no-hide-descendants' : 'auto'}>
-      {header?.({selecting: selected !== null, count: selectionCount, cancel: () => setSelected(null), selection})}
+      {header?.({selecting: selected !== null, count: selectedEntries.length, cancel: () => setSelected(null), selection})}
+      {(library || selected) && <View style={{flexDirection: 'row', alignItems: 'center', minHeight: referenceHeader.height * s, paddingHorizontal: geo.inset * s}}>
+        <View style={{flex: 1, minWidth: 0, paddingLeft: Math.max(0, geo.padding - 12) * s}}>{library && <FolderBreadcrumbs path={folderPath(value, folderId)} rootName={rootName} scale={s} testID={`${scope}-folder-path`} onNavigate={navigate}/>}</View>
+        {selected && scope === 'card' && <HeaderButton width={referenceSidebar.viewportWidth * s} variant="plain" icon="close" label="카드 선택 취소" onPress={() => setSelected(null)}/>}
+      </View>}
+      {!!state.error && <RowPressable accessibilityRole="button" accessibilityLabel="폴더 다시 불러오기" onPress={() => {void library?.refresh().catch(report);}} radius={geo.radius * s} contentStyle={{padding: geo.padding * s}}><Text style={{color: c.error}}>{state.error}</Text></RowPressable>}
       <View style={{flex: 1}} onStartShouldSetResponderCapture={() => {onListTouch?.(); return false;}}>
-        <FlatList testID={scope === 'card' ? 'card-list' : 'card-conversation-list'} data={rows} keyExtractor={item => item.key} CellRendererComponent={ItemListCell} style={{flex: 1}} removeClippedSubviews={false}
-          contentContainerStyle={{paddingHorizontal: geo.inset * s, paddingBottom: scope === 'card' ? 12 * s : 0}}
-          extraData={{selected, selectedId, menu: menu?.item.id}}
-          getItemLayout={(_, index) => ({index, length: rows[index]!.height, offset: rows[index]!.top})}
+        <FlatList ref={list} testID={scope === 'card' ? 'card-list' : 'card-conversation-list'} data={rows} keyExtractor={item => item.key} CellRendererComponent={ItemListCell} style={{flex: 1}} removeClippedSubviews={false}
+          contentContainerStyle={{flexGrow: 1, paddingHorizontal: geo.inset * s, paddingBottom: scope === 'card' ? 12 * s : 0}}
+          extraData={{selected, selectedId, menu: menu?.entry.id}}
+          getItemLayout={(_, index) => ({index, length: rows[index]!.height, offset: rows[index]!.top + (folderId ? rowHeight : 0)})}
           onLayout={event => measureList('viewport', event.nativeEvent.layout.height)} onContentSizeChange={(_, height) => measureList('content', height)}
+          onScrollBeginDrag={() => {menuRequest.current++;}}
           onScroll={event => {if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);}} scrollEventThrottle={16}
-          ListFooterComponent={<Animated.View pointerEvents="none" style={{height: selection.progress.interpolate({inputRange: [0, 1], outputRange: [0, footerHeight + footerBottom + 18 * s]})}}/>}
-          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-          ListEmptyComponent={<Text style={{paddingHorizontal: geo.padding * s, paddingVertical: 19 * s, color: c.muted, fontSize: 23 * s}}>{empty}</Text>}
+          ListHeaderComponent={folderId ? <RowPressable accessibilityRole="button" accessibilityLabel={`상위 폴더, ${parentName}`} onPress={() => navigate(parentId)} radius={geo.radius * s}
+            contentStyle={{height: rowHeight, paddingHorizontal: geo.padding * s, flexDirection: 'row', alignItems: 'center', gap: 18 * s}}>
+            <View style={{transform: [{rotate: '-90deg'}]}}><SettingsIcon name="chevron" size={30 * s} color={c.muted}/></View><Text style={{color: c.muted, fontSize: geo.fontSize * s}}>{parentName}</Text>
+          </RowPressable> : null}
+          ListFooterComponentStyle={{flexGrow: 1}}
+          ListFooterComponent={<Pressable testID={`${scope}-selection-blank`} accessibilityRole="button" accessibilityLabel="빈 공간 눌러 선택 해제" accessible={selected !== null} onPress={() => setSelected(null)} style={{flexGrow: 1, minHeight: 36 * s}}>
+            <Animated.View pointerEvents="none" style={{height: selection.progress.interpolate({inputRange: [0, 1], outputRange: [0, footerHeight + footerBottom + 18 * s]})}}/>
+          </Pressable>}
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}
+          ListEmptyComponent={<Text style={{paddingHorizontal: geo.padding * s, paddingVertical: 19 * s, color: c.muted, fontSize: 23 * s}}>{folderId && !query ? '폴더가 비어 있어요.' : empty}</Text>}
           renderItem={({item}) => <ItemMotionCell item={item} resetKey={layoutKey} reduced={reduced} backgroundColor={c.drawer} radius={geo.radius * s}>
             {item.kind === 'divider' ? <ItemPinDivider scope={scope} visible={item.visible} scale={s} inset={geo.padding} reduced={reduced}/> :
-              <ItemRow item={item.item} scope={scope} scale={s} height={rowHeight} geometry={geo} leading={leading?.(item.item)} selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced}
-                selected={selected ? selected.has(item.item.id) : item.item.id === (menu?.item.id ?? selectedId)} disabled={deleting}
+              <ItemRow entry={item.item} scope={scope} scale={s} height={rowHeight} geometry={geo} leading={item.item.kind === 'item' ? leading?.(item.item.item) : undefined} selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced}
+                selected={selected ? selected.has(item.item.id) : item.item.id === (menu?.entry.id ?? `item:${selectedId}`)}
                 onPress={() => select(item.item)} onLongPress={(row, point) => openMenu(item.item, row, point)}/>}
           </ItemMotionCell>}/>
       </View>
-      <SelectionFooter scope={scope} selection={selection} selected={selected} count={selectionCount} deleting={deleting} scale={s} height={footerHeight} bottom={footerBottom} onDelete={() => {if (selected) void remove([...selected]);}}/>
+      <LibrarySelectionBar scope={scope} count={selectedEntries.length} canMove={!!library && state.ready && !!selectedEntries.length} progress={selection.progress} present={selection.present}
+        scale={s} bottom={footerBottom} onFolder={() => state.requestMove(selectedEntries)} onDelete={() => state.requestDelete(selectedEntries)}/>
     </View>
-    {menu && <ItemActionMenu target={menu} scale={s} scope={scope} onClose={() => {menuRow.current = null; setMenu(null);}}
-      onSelect={() => setSelected(new Set([menu.item.id]))}
-      onPin={() => {void actions.pin(menu.item.id, menu.item.pinnedAt == null).catch(report);}}
-      onRename={() => setRename(allItems.find(item => item.id === menu.item.id) ?? null)} onDelete={() => {void remove([menu.item.id]);}}/>}
-    {rename && <ItemRenameSheet item={rename} scope={scope} onClose={() => setRename(null)} onSave={title => actions.rename(rename.id, title)}/>}
+    {menu && <AnchoredActionMenu target={menu} scale={s} scope={scope} closeLabel={scope === 'card' ? '카드 메뉴 닫기' : '채팅내역 메뉴 닫기'} onClose={() => {menuRequest.current++; menuRow.current = null; setMenu(null);}} actions={[
+      {label: selected?.has(menu.entry.id) ? '선택 해제' : '선택', icon: 'select', action: () => state.toggle(menu.entry)},
+      ...(library && state.ready ? [{label: '폴더 이동', icon: 'folder' as const, action: () => state.requestMove(menuEntries)}] : []),
+      ...(menu.entry.kind === 'item' ? [{label: menu.entry.pinnedAt == null ? '고정' : '고정 해제', icon: 'pin' as const, action: () => {if (menu.entry.kind === 'item') void actions.pin(menu.entry.item.id, menu.entry.pinnedAt == null).catch(report);}}] : []),
+      {label: '이름 변경', icon: 'edit', action: () => setRename(menu.entry)},
+      {label: '삭제', icon: 'delete', danger: true, action: () => state.requestDelete(menuEntries)},
+    ]}/>}
+    {rename && <ItemRenameSheet item={rename} scope={rename.kind === 'folder' ? `${scope}-folder` : scope} {...(rename.kind === 'folder' ? {inputLabel: '폴더 이름', maxLength: 40} : {})}
+      onClose={() => setRename(null)} onSave={title => rename.kind === 'folder' ? library!.renameFolder(rename.folder.id, title) : actions.rename(rename.item.id, title)}/>}
+    {deletion && <LibraryDeleteDialog scope={scope} title="삭제할까요?" detail={deletion.detail} onClose={() => {setDeletion(null); setSelected(null);}} onDelete={async () => {
+      await actions.remove(deletion.ids, library ? {scope: library.scope, folderIds: deletion.folderIds} : undefined);
+      await library?.refresh();
+    }}/>}
+    {organize?.screen === 'choose' && library && <LibraryFolderSheet {...organize} scope={scope} rootName={rootName} initialFolderId={folderId} value={value} store={library}
+      onClose={() => setOrganize(null)} onMoved={() => setSelected(null)}/>}
+    {organize?.screen === 'create' && library && <ItemRenameSheet scope={`${scope}-folder`} item={{title: organize.name}} heading="새 폴더" inputLabel="폴더 이름" maxLength={40}
+      onClose={() => setOrganize(null)} onSave={async name => {await library.createFolder(name, organize.ids, organize.parentId, organize.folderIds); setSelected(null);}}/>}
   </View>;
 }
 
@@ -148,52 +201,31 @@ function ItemPinDivider({scope, visible, scale: s, inset, reduced}: {scope: 'car
     style={{position: 'absolute', left: inset * s, right: inset * s, top: 12 * s, height: 1, backgroundColor: c.divider, opacity: progress,
       transform: [{scaleX: progress.interpolate({inputRange: [0, 1], outputRange: [0.9, 1]})}]}}/>;
 }
-function ItemRow({item, scope, scale: s, height, geometry, leading, selecting, selectionProgress, reduced, selected, disabled, onPress, onLongPress}: {
-  item: ListItem; scope: 'card' | 'history'; scale: number; height: number; geometry: NonNullable<Props<ListItem>['geometry']>; leading?: ReactNode;
-  selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; disabled: boolean; onPress: () => void; onLongPress: (row: View, point?: MenuPoint) => void;
+function ItemRow<T extends ListItem>({entry, scope, scale: s, height, geometry, leading, selecting, selectionProgress, reduced, selected, onPress, onLongPress}: {
+  entry: LibraryEntry<T>; scope: 'card' | 'history'; scale: number; height: number; geometry: NonNullable<Props<ListItem>['geometry']>; leading?: ReactNode;
+  selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; onPress: () => void; onLongPress: (row: View, point?: MenuPoint) => void;
 }) {
   const {colors: c} = useAppearance();
   const row = useRef<View>(null);
+  const id = entry.kind === 'item' ? entry.item.id : entry.folder.id;
   const openMenu = (event?: GestureResponderEvent) => {
     const touch = event?.nativeEvent;
     if (row.current) onLongPress(row.current, touch ? {x: touch.pageX, y: touch.pageY} : undefined);
   };
   const {progress: highlight} = useItemPresence(selected, reduced, true);
-  const {progress: pinned} = useItemPresence(item.pinnedAt != null, reduced);
+  const {progress: pinned} = useItemPresence(entry.pinnedAt != null, reduced);
   const pinVisibility = Animated.multiply(pinned, Animated.subtract(1, selectionProgress));
-  return <View ref={row} collapsable={false} testID={`sidebar-anchor-${item.id}`}><RowPressable testID={`sidebar-row-${item.id}`} accessibilityRole={selecting ? 'checkbox' : 'button'}
-    accessibilityLabel={selecting ? item.title : `${item.title}${scope === 'card' ? ' 카드의 채팅 기록' : ' 채팅 열기'}`} accessibilityHint={selecting ? undefined : '길게 눌러 선택, 고정, 이름 변경, 삭제'}
-    accessibilityState={selecting ? {checked: selected, disabled} : {selected, disabled}}
-    accessibilityActions={[{name: 'longpress', label: scope === 'card' ? '카드 메뉴' : '채팅내역 메뉴'}]} onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'longpress') openMenu();}}
-    selected={selected} selectedHighlight={scope === 'history' || selecting ? 'pressed' : 'full'} selectionProgress={highlight} disabled={disabled} delayLongPress={420}
+  return <View ref={row} collapsable={false} testID={`sidebar-anchor-${id}`}><RowPressable testID={`sidebar-row-${id}`} accessibilityRole={selecting ? 'checkbox' : 'button'}
+    accessibilityLabel={entry.kind === 'folder' ? `${entry.title} 폴더` : selecting ? entry.title : `${entry.title}${scope === 'card' ? ' 카드의 채팅 기록' : ' 채팅 열기'}`}
+    accessibilityHint="길게 눌러 메뉴 열기" accessibilityState={selecting ? {checked: selected} : {selected}}
+    accessibilityActions={[{name: 'longpress', label: '메뉴 열기'}]} onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'longpress') openMenu();}}
+    selected={selected} selectedHighlight={scope === 'history' || selecting ? 'pressed' : 'full'} selectionProgress={highlight} delayLongPress={420}
     onPress={onPress} onLongPress={openMenu} radius={geometry.radius * s} highlightInset={geometry.highlightInset * s}
     contentStyle={{height, paddingHorizontal: geometry.padding * s, flexDirection: 'row', alignItems: 'center'}}>
-    <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [0, 46 * s]}), opacity: selectionProgress, overflow: 'hidden'}}>
-      <Animated.View testID={`${scope}-check-${item.id}`} style={{width: 30 * s, height: 30 * s, borderWidth: 1.5 * s, borderColor: c.muted, borderRadius: 15 * s, alignItems: 'center', justifyContent: 'center',
-        transform: [{scale: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [0.86, 1]})}]}}>
-        <Animated.View style={{opacity: highlight, transform: [{scale: highlight.interpolate({inputRange: [0, 1], outputRange: [0.7, 1]})}]}}><SettingsIcon name="check" size={22 * s} color={c.text}/></Animated.View>
-      </Animated.View>
-    </Animated.View>
-    {leading}
-    <Text numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: geometry.fontSize * s, lineHeight: geometry.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{item.title}</Text>
-    <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: pinVisibility.interpolate({inputRange: [0, 1], outputRange: [0, 40 * s]}), alignItems: 'flex-end', opacity: pinVisibility, overflow: 'hidden'}}><SettingsIcon name="pin" size={24 * s} color={c.muted}/></Animated.View>
+    {entry.kind === 'folder' ? <View style={{width: referenceSidebar.cardImage * s, marginRight: referenceSidebar.cardImageGap * s, alignItems: 'center'}}><SettingsIcon name="folder" size={38 * s} color={c.text}/></View> : leading}
+    <Text numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: geometry.fontSize * s, lineHeight: geometry.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{entry.title}</Text>
+    {entry.kind === 'folder' ? <Animated.View pointerEvents="none" style={{width: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [42 * s, 0]}), opacity: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [1, 0]}), alignItems: 'flex-end', overflow: 'hidden'}}><SettingsIcon name="chevron" size={24 * s} color={c.muted}/></Animated.View>
+      : <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: pinVisibility.interpolate({inputRange: [0, 1], outputRange: [0, 40 * s]}), alignItems: 'flex-end', opacity: pinVisibility, overflow: 'hidden'}}><SettingsIcon name="pin" size={24 * s} color={c.muted}/></Animated.View>}
+    <SelectionMark testID={`${scope}-check-${id}`} scale={s} selectionProgress={selectionProgress} checkedProgress={highlight}/>
   </RowPressable></View>;
-}
-function SelectionFooter({scope, selection, selected, count, deleting, scale: s, height, bottom, onDelete}: {
-  scope: 'card' | 'history'; selection: ListHeaderState['selection']; selected: Set<string> | null; count: number; deleting: boolean; scale: number; height: number; bottom: number; onDelete: () => void;
-}) {
-  const {colors: c, settings: p, isDark} = useAppearance();
-  const {fontScale} = useWindowDimensions();
-  const lastCount = useRef(count);
-  if (count) lastCount.current = count;
-  if (!selection.present) return null;
-  return <Animated.View testID={`${scope}-selection-footer`} pointerEvents={selected ? 'auto' : 'none'} aria-hidden={!selected} accessibilityElementsHidden={!selected} importantForAccessibility={selected ? 'auto' : 'no-hide-descendants'}
-    style={{position: 'absolute', bottom, alignSelf: 'center', width: Math.max(232, 156 * fontScale + 76) * s, maxWidth: '90%', height, opacity: selection.progress,
-      transform: [{translateY: selection.progress.interpolate({inputRange: [0, 1], outputRange: [20 * s, 0]})}, {scale: selection.progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
-    <PressSurface testID={`${scope}-delete-selected`} accessibilityRole="button" accessibilityLabel={`선택한 ${scope === 'card' ? '카드' : '채팅'} ${count}개 삭제`} accessibilityState={{disabled: !count || deleting}} disabled={!count || deleting}
-      onPress={onDelete} radius={g.controlRadius * s} highlightColor={p.selected} style={{flex: 1}}
-      contentStyle={{backgroundColor: p.sheet, boxShadow: isDark ? '0px 3px 16px rgba(0,0,0,0.24)' : '0px 3px 16px rgba(0,0,0,0.07)', flexDirection: 'row', gap: 14 * s, alignItems: 'center', justifyContent: 'center'}}>
-      <SettingsIcon name="delete" size={30 * s} color={c.error}/><Text numberOfLines={1} style={{color: c.error, fontSize: g.rowFont * s}}>{deleting ? '삭제 중…' : `${count || lastCount.current}개 삭제`}</Text>
-    </PressSurface>
-  </Animated.View>;
 }

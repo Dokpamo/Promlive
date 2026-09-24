@@ -1,3 +1,4 @@
+import {folderPath, nextFolderName, canMoveFolders, moveFolderEntries, removeFolderEntries, addFolder, renameFolder as renameTreeFolder} from '../library/folderTree';
 import {z} from 'zod';
 import type {SettingsStore} from '../../ports/settings';
 import {newId} from '../cards/model';
@@ -73,53 +74,11 @@ export function personaEntryOrder(value: PersonaCollection): string[] {
   return [...order, ...remaining];
 }
 
-export function personaFolderPath(value: PersonaCollection, folderId: string | null): PersonaFolder[] {
-  const path: PersonaFolder[] = [], visited = new Set<string>();
-  let current = folderId;
-  while (current && !visited.has(current)) {
-    const folder = value.folders.find(item => item.id === current);
-    if (!folder) break;
-    path.unshift(folder); visited.add(current); current = folder.parentId;
-  }
-  return path;
-}
-
-/** Reuse the first available number, including gaps left by renamed or deleted folders. */
-export function nextPersonaFolderName(folders: readonly Pick<PersonaFolder, 'name'>[]): string {
-  const names = new Set(folders.map(folder => folder.name));
-  let number = 1;
-  while (names.has(`새폴더 ${number}`)) number += 1;
-  return `새폴더 ${number}`;
-}
-
+export const personaFolderPath = folderPath;
+export const nextPersonaFolderName = nextFolderName;
+export const canMovePersonaFolders = canMoveFolders;
 function requireFolder(value: PersonaCollection, folderId: string | null) {
   if (folderId !== null && !value.folders.some(folder => folder.id === folderId)) throw new Error('폴더를 찾을 수 없어요.');
-}
-function requireItems(value: PersonaCollection, ids: readonly string[]) {
-  if (ids.some(itemId => !value.items.some(item => item.id === itemId))) throw new Error('페르소나를 찾을 수 없어요.');
-}
-
-export function canMovePersonaFolders(value: PersonaCollection, folderIds: readonly string[], destination: string | null) {
-  return !personaFolderPath(value, destination).some(folder => folderIds.includes(folder.id));
-}
-
-function moveEntries(value: PersonaCollection, ids: readonly string[], folderIds: readonly string[], destination: string | null): PersonaCollection {
-  requireFolder(value, destination); requireItems(value, ids);
-  for (const folderId of folderIds) requireFolder(value, folderId);
-  if (!canMovePersonaFolders(value, folderIds, destination)) throw new Error('폴더를 자기 자신이나 하위 폴더로 옮길 수 없어요.');
-  // A selected folder carries its descendants; selecting them too must not flatten it.
-  const roots = value.folders.filter(folder => folderIds.includes(folder.id) && canMovePersonaFolders(value, folderIds, folder.parentId));
-  const rootIds = roots.map(folder => folder.id);
-  const names = new Set(value.folders.filter(folder => folder.parentId === destination && !rootIds.includes(folder.id)).map(folder => folder.name.toLocaleLowerCase()));
-  for (const folder of roots) {
-    const name = folder.name.toLocaleLowerCase();
-    if (names.has(name)) throw new Error('같은 이름의 폴더가 있어요.');
-    names.add(name);
-  }
-  return {...value,
-    folders: value.folders.map(folder => rootIds.includes(folder.id) ? {...folder, parentId: destination} : folder),
-    items: value.items.map(item => ids.includes(item.id) && canMovePersonaFolders(value, rootIds, item.folderId) ? {...item, folderId: destination} : item),
-  };
 }
 
 /** Serialized mutations merge against the latest saved collection, including edits made while closing. */
@@ -182,34 +141,16 @@ export class PersonaPreferences {
   remove = (id: string) => this.removeMany([id]);
   /** Delete the selected entries together; unselected folder contents return to the library. */
   removeMany = (ids: readonly string[], folderIds: readonly string[] = []) => this.mutate(value => {
-    const survivingParent = (parent: string | null): string | null => {
-      while (parent && folderIds.includes(parent)) parent = value.folders.find(folder => folder.id === parent)?.parentId ?? null;
-      return parent;
-    };
-    const items = value.items.filter(item => !ids.includes(item.id))
-      .map(item => ({...item, folderId: survivingParent(item.folderId)}));
-    return {...value, items, folders: value.folders.filter(folder => !folderIds.includes(folder.id)).map(folder => ({...folder, parentId: survivingParent(folder.parentId)})),
-      selectedId: value.selectedId && ids.includes(value.selectedId) ? items[0]?.id ?? null : value.selectedId};
+    const next = removeFolderEntries(value, ids, folderIds);
+    return {...next, selectedId: value.selectedId && ids.includes(value.selectedId) ? next.items[0]?.id ?? null : value.selectedId};
   });
-  move = (ids: readonly string[], folderId: string | null, folderIds: readonly string[] = []) => this.mutate(value => moveEntries(value, ids, folderIds, folderId));
+  move = (ids: readonly string[], folderId: string | null, folderIds: readonly string[] = []) => this.mutate(value => moveFolderEntries(value, ids, folderIds, folderId));
   createFolder = async (name: string, ids: readonly string[] = [], parentId: string | null = null, folderIds: readonly string[] = []): Promise<PersonaFolder> => {
     const folder = folderSchema.parse({id: newId('persona-folder'), name, parentId});
-    await this.mutate(value => {
-      requireItems(value, ids); requireFolder(value, parentId);
-      if (value.folders.some(item => item.parentId === parentId && item.name.toLocaleLowerCase() === folder.name.toLocaleLowerCase())) throw new Error('같은 이름의 폴더가 있어요.');
-      return moveEntries({...value, folders: [...value.folders, folder]}, ids, folderIds, folder.id);
-    });
+    await this.mutate(value => addFolder(value, folder, ids, folderIds));
     return folder;
   };
-  renameFolder = (folderId: string, name: string) => {
-    const parsedName = folderSchema.shape.name.parse(name);
-    return this.mutate(value => {
-      requireFolder(value, folderId);
-      const folder = value.folders.find(item => item.id === folderId)!;
-      if (value.folders.some(item => item.id !== folderId && item.parentId === folder.parentId && item.name.toLocaleLowerCase() === parsedName.toLocaleLowerCase())) throw new Error('같은 이름의 폴더가 있어요.');
-      return {...value, folders: value.folders.map(item => item.id === folderId ? {...item, name: parsedName} : item)};
-    });
-  };
+  renameFolder = (folderId: string, name: string) => this.mutate(value => renameTreeFolder(value, folderId, name));
   /** Removing a folder returns its contents to the library, without deleting personas. */
   removeFolder = (folderId: string) => this.removeMany([], [folderId]);
 }

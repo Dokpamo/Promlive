@@ -206,7 +206,7 @@ it('keeps edits when moving and deleting folders; bulk deletion only removes req
   await expect(personas.move([a.id], folder.id)).rejects.toThrow('폴더를 찾을 수 없어요.');
   await personas.removeMany([a.id, b.id]);
   expect(personas.snapshot().value.items.map(item => item.id)).toEqual(['default']);
-  await expect(personas.createFolder('삭제 후', [a.id])).rejects.toThrow('페르소나를 찾을 수 없어요.');
+  await expect(personas.createFolder('삭제 후', [a.id])).rejects.toThrow('항목을 찾을 수 없어요.');
   expect(personas.snapshot().value.folders).toEqual([]);
 });
 

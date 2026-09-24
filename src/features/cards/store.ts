@@ -1,11 +1,13 @@
+import type {FolderLibrary, FolderRemoval} from '../library/FolderLibrary';
 import type {Card, Draft} from './model';
 
 export type CardMetadataPatch = Partial<Pick<Card, 'title' | 'pinnedAt' | 'favorite' | 'archived'>>;
 
 export interface CardListActions {
+  readonly folders?: FolderLibrary;
   rename(id: string, title: string): Promise<void>;
   pin(id: string, pinned: boolean): Promise<void>;
-  remove(ids: readonly string[]): Promise<void>;
+  remove(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
 }
 
 export interface CardLibraryStore {
@@ -13,7 +15,7 @@ export interface CardLibraryStore {
   getCard(id: string): Promise<Card>;
   insertCard(card: Card): Promise<Card>;
   updateMetadata(id: string, patch: CardMetadataPatch): Promise<Card>;
-  deleteCards(ids: readonly string[]): Promise<void>;
+  deleteCards(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
 }
 
 export interface CardEditorStore {

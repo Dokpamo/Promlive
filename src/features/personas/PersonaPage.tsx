@@ -149,7 +149,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
       </View>
       <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}><ScreenHeader width={width} topInset={insets.top} surfaceColor={c.drawer}>
         <HeaderButton width={width} icon="back" label={selected ? '페르소나 선택 취소' : folderId ? '페르소나 목록으로 돌아가기' : '페르소나 닫기'} onPress={() => {if (selected) setSelected(null); else back();}}/>
-        <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: referenceHeader.titleFont * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{selected ? `${selectedEntries.length}개 선택` : title}</Text></View>
+        <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: referenceHeader.titleFont * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text></View>
         <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
       </ScreenHeader></View>
       <PersonaSelectionBar count={selectedEntries.length} canMove={selectedEntries.length > 0} progress={selection.progress} present={selection.present} scale={s} bottom={footerBottom}

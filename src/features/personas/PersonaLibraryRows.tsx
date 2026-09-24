@@ -1,3 +1,4 @@
+import {SelectionMark} from '../library/SelectionMark';
 import {useRef} from 'react';
 import {Animated, Text, View, type GestureResponderEvent} from 'react-native';
 import type {MenuPoint} from '../../layout/itemMenuGeometry';
@@ -68,11 +69,4 @@ export function PersonaParentRow({name, scale: s, onPress}: {name: string; scale
     <View style={{width: r.cardImage * s, alignItems: 'center', transform: [{rotate: '-90deg'}]}}><SettingsIcon name="chevron" size={30 * s} color={c.muted}/></View>
     <Text numberOfLines={1} style={{flex: 1, color: c.muted, fontSize: r.fontSize * s}}>{name}</Text>
   </RowPressable>;
-}
-
-function SelectionMark({scale: s, selectionProgress, checkedProgress}: {scale: number; selectionProgress: Animated.Value; checkedProgress: Animated.Value}) {
-  const {colors: c} = useAppearance();
-  return <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [0, 46 * s]}), opacity: selectionProgress, alignItems: 'flex-end', overflow: 'hidden'}}>
-    <Animated.View style={{opacity: checkedProgress}}><SettingsIcon name="check" size={28 * s} color={c.text}/></Animated.View>
-  </Animated.View>;
 }
