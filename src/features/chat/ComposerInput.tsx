@@ -38,7 +38,7 @@ export function ComposerInput(p: ComposerInputProps) {
     onChangeText={p.onChange}
     onFocus={p.onFocus}
     onBlur={p.onBlur}
-    onSelectionChange={event => {selection.current = event.nativeEvent.selection;}}
+    onSelectionChange={event => {selection.current = event.nativeEvent.selection; p.onSelectionChange?.(selection.current);}}
     onContentSizeChange={e => p.onHeight(e.nativeEvent.contentSize.height)}
     placeholder="무엇이든 물어보세요."
     placeholderTextColor={c.placeholder}

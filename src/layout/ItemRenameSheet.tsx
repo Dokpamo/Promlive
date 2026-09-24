@@ -17,19 +17,21 @@ interface RenameProps {
   inputLabel?: string;
   maxLength?: number;
   onClose: () => void;
+  onDismissStart?: () => void;
   onSave: (title: string) => Promise<void>;
 }
 
 /** A short, keyboard-docked editor; the draft is committed only on confirmation. */
-export function ItemRenameSheet({item, scope = 'history', heading = '이름 변경', inputLabel, maxLength = 120, onClose, onSave}: RenameProps) {
+export function ItemRenameSheet({item, scope = 'history', heading = '이름 변경', inputLabel, maxLength = 120, onClose, onDismissStart, onSave}: RenameProps) {
   const [height, setHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const input = useRef<TextInput>(null);
   const keyboardVisible = useRef(false);
-  useDrawerModalLock();
+  useDrawerModalLock(!closing);
   return <SwipeBackModal sheet sheetHeight={height} onClose={onClose} onShow={() => focusWithKeyboard(input.current)} onDismissStart={() => {
     if (Platform.OS !== 'web') input.current?.setNativeProps({editable: false, scrollEnabled: false});
     setClosing(true);
+    onDismissStart?.();
   }} onBackRequest={() => {
     if (!keyboardVisible.current) return false;
     Keyboard.dismiss();

@@ -8,6 +8,7 @@ import {editorExitSpring, panelSpringForDistance} from './panelAnimation';
 export function useBlankDismiss(options: {
   active: boolean; height: number; onClose: () => void; entrance?: 'waiting' | 'ready';
   onDismissStart?: () => void;
+  onEntered?: () => void;
   /** The composer owns its return to the compact bar, including the drag offset. */
   onGrab?: () => void; onRestore?: () => void; managedExit?: boolean;
 }) {
@@ -37,15 +38,15 @@ export function useBlankDismiss(options: {
     if (!e.active) {e.active = true; e.pending = entrance !== undefined;}
     if (e.pending) y.setValue(reduced ? 0 : height);
     if (entrance !== 'ready' || !e.pending) {
-      if (reduced && e.moving) {e.moving = false; y.stopAnimation(); y.setValue(0);}
+      if (reduced && e.moving) {e.moving = false; y.stopAnimation(); y.setValue(0); latest.current.onEntered?.();}
       return;
     }
     e.pending = false;
-    if (reduced) return;
+    if (reduced) {latest.current.onEntered?.(); return;}
     e.moving = true;
     // Only translate the finished full-screen layout; never resize/reflow the editor.
     Animated.spring(y, {...panelSpringForDistance(), toValue: 0, useNativeDriver: false})
-      .start(() => {e.moving = false;});
+      .start(({finished}) => {e.moving = false; if (finished && !closing.current) latest.current.onEntered?.();});
   }, [active, entrance, height, reduced, y]);
   const settle = useCallback((close: boolean) => {
     if (closing.current) return;
@@ -58,7 +59,10 @@ export function useBlankDismiss(options: {
       latest.current.onDismissStart?.();
       if (latest.current.managedExit) {latest.current.onClose(); return;}
     } else if (latest.current.onRestore) {latest.current.onRestore(); return;}
-    const finish = () => {if (attempt === generation.current && close) latest.current.onClose();};
+    const finish = () => {
+      if (attempt !== generation.current) return;
+      if (close) latest.current.onClose(); else latest.current.onEntered?.();
+    };
     const target = close ? latest.current.height : 0;
     if (latest.current.reduced) {y.setValue(target); finish(); return;}
     Animated.spring(y, {...(close ? editorExitSpring() : panelSpringForDistance()), toValue: target, useNativeDriver: false})

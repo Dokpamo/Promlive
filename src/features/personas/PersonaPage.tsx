@@ -43,7 +43,8 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const [organize, setOrganize] = useState<Organization | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
-  const [renaming, setRenaming] = useState<PersonaFolder | null>(null);
+  const [renaming, setRenaming] = useState<(PersonaFolder & {revision: number; closing: boolean}) | null>(null);
+  const renameRevision = useRef(0);
   const panel = useRef<View>(null);
   const menuRequest = useRef(0);
   const mounted = useRef(false);
@@ -52,7 +53,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const selection = useItemPresence(selected !== null, reduced);
   const allEntries: Entry[] = [...value.folders.map(item => ({kind: 'folder' as const, item})), ...value.items.map(item => ({kind: 'persona' as const, item}))];
   const selectedEntries = allEntries.filter(entry => selected?.has(entryKey(entry)));
-  const obscured = (!!editor && !editor.closing) || !!folder || !!deletion || !!organize || !!menu || !!renaming;
+  const obscured = (!!editor && !editor.closing) || !!folder || !!deletion || !!organize || !!menu || (!!renaming && !renaming.closing);
   const currentFolder = value.folders.find(item => item.id === folderId);
   const parentId = currentFolder?.parentId ?? null;
   const parentName = value.folders.find(item => item.id === parentId)?.name ?? '페르소나';
@@ -166,13 +167,14 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
       }},
       {label: '폴더 이동', icon: 'folder', action: () => requestMove(menuEntries)},
       {label: menu.entry.kind === 'folder' ? '이름 변경' : '페르소나 편집', icon: 'edit', action: () => {
-        if (menu.entry.kind === 'folder') setRenaming(menu.entry.item);
+        if (menu.entry.kind === 'folder') setRenaming({...menu.entry.item, revision: ++renameRevision.current, closing: false});
         else edit(menu.entry.item);
       }},
       {label: '삭제', icon: 'delete', danger: true, action: () => requestDelete(menuEntries)},
     ]}/>}
-    {renaming && store && <ItemRenameSheet scope="persona-folder" item={{title: renaming.name}} inputLabel="폴더 이름" maxLength={40}
-      onClose={() => setRenaming(null)} onSave={name => store.renameFolder(renaming.id, name)}/>}
+    {renaming && store && <ItemRenameSheet key={renaming.revision} scope="persona-folder" item={{title: renaming.name}} inputLabel="폴더 이름" maxLength={40}
+      onDismissStart={() => setRenaming(current => current?.revision === renaming.revision ? {...current, closing: true} : current)}
+      onClose={() => setRenaming(current => current?.revision === renaming.revision ? null : current)} onSave={name => store.renameFolder(renaming.id, name)}/>}
     {deletion && store && <PersonaDeleteDialog title={deletion.title} detail={deletion.detail}
       onClose={() => {setDeletion(null); setSelected(null);}} onDelete={() => store.removeMany(deletion.ids, deletion.folderIds)}/>}
     {organize?.screen === 'choose' && store && <PersonaFolderSheet ids={organize.ids} folderIds={organize.folderIds} initialFolderId={folderId} value={value} store={store} onClose={() => setOrganize(null)}

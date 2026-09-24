@@ -45,5 +45,7 @@ export function ComposerInput(p: ComposerInputProps) {
     observer.observe(node);
     return () => observer.disconnect();
   }, [p.value, p.fontSize, p.lineHeight, p.onHeight]);
-  return <textarea ref={element} data-testid={p.testID ?? 'chat-input'} aria-label={p.label ?? '메시지 입력'} value={p.value} disabled={!p.ready} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus} onBlur={p.onBlur} placeholder="무엇이든 물어보세요." maxLength={8000} rows={1} style={{display: 'block', width: '100%', height: p.fillHeight ? '100%' : p.height, padding: 0, margin: 0, border: 0, outline: 'none', background: 'transparent', color: c.text, fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif', fontWeight: 400, fontSize: p.fontSize, lineHeight: `${p.lineHeight}px`, resize: 'none', overflowY: p.scroll ? 'auto' : 'hidden', scrollbarWidth: 'none'}}/>;
+  return <textarea ref={element} data-testid={p.testID ?? 'chat-input'} aria-label={p.label ?? '메시지 입력'} value={p.value} disabled={!p.ready} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}
+    onSelect={event => p.onSelectionChange?.({start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd})}
+    placeholder="무엇이든 물어보세요." maxLength={8000} rows={1} style={{display: 'block', width: '100%', height: p.fillHeight ? '100%' : p.height, padding: 0, margin: 0, border: 0, outline: 'none', background: 'transparent', color: c.text, fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif', fontWeight: 400, fontSize: p.fontSize, lineHeight: `${p.lineHeight}px`, resize: 'none', overflowY: p.scroll ? 'auto' : 'hidden', scrollbarWidth: 'none'}}/>;
 }

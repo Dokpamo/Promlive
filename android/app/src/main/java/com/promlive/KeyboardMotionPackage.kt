@@ -35,6 +35,7 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.views.view.ReactViewGroup
 import com.facebook.react.views.view.ReactViewManager
 import com.facebook.react.views.textinput.ReactEditText
+import kotlin.math.roundToInt
 
 /** The dock follows the IME on the UI thread, without waiting for a JS layout. */
 class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactViewGroup(reactContext) {
@@ -74,6 +75,11 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   private val beforeDraw = ViewTreeObserver.OnDrawListener {
     if (composerGeometry != null) positionDock()
     if (followCaret || caret.isTransitioning) caret.beforeDraw(caretIme)
+  }
+
+  fun restoreScroll(offset: Double?, revealCaret: Boolean) {
+    caret.restoreScroll(offset?.let { (it * resources.displayMetrics.density).roundToInt() }, revealCaret)
+    invalidate()
   }
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -211,6 +217,10 @@ class KeyboardMotionViewManager : ReactViewManager() {
   fun setFollowCaret(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).followCaret = value }
   @ReactProp(name = "anchorEditor", defaultBoolean = false)
   fun setAnchorEditor(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).anchorEditor = value }
+  @ReactProp(name = "restoreScroll")
+  fun setRestoreScroll(view: ReactViewGroup, value: ReadableMap?) {
+    (view as KeyboardMotionView).restoreScroll(value?.getDouble("offset"), value?.getBoolean("revealCaret") == true)
+  }
   @ReactProp(name = "composerGeometry")
   fun setComposerGeometry(view: ReactViewGroup, value: ReadableMap?) {
     val density = view.resources.displayMetrics.density

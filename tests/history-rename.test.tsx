@@ -6,13 +6,15 @@ import {ItemRenameSheet} from '../src/layout/ItemRenameSheet';
 import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
 import type {Conversation} from '../src/features/chat/model';
 
+const dismissal = vi.hoisted(() => ({defer: false, finish: undefined as (() => void) | undefined}));
+
 vi.mock('react-native', () => vi.importActual('react-native-web'));
 vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}));
 // Gesture/animation ownership is exercised separately in gesture-interruption.test.tsx.
 vi.mock('../src/layout/SwipeBackModal', () => ({
   SwipeBackModal: ({children, onClose, onDismissStart, onShow}: {children: (close: () => void, style: object) => ReactNode; onClose: () => void; onDismissStart: () => void; onShow: () => void}) => {
     useEffect(onShow, []);
-    return children(() => {onDismissStart(); onClose();}, {});
+    return children(() => {onDismissStart(); if (dismissal.defer) dismissal.finish = onClose; else onClose();}, {});
   },
   SwipeBackBoundary: ({children}: {children: ReactNode}) => children,
 }));
@@ -29,7 +31,7 @@ vi.mock('../src/layout/ScreenHeader', () => ({
 const conversation: Conversation = {id: 'room', cardId: 'card', title: '원래 이름', createdAt: 1, updatedAt: 1};
 let root: Root | undefined;
 const locks = {current: 0};
-afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; dismissal.defer = false; dismissal.finish = undefined; document.body.replaceChildren();});
 async function setup(onSave = vi.fn<(title: string) => Promise<void>>().mockResolvedValue()) {
   const onClose = vi.fn();
   function Host() {
@@ -61,6 +63,19 @@ it.each(['이름 변경 취소', '이름 변경 바깥 눌러 닫기'])('keeps e
   expect(onSave).not.toHaveBeenCalled();
   expect(onClose).toHaveBeenCalledOnce();
   expect(locks.current).toBe(0);
+});
+
+it('releases the drawer lock at dismissal start while the rename sheet is still animating', async () => {
+  dismissal.defer = true;
+  const {onClose, onSave} = await setup();
+  await press('이름 변경 취소');
+  expect(onClose).not.toHaveBeenCalled();
+  expect(input()).not.toBeNull();
+  expect(input().readOnly).toBe(true);
+  expect(locks.current).toBe(0);
+  expect(onSave).not.toHaveBeenCalled();
+  await act(async () => dismissal.finish?.());
+  expect(onClose).toHaveBeenCalledOnce();
 });
 
 it('selects the prefilled name on open and permits confirmation without editing', async () => {

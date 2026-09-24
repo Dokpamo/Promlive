@@ -4,6 +4,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class EditorCaretVisibilityTest {
+  @Test fun restoredReadingIgnoresAnOffscreenCaretDuringFocusHandoff() {
+    val reading = RestoredEditorReading(320, false)
+    assertEquals(320, reading.offset(1400, 1430, 600, 1200))
+    assertEquals(320, reading.offset(1400, 1430, 140, 1660))
+  }
+  @Test fun returningAfterEditingOnlyRevealsTheCoveredPartOfTheCaret() {
+    val reading = RestoredEditorReading(320, true)
+    assertEquals(390, reading.offset(500, 530, 140, 1660))
+    assertEquals(320, reading.offset(500, 530, 600, 1200))
+  }
+  @Test fun aLargerViewportClampsWithoutLosingTheRequestedReadingPosition() {
+    val reading = RestoredEditorReading(320, false)
+    assertEquals(0, reading.offset(380, 410, 600, 0))
+    assertEquals(320, reading.offset(380, 410, 140, 400))
+    assertEquals(120, reading.offset(80, 110, 140, 120))
+  }
   @Test fun morphKeepsTheCaretOnOneContinuousPathThroughResizeAndReversal() {
     val anchor = EditorScrollAnchor(600, 400, 970, 1000, true)
     assertEquals(listOf(600, 550, 400, 200, 400, 550, 600),

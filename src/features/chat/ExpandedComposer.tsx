@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {Animated, BackHandler, Platform, View, useWindowDimensions} from 'react-native';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {Animated, BackHandler, Platform, View, useWindowDimensions, type ScrollView} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
@@ -16,11 +16,13 @@ import type {ComposerInputHandle, ComposerSelection} from './ComposerInput.types
 import type {ComposerAction} from './ChatSession';
 import {composerScale, referenceComposer as r, typographyScale} from './chatAppearance';
 import {composerEditorHeight, expandedComposerFrame} from './composerGeometry';
+import {clampEditorScroll} from '../../layout/editorScroll';
 
 interface Props {
   value: string; onChange: (value: string) => void; onSend: () => void; onCancel: () => void;
   ready: boolean; action: ComposerAction; width: number; textWidth: number; initialHeight: number;
-  initialSelection: ComposerSelection; onReturnFocus: (selection: ComposerSelection, keepKeyboard: boolean) => void; onClose: () => void;
+  initialSelection: ComposerSelection; initialScrollOffset: number;
+  onReturnFocus: (selection: ComposerSelection, keepKeyboard: boolean, scrollOffset: number, revealCaret: boolean) => void; onClose: () => void;
 }
 
 /** A finished full-screen layout slides above the dock without resizing either editor. */
@@ -34,15 +36,36 @@ export function ExpandedComposer(p: Props) {
   const input = useRef<ComposerInputHandle>(null);
   const [keyboardStarted, setKeyboardStarted] = useState(keyboard.height > 0);
   const [exiting, setExiting] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const exitStarted = useRef(false);
   const initialSelection = useRef(p.initialSelection);
+  const initialScroll = useRef({offset: p.initialScrollOffset, revision: 0, revealCaret: false}).current;
+  const initialContentOffset = useRef({x: 0, y: p.initialScrollOffset}).current;
+  const scroller = useRef<ScrollView>(null);
+  const scroll = useRef<SheetScrollState>({offset: initialScroll.offset, canScroll: false, maxOffset: 0});
+  const interacted = useRef(false);
+  const [restoreInterrupted, setRestoreInterrupted] = useState(false);
+  const revealCaret = useRef(false);
+  const lastSelection = useRef(p.initialSelection);
+  const restoring = (!entered || !focused) && !restoreInterrupted;
+  const markInteraction = (followCaret: boolean) => {
+    interacted.current = true;
+    revealCaret.current = followCaret;
+    if (restoring) setRestoreInterrupted(true);
+  };
+  const restoreReading = useCallback(() => {
+    if (restoring && !interacted.current) scroller.current?.scrollTo({y: clampEditorScroll(initialScroll.offset, scroll.current.maxOffset ?? 0), animated: false});
+  }, [initialScroll, restoring]);
+  useLayoutEffect(restoreReading, [restoreReading]);
   const [contentHeight, setContentHeight] = useState(p.initialHeight);
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
-  const pull = useBlankDismiss({active: true, height: sheet.height, entrance: keyboardStarted ? 'ready' : 'waiting', onClose: p.onClose, onDismissStart: () => {
+  const pull = useBlankDismiss({active: true, height: sheet.height, entrance: keyboardStarted ? 'ready' : 'waiting', onEntered: () => setEntered(true), onClose: p.onClose, onDismissStart: () => {
     exitStarted.current = true;
     setExiting(true);
     // Transfer focus before unmounting so the IME never loses its served input.
-    p.onReturnFocus(input.current?.getSelection() ?? initialSelection.current, Platform.OS === 'web' || keyboard.height > 0);
+    p.onReturnFocus(input.current?.getSelection() ?? initialSelection.current, Platform.OS === 'web' || keyboard.height > 0,
+      interacted.current ? scroll.current.offset : initialScroll.offset, revealCaret.current);
   }});
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +101,6 @@ export function ExpandedComposer(p: Props) {
   const footerHeight = Math.max(0, insets.bottom - keyboard.height) + panelReference.sheetInset * s + referenceHeader.height * headerSize + 16 * s;
   const editorHeight = composerEditorHeight(sheet, inputTop, measured, line, footerHeight, window.height - keyboard.height);
   const scrollable = measured + inputTop + footerHeight > editorHeight + 1;
-  const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false, maxOffset: 0});
   scroll.current.canScroll = scrollable;
   scroll.current.maxOffset = Math.max(0, measured + inputTop + footerHeight - editorHeight);
   const canScrollInput = useCallback(() => {
@@ -87,14 +109,17 @@ export function ExpandedComposer(p: Props) {
   }, []);
   const cancelling = p.action.kind === 'cancel';
 
-  return <KeyboardDock fraction={fixedFraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={!exiting}>
+  return <KeyboardDock fraction={fixedFraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={!exiting}
+    restoreScroll={restoring ? initialScroll : undefined}>
     <DragClickBoundary cancelClick={pull.cancelClick}>
       <Animated.View testID="expanded-composer-surface" accessibilityViewIsModal onAccessibilityEscape={pull.dismiss} pointerEvents={exiting ? 'none' : 'auto'}
         style={{position: 'absolute', inset: 0, backgroundColor: settings.sheet, overflow: 'hidden', transform: [{translateY: pull.y}]}}>
         <SheetGestureRoot><View style={{flex: 1}} {...pull.panHandlers}>
           <View testID="expanded-composer-scroll-viewport" onStartShouldSetResponderCapture={() => scrollable ? pull.block() : false}
             style={{position: 'absolute', left: (sheet.width - p.textWidth) / 2, width: p.textWidth, top: 0, height: editorHeight, overflow: 'hidden'}}>
-            <SheetScrollView testID="expanded-composer-scroll" nativeID="promlive-composer-scroll" sheetScroll={scroll} sheetDrag={null} canStartInputScroll={canScrollInput} scrollEnabled={scrollable}
+            <SheetScrollView ref={scroller} testID="expanded-composer-scroll" nativeID="promlive-composer-scroll" sheetScroll={scroll} sheetDrag={null} canStartInputScroll={canScrollInput} scrollEnabled={scrollable}
+              contentOffset={initialContentOffset} onLayout={restoreReading} onContentSizeChange={restoreReading}
+              onScrollBeginDrag={() => markInteraction(false)}
               bounces={false} overScrollMode="never" keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false}
               showsVerticalScrollIndicator={false} scrollEventThrottle={16} style={{flex: 1}} onScroll={event => {
                 const state = scroll.current, offset = event.nativeEvent.contentOffset.y;
@@ -103,7 +128,13 @@ export function ExpandedComposer(p: Props) {
               }}>
               <View pointerEvents="none" style={{height: inputTop}}/>
               <View onStartShouldSetResponderCapture={pull.block} style={{height: measured}}>
-                <ComposerInput focusRef={input} testID="expanded-composer-input" label="확장 메시지 입력" value={p.value} onChange={p.onChange} onFocus={() => {}}
+                <ComposerInput focusRef={input} testID="expanded-composer-input" label="확장 메시지 입력" value={p.value}
+                  onChange={value => {markInteraction(true); p.onChange(value);}} onFocus={() => setFocused(true)}
+                  onSelectionChange={selection => {
+                    const previous = lastSelection.current;
+                    if (entered && (previous.start !== selection.start || previous.end !== selection.end)) markInteraction(true);
+                    lastSelection.current = selection;
+                  }}
                   onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={measured} fillHeight scroll={false} ready={p.ready}/>
               </View>
               <View pointerEvents="none" style={{height: footerHeight}}/>

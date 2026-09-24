@@ -37,9 +37,23 @@ internal class EditorCaretVisibility(private val host: View) {
   private val rootLocation = IntArray(2)
   private var transitionActive = false
   private var anchor: EditorScrollAnchor? = null
-  val isTransitioning: Boolean get() = transitionActive || anchor != null
+  private var restoredReading: RestoredEditorReading? = null
+  private var finishRestore = false
+  val isTransitioning: Boolean get() = transitionActive || anchor != null || restoredReading != null
 
-  fun reset() { previous = null; touchingEditor = false; userScrolling = false; anchor = null }
+  fun reset() { previous = null; touchingEditor = false; userScrolling = false; anchor = null; restoredReading = null }
+
+  fun restoreScroll(offset: Int?, revealCaret: Boolean) {
+    if (offset == null) {
+      // Focus can finish transferring in this same mount transaction. Apply to
+      // its final layout once before letting normal editing own the scroll again.
+      finishRestore = true
+    } else {
+      restoredReading = RestoredEditorReading(offset, revealCaret)
+      finishRestore = false
+      anchor = null
+    }
+  }
 
   fun setTransitioning(active: Boolean, ime: Int) {
     transitionActive = active
@@ -57,6 +71,7 @@ internal class EditorCaretVisibility(private val host: View) {
         editor?.getLocationOnScreen(location)
         touchingEditor = editor != null && event.rawX >= location[0] && event.rawX < location[0] + editor.width &&
           event.rawY >= location[1] && event.rawY < location[1] + editor.height
+        if (touchingEditor) restoredReading = null
         downX = event.rawX; downY = event.rawY; userScrolling = false
       }
       MotionEvent.ACTION_MOVE -> if (touchingEditor && (abs(event.rawX - downX) > slop || abs(event.rawY - downY) > slop)) {
@@ -64,6 +79,7 @@ internal class EditorCaretVisibility(private val host: View) {
         // A new editing/reading gesture can interrupt the morph immediately.
         transitionActive = false
         anchor = null
+        restoredReading = null
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touchingEditor = false
     }
@@ -93,7 +109,7 @@ internal class EditorCaretVisibility(private val host: View) {
       layout?.getLineTop(line) ?: 0, layout?.getLineBottom(line) ?: 0)
   }
 
-  private fun viewport(editor: EditText, scroller: ScrollView?, ime: Int): Int {
+  private fun viewport(editor: EditText, scroller: ScrollView?, ime: Int, finalLayout: Boolean = false): Int {
     editor.getLocationOnScreen(location)
     editor.rootView.getLocationOnScreen(rootLocation)
     val keyboardTop = rootLocation[1] + editor.rootView.height - ime
@@ -109,12 +125,16 @@ internal class EditorCaretVisibility(private val host: View) {
     }
     val topInset = maxOf(0, contentTop)
     val bottomInset = maxOf(0, (scroller.getChildAt(0)?.height ?: 0) - topInset - editor.height)
-    return composerCaretViewport(scroller.height, keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
+    return composerCaretViewport(scroller.height, if (finalLayout) scroller.height else keyboardTop - location[1], topInset + editor.totalPaddingTop, bottomInset + editor.totalPaddingBottom)
   }
 
   /** Runs after TextView's pre-draw auto-scroll, before any pixels are drawn. */
   fun beforeDraw(ime: Int) {
-    val editor = host.findFocus() as? EditText ?: run { reset(); return }
+    // A new editor receives its restoration prop before Android gives it focus.
+    val editor = host.findFocus() as? EditText ?: run {
+      if (restoredReading == null) reset() else previous = null
+      return
+    }
     val layout = editor.layout ?: return
     val outer = editorScroller(editor)
     // Android scrolls EditText to the new line before JS can grow its viewport.
@@ -126,13 +146,32 @@ internal class EditorCaretVisibility(private val host: View) {
       outer.flingAnimator.cancel()
       if (outer.scrollY != 0) outer.scrollTo(outer.scrollX, 0)
       previous = frame(editor, ime)
+      if (finishRestore) restoredReading = null
       return
     }
     val current = frame(editor, ime)
     val old = previous
+    val selectionChanged = old != null && (editor.selectionStart != old.start || editor.selectionEnd != old.end)
+    val textChanged = old != null && editor.length() != old.length
+    if (restoredReading != null && old?.editor === editor && (textChanged || (finishRestore && selectionChanged))) {
+      // New input interrupts a pending handoff, including while the overlay exits.
+      restoredReading = null
+      userScrolling = false
+    }
+    restoredReading?.let { reading ->
+      if (outer == null) return@let
+      (outer as? ReactScrollView)?.let { it.abortAnimation(); it.flingAnimator.cancel() }
+      val maxScroll = maxOf(0, (outer.getChildAt(0)?.height ?: 0) - outer.height)
+      // The sheet is translating from below the screen. Its on-screen keyboard
+      // overlap must not shift the text inside the already finished layout.
+      val next = reading.offset(current.caretTop, current.caretBottom, viewport(editor, outer, ime, finalLayout = true), maxScroll)
+      if (next != outer.scrollY) outer.scrollTo(outer.scrollX, next)
+      previous = frame(editor, ime)
+      userScrolling = true
+      if (finishRestore) restoredReading = null
+      return
+    }
     if (old == null || old.editor !== editor || old.scroller !== current.scroller) { previous = current; return }
-    val selectionChanged = editor.selectionStart != old.start || editor.selectionEnd != old.end
-    val textChanged = editor.length() != old.length
     val scroller = current.scroller
     if (isTransitioning && scroller != null) {
       if (anchor == null || selectionChanged || textChanged) {
@@ -172,6 +211,12 @@ internal class EditorCaretVisibility(private val host: View) {
     }
     previous = frame(editor, ime)
   }
+}
+
+/** Explicit handoff beats focus auto-scroll; an edited caret is revealed minimally. */
+internal class RestoredEditorReading(private val requested: Int, private val revealCaret: Boolean) {
+  fun offset(top: Int, bottom: Int, viewport: Int, maxScroll: Int): Int =
+    caretScrollOffset(requested, top, bottom, viewport, maxScroll, revealCaret)
 }
 
 /** Keep a visible caret at the same relative height; offscreen reading stays at its top line. */

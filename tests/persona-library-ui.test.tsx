@@ -7,6 +7,7 @@ import {PersonaProvider} from '../src/features/personas/PersonaContext';
 import {PersonaPreferences} from '../src/features/personas/personaPreferences';
 
 const editorExit = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
+const renameExit = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
 
 vi.mock('react-native', async () => {
   const React = await import('react');
@@ -36,13 +37,14 @@ vi.mock('../src/layout/RowPressable', () => ({rowPressedScale: 0.96, RowPressabl
   children: ReactNode; onPress: () => void; onLongPress?: () => void; accessibilityLabel: string; accessibilityRole?: string; accessibilityState?: {checked?: boolean}; disabled?: boolean;
 }) => <button role={accessibilityRole} aria-label={accessibilityLabel} aria-checked={accessibilityState?.checked} disabled={disabled} onClick={onPress} onContextMenu={event => {event.preventDefault(); onLongPress?.();}}>{children}</button>}));
 vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} disabled={disabled} onClick={onPress}>{children}</button>}));
-vi.mock('../src/layout/ItemRenameSheet', () => ({ItemRenameSheet: ({item, heading = '이름 변경', onClose, onSave}: {item: {title: string}; heading?: string; onClose: () => void; onSave: (name: string) => Promise<void>}) => {
+vi.mock('../src/layout/ItemRenameSheet', () => ({ItemRenameSheet: ({item, heading = '이름 변경', onClose, onDismissStart, onSave}: {item: {title: string}; heading?: string; onClose: () => void; onDismissStart?: () => void; onSave: (name: string) => Promise<void>}) => {
   const mounted = useRef(true);
   const [name, setName] = useState(item.title);
   const [error, setError] = useState('');
+  const close = () => {onDismissStart?.(); if (renameExit.defer) renameExit.finishes.push(onClose); else onClose();};
   useEffect(() => () => {mounted.current = false;}, []);
-  return <div data-testid="folder-name-editor"><input aria-label="폴더 이름" value={name} onChange={event => setName(event.target.value)}/><button aria-label={`${heading} 취소`} onClick={onClose}/><button aria-label={`${heading} 완료`} onClick={() => {
-    void onSave(name).then(() => {if (mounted.current) onClose();}, cause => {if (mounted.current) setError(cause.message);});
+  return <div data-testid="folder-name-editor"><input aria-label="폴더 이름" value={name} onChange={event => setName(event.target.value)}/><button aria-label={`${heading} 취소`} onClick={close}/><button aria-label={`${heading} 완료`} onClick={() => {
+    void onSave(name).then(() => {if (mounted.current) close();}, cause => {if (mounted.current) setError(cause.message);});
   }}/>{error && <span role="alert">{error}</span>}</div>;
 }}));
 vi.mock('../src/features/personas/PersonaEditorSheet', () => ({PersonaEditorSheet: ({item, onClose, onDismissStart}: {item?: {name: string}; onClose: () => void; onDismissStart: () => void}) => <div data-testid="editor">{item?.name}<button aria-label="편집 닫기" onClick={() => {
@@ -61,7 +63,7 @@ vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => nul
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; editorExit.defer = false; editorExit.finishes = []; document.body.replaceChildren();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; editorExit.defer = false; editorExit.finishes = []; renameExit.defer = false; renameExit.finishes = []; document.body.replaceChildren();});
 const fields = {name: '여행자', description: '', image: null};
 async function setup() {
   const store = new PersonaPreferences({getSetting: async () => undefined, setSetting: async () => {}});
@@ -605,4 +607,22 @@ it('renames a folder from its menu without changing its contents or sibling name
   expect(store.snapshot().value.folders.map(folder => folder.name)).toEqual(['이야기', '다른 폴더']);
   await press('이야기 폴더');
   expect(button('여행자')).not.toBeNull();
+});
+
+it('restores back gestures as folder rename closes and ignores its late exit after reopening', async () => {
+  renameExit.defer = true;
+  const {store} = await setup();
+  await act(async () => {await store.createFolder('보관'); await store.createFolder('다른 폴더');});
+  await hold('보관 폴더'); await press('이름 변경');
+  const gesture = document.querySelector('[data-testid="page-gesture"]')!;
+  expect(gesture.getAttribute('data-active')).toBe('false');
+  await press('이름 변경 취소');
+  expect(document.querySelector('[data-testid="folder-name-editor"]')).not.toBeNull();
+  expect(gesture.getAttribute('data-active')).toBe('true');
+  await hold('다른 폴더 폴더'); await press('이름 변경');
+  expect(gesture.getAttribute('data-active')).toBe('false');
+  await act(async () => renameExit.finishes[0]!());
+  expect(document.querySelector<HTMLInputElement>('[aria-label="폴더 이름"]')!.value).toBe('다른 폴더');
+  expect(gesture.getAttribute('data-active')).toBe('false');
+  expect(store.snapshot().value.folders.map(folder => folder.name)).toEqual(['보관', '다른 폴더']);
 });
