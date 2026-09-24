@@ -1,5 +1,5 @@
 import {useImperativeHandle, useRef} from 'react';
-import {NativeModules, Platform, TextInput} from 'react-native';
+import {TextInput} from 'react-native';
 import type {ComposerInputProps, ComposerSelection} from './ComposerInput.types';
 import {useAppearance} from '../appearance/AppAppearance';
 import {SheetTextInput} from '../../layout/SheetTextInput';
@@ -21,9 +21,7 @@ export function ComposerInput(p: ComposerInputProps) {
     return {
       focus: next => {
         if (next) setSelection(next);
-        const focused = input.current?.isFocused();
-        input.current?.focus();
-        if (focused && Platform.OS === 'android') NativeModules.PromliveKeyboard?.show();
+        focusWithKeyboard(input.current);
       },
       focusForExpansion: onKeyboardStart => focusWithKeyboard(input.current, onKeyboardStart),
       isFocused: () => input.current?.isFocused() ?? false,

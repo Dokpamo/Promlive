@@ -1,24 +1,23 @@
 import {useLayoutEffect, useState} from 'react';
 import type {Animated} from 'react-native';
 
-interface CompactMotion {height: Animated.Value; input: Animated.Value; filled: Animated.Value}
-interface LayoutFrame {progress: number; height: number; input: number; filled: number}
+interface CompactMotion {height: Animated.Value; filled: Animated.Value}
+interface LayoutFrame {height: number; filled: number}
 
-/** Commit the surface, viewport and scrolling insets in one React layout.
- * Separate Animated layout props can reach Fabric in different frames, making
- * the editor move backwards briefly even when the spring itself is monotonic.
+/** Commit the animated bar and its controls in one layout. The text viewport
+ * takes its measured height immediately, without waiting for this spring.
  */
-export function useComposerLayoutFrame(progress: Animated.Value, motion: CompactMotion, initial: Omit<LayoutFrame, 'progress'>) {
-  const [frame, setFrame] = useState<LayoutFrame>(() => ({progress: 0, ...initial}));
+export function useComposerLayoutFrame(motion: CompactMotion, initial: LayoutFrame) {
+  const [frame, setFrame] = useState<LayoutFrame>(initial);
   useLayoutEffect(() => {
     const values: [keyof LayoutFrame, Animated.Value][] = [
-      ['progress', progress], ['height', motion.height], ['input', motion.input], ['filled', motion.filled],
+      ['height', motion.height], ['filled', motion.filled],
     ];
     const listeners = values.map(([key, node]) => {
       const id = node.addListener(({value}) => setFrame(current => current[key] === value ? current : {...current, [key]: value}));
       return () => node.removeListener(id);
     });
     return () => listeners.forEach(remove => remove());
-  }, [motion, progress]);
+  }, [motion]);
   return frame;
 }

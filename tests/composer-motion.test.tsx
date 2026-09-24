@@ -2,14 +2,15 @@
 import {act, useImperativeHandle, useLayoutEffect, useRef, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
-import {Animated} from 'react-native';
+import {Animated, Keyboard} from 'react-native';
 import {ChatComposer} from '../src/features/chat/ChatComposer';
 import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
-import type {ComposerInputProps} from '../src/features/chat/ComposerInput.types';
+import type {ComposerInputProps, ComposerSelection} from '../src/features/chat/ComposerInput.types';
 
 const keyboard = vi.hoisted(() => ({height: 0}));
 const opening = vi.hoisted(() => ({defer: false, callbacks: [] as (() => void)[]}));
 const accessibility = vi.hoisted(() => ({reduceMotion: true}));
+const measurement = vi.hoisted(() => ({height: 1800}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native,
@@ -23,141 +24,198 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
   const {lightChatColors: colors} = await import('../src/features/chat/chatAppearance');
   return {useAppearance: () => ({colors, isDark: false, settings: {sheet: '#fff', selected: '#eee', divider: '#ddd'}})};
 });
-// Replace the native widget only. Its DOM node, focus and selection must survive
-// the real composer's expansion, collapse and keyboard frame changes.
+// Replace the native widget only; exercise the real focus handoff and overlay lifecycle.
 vi.mock('../src/features/chat/ComposerInput', () => ({ComposerInput: (p: ComposerInputProps) => {
   const node = useRef<HTMLTextAreaElement>(null);
-  useImperativeHandle(p.focusRef, () => ({
-    focus: () => node.current?.focus(), isFocused: () => node.current === document.activeElement,
-    focusForExpansion: onKeyboardStart => {
-      node.current?.focus();
-      if (opening.defer) opening.callbacks.push(onKeyboardStart);
-      else onKeyboardStart();
-    },
-    getSelection: () => ({start: node.current?.selectionStart ?? 0, end: node.current?.selectionEnd ?? 0}), setSelection: () => {},
-  }), []);
-  useLayoutEffect(() => {p.onHeight(1800);}, [p.onHeight]);
-  return <textarea ref={node} data-testid={p.testID} data-viewport={p.height} value={p.value} onChange={e => p.onChange(e.target.value)}/>;
+  useImperativeHandle(p.focusRef, () => {
+    const setSelection = (next: ComposerSelection) => node.current?.setSelectionRange(next.start, next.end);
+    return {
+      focus: next => {node.current?.focus(); if (next) setSelection(next);},
+      isFocused: () => node.current === document.activeElement,
+      focusForExpansion: onKeyboardStart => {
+        node.current?.focus();
+        if (opening.defer) opening.callbacks.push(onKeyboardStart); else onKeyboardStart();
+      },
+      getSelection: () => ({start: node.current?.selectionStart ?? 0, end: node.current?.selectionEnd ?? 0}), setSelection,
+    };
+  }, []);
+  const height = measurement.height;
+  useLayoutEffect(() => {p.onHeight(height);}, [height, p.onHeight]);
+  return <textarea ref={node} data-testid={p.testID ?? 'chat-input'} value={p.value} onChange={e => p.onChange(e.target.value)}/>;
 }}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
+let draft = '작성 중인 긴 메시지';
 const locks = {current: 0};
-const change = vi.fn();
-async function render() {
+const change = vi.fn(), send = vi.fn();
+const element = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`[data-testid="${id}"]`)!;
+async function render(value = draft) {
+  draft = value;
   if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
-  await act(async () => root!.render(<DrawerModalLocks.Provider value={locks}><ChatComposer value="작성 중인 긴 메시지" onChange={change} onSend={() => {}} onCancel={() => {}} onHint={() => {}} width={412} bottom={24} ready action={{kind: 'send', enabled: true, label: '메시지 보내기'}}/></DrawerModalLocks.Provider>));
+  await act(async () => root!.render(<DrawerModalLocks.Provider value={locks}><ChatComposer value={draft} onChange={change} onSend={send} onCancel={() => {}} onHint={() => {}} width={412} bottom={24} ready action={{kind: 'send', enabled: true, label: '메시지 보내기'}}/></DrawerModalLocks.Provider>));
 }
-async function press(label: string) {
-  await act(async () => (document.querySelector(`[aria-label="${label}"]`) as HTMLElement).click());
-}
-afterEach(async () => {
-  if (root) await act(async () => root!.unmount());
-  root = undefined; keyboard.height = 0; change.mockClear();
-  opening.defer = false; opening.callbacks = [];
-  accessibility.reduceMotion = true; vi.restoreAllMocks();
-  document.body.replaceChildren();
-});
-
-it('keeps the same editor, selection and draft through repeated expansion and collapse', async () => {
-  await render();
-  const original = document.querySelector('textarea')!;
-  original.focus(); original.setSelectionRange(3, 7);
-  for (let count = 0; count < 3; count++) {
-    await press('입력창 크게 열기');
-    expect(document.querySelectorAll('textarea')).toHaveLength(1);
-    expect(document.querySelector('textarea')).toBe(original);
-    expect(locks.current).toBe(1);
-    await press('입력창 접기');
-    expect(document.querySelector('textarea')).toBe(original);
-    expect([original.selectionStart, original.selectionEnd]).toEqual([3, 7]);
-    expect(locks.current).toBe(0);
-  }
-  expect(change).not.toHaveBeenCalled();
-});
-
-it('restores the whole available editor viewport after the keyboard disappears', async () => {
-  await render(); await press('입력창 크게 열기');
-  const editor = document.querySelector('textarea')!;
-  const viewport = document.querySelector<HTMLElement>('[data-testid="composer-scroll-viewport"]')!;
-  const full = parseFloat(viewport.style.height);
-  expect(parseFloat(viewport.style.top)).toBe(0);
-  keyboard.height = 336;
-  await render();
-  const reduced = parseFloat(viewport.style.height);
-  expect(reduced).toBeLessThan(full - 250);
-  keyboard.height = 0;
-  await render();
-  expect(parseFloat(viewport.style.height)).toBe(full);
-  expect(document.querySelector('textarea')).toBe(editor);
-  expect(change).not.toHaveBeenCalled();
-});
-
-it('keeps the text column width unchanged through expansion and collapse', async () => {
-  await render();
-  const viewport = () => document.querySelector<HTMLElement>('[data-testid="composer-scroll-viewport"]')!;
-  const compactWidth = parseFloat(viewport().style.width);
-  expect(compactWidth).toBeGreaterThan(300);
-  await press('입력창 크게 열기');
-  expect(parseFloat(viewport().style.width)).toBe(compactWidth);
-  await press('입력창 접기');
-  expect(parseFloat(viewport().style.width)).toBe(compactWidth);
-});
-
-it('reverses the full-screen expansion into the same compact editor without losing focus or selection', async () => {
-  accessibility.reduceMotion = false;
-  await render();
-  const editor = document.querySelector('textarea')!;
-  editor.focus(); editor.setSelectionRange(3, 7);
-  const surfaceHeight = () => parseFloat(document.querySelector<HTMLElement>('[data-testid="expanded-composer-surface"], [data-testid="chat-composer"]')!.style.height);
-  const compactHeight = surfaceHeight();
+async function press(label: string) {await act(async () => (document.querySelector(`[aria-label="${label}"]`) as HTMLElement).click());}
+function controlSprings() {
   const runs: {value: Animated.Value; target: number; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
   vi.spyOn(Animated, 'spring').mockImplementation((value, config) => {
     const run = {value: value as Animated.Value, target: config.toValue as number, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
     runs.push(run);
     return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
   });
-  await press('입력창 크게 열기');
-  await act(async () => runs[0]!.value.setValue(0.65));
-  const midway = surfaceHeight();
-  expect(midway).toBeGreaterThan(compactHeight);
-  expect(midway).toBeLessThan(892);
-  await press('입력창 접기');
-  expect(surfaceHeight()).toBe(midway);
-  await act(async () => runs[2]!.value.setValue(0.25));
-  expect(surfaceHeight()).toBeGreaterThan(compactHeight);
-  expect(surfaceHeight()).toBeLessThan(midway);
-  await act(async () => {
-    for (const run of runs.slice(2)) {run.value.setValue(run.target); run.finish?.({finished: true});}
-  });
-  expect(surfaceHeight()).toBe(compactHeight);
-  expect(document.querySelector('textarea')).toBe(editor);
-  expect(document.activeElement).toBe(editor);
-  expect([editor.selectionStart, editor.selectionEnd]).toEqual([3, 7]);
-  expect(locks.current).toBe(0);
-  expect(change).not.toHaveBeenCalled();
+  return runs;
+}
+afterEach(async () => {
+  if (root) await act(async () => root!.unmount());
+  root = undefined; keyboard.height = 0; change.mockClear(); send.mockClear();
+  opening.defer = false; opening.callbacks = []; measurement.height = 1800;
+  accessibility.reduceMotion = true; draft = '작성 중인 긴 메시지'; vi.restoreAllMocks();
+  document.body.replaceChildren();
 });
 
-it('requests focus immediately and starts expanding when the keyboard starts moving', async () => {
-  opening.defer = true;
+it('keeps the original bar mounted and returns draft, selection and focus after repeated full-screen editing', async () => {
   await render();
-  const editor = document.querySelector('textarea')!;
+  const original = element<HTMLTextAreaElement>('chat-input');
+  const bar = element('chat-composer');
+  const geometry = bar.style.cssText;
+  original.focus(); original.setSelectionRange(3, 7);
+  const dismissKeyboard = vi.spyOn(Keyboard, 'dismiss');
+  for (let count = 0; count < 3; count++) {
+    await press('입력창 크게 열기');
+    const full = element<HTMLTextAreaElement>('expanded-composer-input');
+    expect(full).not.toBe(original);
+    expect(document.querySelectorAll('textarea')).toHaveLength(2);
+    expect(element('chat-composer')).toBe(bar);
+    expect(bar.style.cssText).toBe(geometry);
+    expect(element('chat-input')).toBe(original);
+    expect(full.value).toBe(original.value);
+    expect([full.selectionStart, full.selectionEnd]).toEqual([3, 7]);
+    expect(document.activeElement).toBe(full);
+    expect(locks.current).toBe(1);
+    await press('입력창 접기');
+    expect(element('expanded-composer-surface')).toBeNull();
+    expect(element('chat-input')).toBe(original);
+    expect(document.activeElement).toBe(original);
+    expect([original.selectionStart, original.selectionEnd]).toEqual([3, 7]);
+    expect(locks.current).toBe(0);
+  }
+  expect(change).not.toHaveBeenCalled();
+  expect(dismissKeyboard).not.toHaveBeenCalled();
+});
+
+it('keeps the full-screen surface fixed while restoring its text viewport after keyboard dismissal', async () => {
+  await render(); await press('입력창 크게 열기');
+  const editor = element('expanded-composer-input');
+  const surface = element('expanded-composer-surface');
+  const geometry = surface.style.cssText;
+  const viewport = element('expanded-composer-scroll-viewport');
+  const full = parseFloat(viewport.style.height);
+  expect(parseFloat(viewport.style.top)).toBe(0);
+  keyboard.height = 336; await render();
+  expect(parseFloat(viewport.style.height)).toBeLessThan(full - 250);
+  expect(surface.style.cssText).toBe(geometry);
+  keyboard.height = 0; await render();
+  expect(parseFloat(viewport.style.height)).toBe(full);
+  expect(element('expanded-composer-input')).toBe(editor);
+});
+
+it('preserves the text column and shares edits with the original bar', async () => {
+  await render();
+  const width = element('composer-scroll-viewport').style.width;
   await press('입력창 크게 열기');
-  expect(document.activeElement).toBe(editor);
-  expect(editor.dataset.testid).toBe('chat-input');
+  expect(element('expanded-composer-scroll-viewport').style.width).toBe(width);
+  const full = element<HTMLTextAreaElement>('expanded-composer-input');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(full, '수정한 초안');
+    full.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+  expect(change).toHaveBeenLastCalledWith('수정한 초안');
+  await render('수정한 초안');
+  full.setSelectionRange(2, 2);
+  await press('입력창 접기');
+  const compact = element<HTMLTextAreaElement>('chat-input');
+  expect(compact.value).toBe('수정한 초안');
+  expect(compact.selectionStart).toBe(2);
+});
+
+it('slides a separate screen up and down, leaving the bar untouched throughout both animations', async () => {
+  accessibility.reduceMotion = false;
+  await render();
+  const runs = controlSprings();
+  const bar = element('chat-composer'), geometry = bar.style.cssText;
+  await press('입력창 크게 열기');
+  const surface = element('expanded-composer-surface');
+  const entry = runs.find(run => run.target === 0)!;
+  expect(surface.style.transform).toContain('892px');
+  await act(async () => entry.value.setValue(400));
+  expect(surface.style.transform).toContain('400px');
+  expect(bar.style.cssText).toBe(geometry);
+  await act(async () => {entry.value.setValue(0); entry.finish?.({finished: true});});
+  await press('입력창 접기');
+  expect(element('expanded-composer-surface')).toBe(surface);
+  expect(locks.current).toBe(1);
+  const exit = runs.find(run => run.target === 892)!;
+  await act(async () => exit.value.setValue(500));
+  expect(surface.style.transform).toContain('500px');
+  expect(bar.style.cssText).toBe(geometry);
+  await act(async () => {exit.value.setValue(892); exit.finish?.({finished: true});});
+  expect(element('expanded-composer-surface')).toBeNull();
+  expect(locks.current).toBe(0);
+});
+
+it('focuses the overlay immediately and waits for the keyboard to begin its entrance', async () => {
+  accessibility.reduceMotion = false; opening.defer = true;
+  await render(); const runs = controlSprings();
+  await press('입력창 크게 열기');
+  expect(document.activeElement).toBe(element('expanded-composer-input'));
+  expect(element('expanded-composer-surface').style.transform).toContain('892px');
+  expect(runs).toHaveLength(0);
   expect(locks.current).toBe(1);
   await act(async () => opening.callbacks[0]!());
-  expect(editor.dataset.testid).toBe('expanded-composer-input');
-  expect(document.querySelector('textarea')).toBe(editor);
+  expect(runs.some(run => run.target === 0)).toBe(true);
 });
 
-it('ignores a late keyboard callback after cancellation or a newer expansion request', async () => {
+it('ignores a late keyboard callback from a closed overlay', async () => {
   opening.defer = true;
   await render(); await press('입력창 크게 열기');
-  await press('입력창 바깥 눌러 접기');
+  await press('입력창 접기');
   expect(locks.current).toBe(0);
   await press('입력창 크게 열기');
+  const current = element('expanded-composer-input');
   await act(async () => opening.callbacks[0]!());
-  expect(document.querySelector('textarea')?.dataset.testid).toBe('chat-input');
+  expect(element('expanded-composer-input')).toBe(current);
+  expect(locks.current).toBe(1);
   await act(async () => opening.callbacks[1]!());
-  expect(document.querySelector('textarea')?.dataset.testid).toBe('expanded-composer-input');
+  expect(document.activeElement).toBe(current);
+});
+
+it('gives new text its complete viewport before the surrounding bar finishes growing', async () => {
+  accessibility.reduceMotion = false; measurement.height = 25;
+  await render('첫 줄');
+  const runs = controlSprings();
+  const barHeight = element('chat-composer').style.height;
+  measurement.height = 50; await render('첫 줄\n둘째 줄');
+  expect(element('composer-scroll-viewport').style.height).toBe('50px');
+  expect(element('chat-composer').style.height).toBe(barHeight);
+  expect(runs.some(run => run.target > parseFloat(barHeight))).toBe(true);
+});
+
+it('grows the send button in place without revealing it through an expanding width', async () => {
+  accessibility.reduceMotion = false; measurement.height = 25;
+  await render(''); const runs = controlSprings();
+  const entrance = element('composer-send-entrance');
+  const right = entrance.style.right;
+  expect(entrance.style.transform).toContain('scale(0.6)');
+  await render('안녕');
+  await act(async () => {for (const run of runs) run.value.setValue(run.target);});
+  expect(entrance.style.right).toBe(right);
+  expect(entrance.style.width).toBe('');
+  expect(entrance.style.transform).toContain('scale(1)');
+});
+
+it('sends once from the full-screen button and returns to the mounted bar', async () => {
+  await render(); await press('입력창 크게 열기');
+  await act(async () => element('expanded-composer-send').click());
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(element('expanded-composer-surface')).toBeNull();
+  expect(element('chat-composer')).not.toBeNull();
 });

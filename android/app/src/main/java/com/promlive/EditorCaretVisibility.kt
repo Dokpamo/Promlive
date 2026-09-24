@@ -15,6 +15,7 @@ internal class EditorCaretVisibility(private val host: View) {
   private data class Frame(
     val editor: EditText,
     val scroller: ScrollView?,
+    val scrolling: Boolean,
     val scroll: Int,
     val height: Int,
     val width: Int,
@@ -86,7 +87,8 @@ internal class EditorCaretVisibility(private val host: View) {
     val scroller = editorScroller(editor)
     val layout = editor.layout
     val line = layout?.getLineForOffset(editor.selectionEnd.coerceIn(0, editor.length())) ?: 0
-    return Frame(editor, scroller, scroller?.scrollY ?: editor.scrollY, scroller?.height ?: editor.height, editor.width, ime,
+    return Frame(editor, scroller, scroller !is ReactScrollView || scroller.scrollEnabled,
+      scroller?.scrollY ?: editor.scrollY, scroller?.height ?: editor.height, editor.width, ime,
       editor.selectionStart, editor.selectionEnd, editor.length(), viewport(editor, scroller, ime),
       layout?.getLineTop(line) ?: 0, layout?.getLineBottom(line) ?: 0)
   }
@@ -114,6 +116,18 @@ internal class EditorCaretVisibility(private val host: View) {
   fun beforeDraw(ime: Int) {
     val editor = host.findFocus() as? EditText ?: run { reset(); return }
     val layout = editor.layout ?: return
+    val outer = editorScroller(editor)
+    // Android scrolls EditText to the new line before JS can grow its viewport.
+    // A composer that fits its content must stay at the top during that frame.
+    // Once scrolling is enabled, only the outer viewport owns the scroll offset.
+    if (outer != null && editor.scrollY != 0) editor.scrollTo(editor.scrollX, 0)
+    if (outer is ReactScrollView && !outer.scrollEnabled) {
+      outer.abortAnimation()
+      outer.flingAnimator.cancel()
+      if (outer.scrollY != 0) outer.scrollTo(outer.scrollX, 0)
+      previous = frame(editor, ime)
+      return
+    }
     val current = frame(editor, ime)
     val old = previous
     if (old == null || old.editor !== editor || old.scroller !== current.scroller) { previous = current; return }
@@ -137,7 +151,8 @@ internal class EditorCaretVisibility(private val host: View) {
     }
     val resized = current.height != old.height || editor.width != old.width
     val keyboardChanged = ime != old.ime
-    if (!resized && !keyboardChanged && !selectionChanged && !textChanged) { capture(ime); return }
+    val startedScrolling = current.scrolling && !old.scrolling
+    if (!resized && !keyboardChanged && !selectionChanged && !textChanged && !startedScrolling) { capture(ime); return }
 
     // A drag/fling belongs to the reader. Typing or moving the cursor resumes following it.
     if ((selectionChanged || textChanged) && !touchingEditor) userScrolling = false
@@ -149,7 +164,7 @@ internal class EditorCaretVisibility(private val host: View) {
     val viewport = current.viewport
     val maxScroll = maxOf(0, layout.height - viewport)
     val baseline = if (textChanged) current.scroll else old.scroll
-    val reveal = selectionChanged || textChanged || ime > old.ime || current.height < old.height || editor.width != old.width
+    val reveal = selectionChanged || textChanged || startedScrolling || ime > old.ime || current.height < old.height || editor.width != old.width
     val next = caretScrollOffset(baseline, layout.getLineTop(line), layout.getLineBottom(line), viewport, maxScroll, reveal)
     if (next != current.scroll) {
       if (scroller == null) editor.scrollTo(editor.scrollX, next)
