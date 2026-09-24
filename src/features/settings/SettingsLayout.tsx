@@ -1,4 +1,4 @@
-import {useRef, useState, type ReactNode} from 'react';
+import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
@@ -7,7 +7,7 @@ import {useAppearance} from '../appearance/AppAppearance';
 import {headerScale, referenceHeader, referenceTypography} from '../../layout/metrics';
 import {SettingsIcon} from './SettingsIcon';
 import {RowPressable} from '../../layout/RowPressable';
-import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent} from '../../layout/SwipeBackModal';
+import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent, type SheetDrag} from '../../layout/SwipeBackModal';
 import type {SheetScrollState} from '../../layout/sheetMotion';
 import {SheetScrollView} from '../../layout/SheetScrollView';
 import {panelReference} from '../../layout/panelGeometry';
@@ -74,9 +74,11 @@ export function SettingsRow({label, value, onPress, plain = false, muted = false
   </RowPressable>;
 }
 
-export function SettingsSheet({title, caption, onClose, children, fillHeight = false, slideFrom = 'bottom', dismiss = false, overlay, obscured = false}: {
+export function SettingsSheet({title, caption, onClose, children, footer, contentKey, fillHeight = false, slideFrom = 'bottom', dismiss = false, overlay, obscured = false, horizontalDrag, onBackRequest}: {
   title: string; caption?: string; onClose: () => void; children: (close: () => void) => ReactNode; fillHeight?: boolean;
+  footer?: (close: () => void) => ReactNode; contentKey?: string | null;
   slideFrom?: 'bottom' | 'right'; dismiss?: boolean; overlay?: ReactNode; obscured?: boolean;
+  horizontalDrag?: SheetDrag; onBackRequest?: () => boolean;
 }) {
   const {settings: p} = useAppearance();
   const insets = useSafeAreaInsets();
@@ -84,6 +86,7 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const radius = useSettingsRadius();
   const {height: windowHeight} = useWindowDimensions();
   const [bodyHeight, setBodyHeight] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const scrollView = useRef<ScrollView>(null);
   const beginDismiss = () => {
@@ -96,15 +99,23 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
   const handleHeight = 58 * s;
   const maximumHeight = (windowHeight - bottom) * 0.85;
   // Choice lists fit their content; reading surfaces may reserve the full height.
-  const height = fillHeight ? maximumHeight : Math.min(bodyHeight + handleHeight, maximumHeight);
+  const fixedHeight = handleHeight + (footer ? footerHeight : 0);
+  const height = fillHeight ? maximumHeight : Math.min(bodyHeight + fixedHeight, maximumHeight);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
-  scroll.current.maxOffset = Math.max(0, bodyHeight - (height - handleHeight));
+  scroll.current.horizontalGesture = !!horizontalDrag;
+  scroll.current.maxOffset = Math.max(0, bodyHeight - (height - fixedHeight));
   scroll.current.canScroll = scroll.current.maxOffset > 1;
-  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} slideFrom={slideFrom} dismiss={dismiss} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View pointerEvents={obscured ? 'none' : 'auto'} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'} style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: panelReference.sheetInset * s, paddingBottom: bottom}}>
+  useEffect(() => {
+    if (contentKey === undefined) return;
+    scrollView.current?.scrollTo({y: 0, animated: false});
+    scroll.current.offset = 0;
+    scroll.current.hasScrolled = false;
+  }, [contentKey]);
+  return <SwipeBackModal sheet sheetHeight={bodyHeight ? height + bottom : 0} slideFrom={slideFrom} dismiss={dismiss} active={!obscured} {...(onBackRequest ? {onBackRequest} : {})} onClose={onClose} onDismissStart={beginDismiss}>{(close, motionStyle) => <SettingsTextEditorHost><View pointerEvents={obscured ? 'none' : 'auto'} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'} style={{flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: panelReference.sheetInset * s, paddingBottom: bottom}}>
     <SwipeBackBoundary style={{position: 'absolute', inset: 0}}><Pressable accessibilityRole="button" accessibilityLabel="선택창 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <Animated.View testID="settings-sheet" accessibilityViewIsModal style={[{width: '100%', maxWidth: 560, height, borderRadius: radius, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
       <Pressable testID="settings-sheet-close" accessibilityRole="button" accessibilityLabel="선택창 닫기" onPress={close} style={{height: handleHeight, flexShrink: 0, alignItems: 'center', paddingTop: panelReference.sheetHandle.top * s}}><View style={{width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
-      <SheetScrollView ref={scrollView} sheetScroll={scroll} scrollEnabled={!closing} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {
+      <SheetScrollView ref={scrollView} sheetScroll={scroll} {...(horizontalDrag ? {horizontalDrag} : {})} scrollEnabled={!closing && !obscured} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={(_, measured) => setBodyHeight(old => Math.abs(old - measured) > 0.5 ? measured : old)} onScroll={event => {
         const offset = Math.max(0, event.nativeEvent.contentOffset.y);
         if (Math.abs(offset - scroll.current.offset) > 0.5) scroll.current.hasScrolled = true;
         scroll.current.offset = offset;
@@ -115,6 +126,8 @@ export function SettingsSheet({title, caption, onClose, children, fillHeight = f
           <View style={{marginTop: panelReference.sheetContentGap * s}}>{children(close)}</View>
         </SwipeBackScrollContent>
       </SheetScrollView>
+      {footer && <View testID="settings-sheet-footer" onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
+        style={{flexShrink: 0, paddingHorizontal: panelReference.sheetPadding * s, paddingBottom: panelReference.groupPadding * s, paddingTop: 12 * s}}>{footer(close)}</View>}
     </Animated.View>
   </View>{overlay}</SettingsTextEditorHost>}</SwipeBackModal>;
 }

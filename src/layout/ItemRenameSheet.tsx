@@ -11,13 +11,16 @@ import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
 
 interface RenameProps {
   item: {title: string};
-  scope?: 'history' | 'card';
+  scope?: 'history' | 'card' | 'persona-folder';
+  heading?: string;
+  inputLabel?: string;
+  maxLength?: number;
   onClose: () => void;
   onSave: (title: string) => Promise<void>;
 }
 
 /** A short, keyboard-docked editor; the draft is committed only on confirmation. */
-export function ItemRenameSheet({item, scope = 'history', onClose, onSave}: RenameProps) {
+export function ItemRenameSheet({item, scope = 'history', heading = '이름 변경', inputLabel, maxLength = 120, onClose, onSave}: RenameProps) {
   const [height, setHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const input = useRef<TextInput>(null);
@@ -35,12 +38,12 @@ export function ItemRenameSheet({item, scope = 'history', onClose, onSave}: Rena
     Keyboard.dismiss();
     return true;
   }}>{(close, motionStyle) => <KeyboardMotionProvider>
-    <RenameEditor item={item} scope={scope} onSave={onSave} close={close} closing={closing} input={input}
+    <RenameEditor item={item} scope={scope} heading={heading} {...(inputLabel ? {inputLabel} : {})} maxLength={maxLength} onSave={onSave} close={close} closing={closing} input={input}
       keyboardVisible={keyboardVisible} motionStyle={motionStyle} onHeight={setHeight}/>
   </KeyboardMotionProvider>}</SwipeBackModal>;
 }
 
-function RenameEditor({item, scope, onSave, close, closing, input, keyboardVisible, motionStyle, onHeight}: Omit<RenameProps, 'onClose'> & {
+function RenameEditor({item, scope, heading, inputLabel, maxLength, onSave, close, closing, input, keyboardVisible, motionStyle, onHeight}: Omit<RenameProps, 'onClose'> & {
   close: () => void;
   closing: boolean;
   input: RefObject<TextInput | null>;
@@ -56,6 +59,7 @@ function RenameEditor({item, scope, onSave, close, closing, input, keyboardVisib
   const gap = g.sheetInset * s;
   const bottom = insets.bottom + gap;
   const [title, setTitle] = useState(item.title);
+  const [focused, setFocused] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
@@ -90,26 +94,30 @@ function RenameEditor({item, scope, onSave, close, closing, input, keyboardVisib
     }
   };
   return <>
-    <SwipeBackBoundary style={StyleSheet.absoluteFill}><Pressable testID={`${scope}-rename-dismiss`} accessibilityRole="button" accessibilityLabel="이름 변경 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
+    <SwipeBackBoundary style={StyleSheet.absoluteFill}><Pressable testID={`${scope}-rename-dismiss`} accessibilityRole="button" accessibilityLabel={`${heading} 바깥 눌러 닫기`} onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <KeyboardDock fraction={fraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
       <Animated.View testID={`${scope}-rename`} accessibilityViewIsModal onLayout={event => onHeight(event.nativeEvent.layout.height + bottom)}
         style={[{position: 'absolute', bottom, alignSelf: 'center', width: Math.min(440, width - insets.left - insets.right - 2 * gap), paddingTop: gap, paddingBottom: g.groupPadding * s,
           borderRadius: g.radius * s, backgroundColor: p.sheet, boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)'}, motionStyle]}>
         <View testID={`${scope}-rename-handle`} pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: g.sheetHandle.top * s, width: g.sheetHandle.width * s, height: g.sheetHandle.height * s, borderRadius: g.sheetHandle.radius * s, backgroundColor: p.divider}}/>
         <ScreenHeader width={width} edgeTint={false}>
-          <SwipeBackBoundary><HeaderButton width={width} icon="close" label="이름 변경 취소" onPress={close}/></SwipeBackBoundary>
+          <SwipeBackBoundary><HeaderButton width={width} icon="close" label={`${heading} 취소`} onPress={close}/></SwipeBackBoundary>
           <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
-            <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceTypography.titleFontSize * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>이름 변경</Text>
+            <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceTypography.titleFontSize * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{heading}</Text>
           </View>
-          <SwipeBackBoundary><HeaderButton width={width} icon="check" label="이름 변경 완료" disabled={saving || closing || !title.trim()} onPress={() => {void save();}}/></SwipeBackBoundary>
+          <SwipeBackBoundary><HeaderButton width={width} icon="check" label={`${heading} 완료`} disabled={saving || closing || !title.trim()} onPress={() => {void save();}}/></SwipeBackBoundary>
         </ScreenHeader>
         <SwipeBackBoundary style={{marginHorizontal: g.groupPadding * s}}>
-          <TextInput ref={input} testID={`${scope}-rename-input`} accessibilityLabel={scope === 'card' ? '카드 이름' : '채팅 이름'} selectTextOnFocus value={title}
-            maxLength={120} onChangeText={value => {setTitle(value); setError('');}} editable={!saving && !closing} autoCorrect={false}
+          <TextInput ref={input} testID={`${scope}-rename-input`} accessibilityLabel={inputLabel ?? (scope === 'card' ? '카드 이름' : '채팅 이름')} selectTextOnFocus value={title}
+            maxLength={maxLength} onChangeText={value => {setTitle(value); setError('');}} editable={!saving && !closing} autoCorrect={false}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
             returnKeyType="done" submitBehavior="submit" onSubmitEditing={() => {void save();}}
             selectionColor={isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)'} cursorColor={p.accent} underlineColorAndroid="transparent"
             style={{color: p.text, backgroundColor: 'transparent', paddingHorizontal: g.rowInset * s,
               paddingVertical: g.rowPadding * s, fontSize: g.rowFont * s, height: g.rowHeight * s, includeFontPadding: false}}/>
+          <View testID={`${scope}-rename-underline`} pointerEvents="none" style={{height: 3 * s, marginHorizontal: g.rowInset * s, justifyContent: 'flex-end'}}>
+            <View style={{height: (focused ? 3 : 1.5) * s, backgroundColor: focused ? p.accent : p.divider}}/>
+          </View>
         </SwipeBackBoundary>
         {!!error && <Text accessibilityRole="alert" style={{color: c.error, fontSize: g.subtitle.fontSize * s, lineHeight: g.subtitle.lineHeight * s, marginTop: 12 * s, marginHorizontal: g.rowInset * s}}>{error}</Text>}
       </Animated.View>

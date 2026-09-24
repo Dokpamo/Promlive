@@ -418,6 +418,23 @@ it('springs back from the first responder edge pull and pulls normally on a fres
   expect(native.values[0]!.displayed).toBeCloseTo(20 / 400);
 });
 
+it('leaves horizontal folder swipes with their content while retaining vertical sheet pulls', async () => {
+  const scroll = {current: {canScroll: false, offset: 0, horizontalGesture: true}};
+  await render(<SwipeBackModal sheet sheetHeight={400} onClose={vi.fn()}>{() =>
+    <SwipeBackScrollContent sheetScroll={scroll}>folder pages</SwipeBackScrollContent>
+  }</SwipeBackModal>);
+  native.values[0]!.setValue(0);
+  await act(async () => {
+    pan().onStartShouldSetPanResponderCapture!(event, gesture()); native.scrollCapture!();
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(25, 2))).toBe(false);
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(100, 130))).toBe(false);
+    pan().onStartShouldSetPanResponderCapture!(event, gesture()); native.scrollCapture!();
+    expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(2, 25))).toBe(true);
+    pan().onPanResponderGrant!(event, gesture()); native.flush();
+  });
+  expect(native.values[0]!.displayed).toBeCloseTo(25 / 400);
+});
+
 it.each([1, -1])('returns a native edge pull even after a long fast release in direction %s', async direction => {
   const close = vi.fn(), dismiss = vi.fn();
   let drag!: NonNullable<ReturnType<typeof useSheetDrag>>;

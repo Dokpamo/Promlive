@@ -4,6 +4,7 @@ import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {SheetScrollView} from '../src/layout/SheetScrollView.touch';
 import {SheetInputGesture} from '../src/layout/SheetTextInput.touch';
+import type {SheetDrag} from '../src/layout/SwipeBackModal';
 
 const native = vi.hoisted(() => ({
   callbacks: {} as Record<string, (...args: any[]) => void>,
@@ -30,12 +31,12 @@ vi.mock('react-native-gesture-handler', () => {
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-async function render(offset = 100, canStartInputScroll = () => true) {
+async function render(offset = 100, canStartInputScroll = () => true, horizontalDrag?: SheetDrag) {
   const container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   const scroll = {current: {offset, canScroll: true, maxOffset: 300}};
-  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll} canStartInputScroll={canStartInputScroll}>
+  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll} canStartInputScroll={canStartInputScroll} {...(horizontalDrag ? {horizontalDrag} : {})}>
     <SheetInputGesture.Consumer>{binding => <span data-testid="input-gesture" data-enabled={binding?.enabled}/>}</SheetInputGesture.Consumer>
   </SheetScrollView>));
   return scroll;
@@ -49,6 +50,46 @@ afterEach(async () => {
   document.body.replaceChildren();
   native.props.length = 0;
   vi.clearAllMocks();
+});
+
+it('routes horizontal travel to folder navigation without pulling or dismissing the sheet', async () => {
+  const folders = {canStart: () => true, begin: vi.fn(), move: vi.fn(), release: vi.fn()};
+  await render(0, () => true, folders);
+  touch('onBegin', 100);
+  touch('onUpdate', 103, {absoluteX: 70});
+  touch('onUpdate', 150, {absoluteX: 170}); // Vertical drift keeps the original horizontal owner.
+  touch('onFinalize', 150, {absoluteX: 190, velocityX: 800});
+  expect(folders.begin).toHaveBeenCalledWith(20, 3, false);
+  expect(folders.move).toHaveBeenCalledWith(100, 47);
+  expect(folders.release).toHaveBeenCalledWith(120, 47, 0.8, 0.6, false);
+  expect(native.drag.begin).not.toHaveBeenCalled();
+  expect(native.drag.release).not.toHaveBeenCalled();
+  expect(native.props).toEqual([{scrollEnabled: false}, {scrollEnabled: true}]);
+});
+
+it('keeps vertical scrolling and the first edge pull with the sheet when folder swipes are enabled', async () => {
+  const folders = {canStart: () => true, begin: vi.fn(), move: vi.fn(), release: vi.fn()};
+  const scroll = await render(100, () => true, folders);
+  touch('onBegin', 100);
+  touch('onUpdate', 160);
+  scroll.current.offset = 0;
+  touch('onUpdate', 250, {absoluteX: 60});
+  touch('onUpdate', 270, {absoluteX: 100});
+  touch('onFinalize', 270, {absoluteX: 100});
+  expect(folders.begin).not.toHaveBeenCalled();
+  expect(native.drag.begin).toHaveBeenCalledWith(0, 0, true);
+  expect(native.drag.release).toHaveBeenCalledWith(40, 20, 0, 0.6, false);
+});
+
+it('does not hand an obscured picker gesture to either navigation or sheet dismissal', async () => {
+  const folders = {canStart: () => false, begin: vi.fn(), move: vi.fn(), release: vi.fn()};
+  await render(0, () => true, folders);
+  touch('onBegin', 100);
+  touch('onUpdate', 103, {absoluteX: 70});
+  touch('onFinalize', 103, {absoluteX: 200});
+  expect(folders.begin).not.toHaveBeenCalled();
+  expect(native.drag.begin).not.toHaveBeenCalled();
+  expect(native.props).toEqual([]);
 });
 
 it('makes the first native edge pull return-only and allows normal pulling on the next gesture', async () => {

@@ -40,11 +40,11 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
   const {sheet: page, sheetKey: pageKey, setSheet: setPage, closeSheet: closePage} = useSettingsSheetState<Page>();
   const {sheet, sheetKey, setSheet, closeSheet} = useSettingsSheetState<Sheet>();
   const {value: profile} = useUserProfile();
-  const {selected: persona} = usePersonas();
+  const {value: personas, ready: personasReady} = usePersonas();
   const [language, setLanguage] = useState('한국어');
   const [prompt, setPrompt] = useState('');
   const choose = (setter: (value: string) => void, value: string, close: () => void) => {setter(value); close();};
-  const values = {ai: aiServices.find(service => service.id === ai.service)?.name, persona: persona?.name ?? '없음', prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
+  const values = {ai: aiServices.find(service => service.id === ai.service)?.name, persona: personasReady ? `${personas.items.length}개` : undefined, prompt: prompt ? '사용자 설정' : '기본', theme: themeLabels[mode], language, plugins: undefined, about: undefined};
   const renderSheet = () => sheet === 'profile' ? <ProfileSheet key={sheetKey} onClose={closeSheet}/> : sheet !== null && <SettingsSheet key={sheetKey} title={sheetTitles[sheet]} {...(sheetCaptions[sheet] ? {caption: sheetCaptions[sheet]} : {})} onClose={closeSheet}>{dismiss => <>
     {sheet === 'theme' && (['light', 'dark', 'system'] satisfies ThemeMode[]).map(value => <SettingsChoice key={value} label={themeLabels[value]} detail={value === 'light' ? '밝고 선명한 화면' : value === 'dark' ? '눈이 편안한 어두운 화면' : '기기의 설정에 맞춰 자동으로'} selected={mode === value} onPress={() => {setMode(value); dismiss();}}/>)}
     {sheet === 'display' && chatDisplayModes.map(value => <SettingsChoice key={value} label={chatDisplayLabels[value]} detail={chatDisplayDescriptions[value]} selected={chatDisplay === value} onPress={() => {setChatDisplay(value); dismiss();}}/>)}

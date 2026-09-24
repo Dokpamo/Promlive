@@ -264,6 +264,12 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       if (!canInteract() || !entered.current || blocked.current || scroller.current?.current.nativeGesture || offAxis.current || dragging.current || gesture.numberActiveTouches !== 1) return false;
       if (sheet) {
         if (Math.hypot(gesture.dx, gesture.dy) <= 10) return false;
+        // Folder pages own horizontal travel; vertical scrolling and edge pulls
+        // still belong to this sheet. Lock the axis for the rest of this touch.
+        if (scroller.current?.current.horizontalGesture && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25) {
+          offAxis.current = true;
+          return false;
+        }
         cancelClick.current = true;
         const claim = scrollHandoff.current.move(gesture.dx, gesture.dy, scroller.current?.current);
         if (claim) capturedSheetDrag.current = claim;
@@ -296,6 +302,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       if (!dragging.current) {
         if (sheet) {
           if (Math.hypot(gesture.dx, gesture.dy) <= 10) return;
+          if (scroller.current?.current.horizontalGesture && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25) {offAxis.current = true; return;}
           const claim = scrollHandoff.current.move(gesture.dx, gesture.dy, scroller.current?.current);
           if (!claim) return;
           beginDrag(claim.x - gesture.dx, claim.y - gesture.dy, claim.returnOnly);

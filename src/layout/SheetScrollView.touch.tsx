@@ -4,17 +4,18 @@ import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import type {SheetScrollViewProps} from './SheetScrollView';
 import {createSheetScrollHandoff} from './sheetScrollHandoff';
 import {useSheetDrag} from './SwipeBackModal';
+import type {SheetDrag} from './SwipeBackModal';
 import {SheetInputGesture} from './SheetTextInput.touch';
 
 /** Observe native scrolling, then give the sheet the first elastic pull and later dismissal. */
-export function SheetScrollView({sheetScroll, sheetDrag, canStartInputScroll, ref, ...props}: SheetScrollViewProps) {
+export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStartInputScroll, ref, ...props}: SheetScrollViewProps) {
   const scrollView = useRef<ScrollView>(null);
   useImperativeHandle(ref, () => scrollView.current!, []);
   const modalDrag = useSheetDrag();
   const drag = sheetDrag ?? modalDrag;
   const [inputEnabled, setInputEnabled] = useState(true);
-  const latest = useRef({drag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false});
-  latest.current = {drag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false};
+  const latest = useRef({drag, horizontalDrag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false});
+  latest.current = {drag, horizontalDrag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false};
   sheetScroll.current.nativeGesture = true;
 
   const gestures = useMemo(() => {
@@ -22,6 +23,9 @@ export function SheetScrollView({sheetScroll, sheetDrag, canStartInputScroll, re
     let claim: {x: number; y: number; dx: number; dy: number} | undefined;
     let owned = false;
     let cancelled = false;
+    let axis: 'horizontal' | 'vertical' | undefined;
+    let owner: SheetDrag | undefined;
+    let origin = {x: 0, y: 0};
     const native = Gesture.Native().shouldCancelWhenOutside(false);
     let inputOrigin = {x: 0, y: 0};
     const input = Gesture.Native().runOnJS(true).simultaneousWithExternalGesture(native)
@@ -41,20 +45,26 @@ export function SheetScrollView({sheetScroll, sheetDrag, canStartInputScroll, re
       .shouldCancelWhenOutside(false).simultaneousWithExternalGesture(native, input)
       .onBegin(event => {
         handoff.reset(event.absoluteX, event.absoluteY, latest.current.sheetScroll.current);
+        origin = {x: event.absoluteX, y: event.absoluteY};
+        axis = undefined; owner = undefined; owned = false;
         claim = undefined;
         cancelled = false;
       })
       .onUpdate(event => {
         if (event.numberOfPointers !== 1) cancelled = true;
-        if (cancelled || !latest.current.drag?.canStart()) return;
+        if (cancelled || !latest.current.enabled || !latest.current.drag?.canStart()) return;
         if (!claim) {
-          const movement = handoff.move(event.absoluteX, event.absoluteY, latest.current.sheetScroll.current);
+          const dx = event.absoluteX - origin.x, dy = event.absoluteY - origin.y;
+          if (!axis && Math.hypot(dx, dy) > 10) axis = Math.abs(dx) > Math.abs(dy) * 1.25 && latest.current.horizontalDrag ? 'horizontal' : 'vertical';
+          if (axis === 'horizontal' && !latest.current.horizontalDrag?.canStart()) return;
+          const movement = axis === 'horizontal' ? {x: dx, y: dy, returnOnly: false} : handoff.move(event.absoluteX, event.absoluteY, latest.current.sheetScroll.current);
           if (!movement) return;
+          owner = axis === 'horizontal' ? latest.current.horizontalDrag : latest.current.drag;
           claim = {x: event.absoluteX, y: event.absoluteY, dx: movement.x, dy: movement.y};
           owned = true;
           scrollView.current?.setNativeProps({scrollEnabled: false});
-          latest.current.drag.begin(claim.dx, claim.dy, movement.returnOnly);
-        } else latest.current.drag.move(event.absoluteX - claim.x, event.absoluteY - claim.y);
+          owner?.begin(claim.dx, claim.dy, movement.returnOnly);
+        } else owner?.move(event.absoluteX - claim.x, event.absoluteY - claim.y);
       })
       .onFinalize((event, success) => {
         setInputEnabled(true);
@@ -63,7 +73,7 @@ export function SheetScrollView({sheetScroll, sheetDrag, canStartInputScroll, re
         // Restore first: a dismissal may immediately disable this outgoing
         // scroller again so the next gesture can belong to the underlying page.
         scrollView.current?.setNativeProps({scrollEnabled: latest.current.enabled});
-        latest.current.drag?.release(event.absoluteX - claim.x, event.absoluteY - claim.y, event.velocityX / 1000, event.velocityY / 1000, !success || cancelled);
+        owner?.release(event.absoluteX - claim.x, event.absoluteY - claim.y, event.velocityX / 1000, event.velocityY / 1000, !success || cancelled);
         claim = undefined;
       });
     return {pan, native, input};

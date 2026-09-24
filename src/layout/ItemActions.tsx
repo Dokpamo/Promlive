@@ -6,12 +6,13 @@ import {RowPressable} from './RowPressable';
 import {SettingsIcon, type SettingsIconName} from '../features/settings/SettingsIcon';
 import {panelReference as g} from './panelGeometry';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {itemMenuGeometry, type MenuBounds} from './itemMenuGeometry';
+import {itemMenuGeometry, type MenuBounds, type MenuPoint} from './itemMenuGeometry';
 
 export interface ItemMenuTarget {
   item: {id: string; title: string; pinnedAt?: number | null | undefined};
   bounds: MenuBounds;
   anchor: MenuBounds;
+  point?: MenuPoint;
 }
 export interface ItemMenuAction {label: string; icon: SettingsIconName; action: () => void; danger?: boolean}
 
@@ -28,9 +29,10 @@ export function ItemActionMenu({target, scale: s, scope = 'history', onClose, on
 }
 
 /** Reuse the target origin, panel bounds and menu motion for list item actions. */
-export function AnchoredActionMenu({target, scale: s, scope, closeLabel, actions, onClose}: {
-  target: Pick<ItemMenuTarget, 'bounds' | 'anchor'>; scale: number; scope: string; closeLabel: string;
+export function AnchoredActionMenu({target, scale: s, scope, closeLabel, actions, onClose, anchorWindow = 'activity'}: {
+  target: Pick<ItemMenuTarget, 'bounds' | 'anchor' | 'point'>; scale: number; scope: string; closeLabel: string;
   actions: readonly ItemMenuAction[]; onClose: () => void;
+  anchorWindow?: 'activity' | 'modal';
 }) {
   const {settings: p, colors: c, isDark} = useAppearance();
   const {width, height: windowHeight} = useWindowDimensions();
@@ -63,22 +65,26 @@ export function AnchoredActionMenu({target, scale: s, scope, closeLabel, actions
     return () => {native?.remove(); document.removeEventListener('keydown', escape, true);};
   }, [close]);
   const inset = g.groupPadding * s;
-  // Android's measured activity window excludes the status bar; this modal covers it.
-  const windowOffset = Platform.OS === 'android' ? safe.top : 0;
+  // Activity measurements exclude the Android status bar. Edge-to-edge modal
+  // measurements already include it, so translating those again leaves a gap.
+  const windowOffset = Platform.OS === 'android' && anchorWindow === 'activity' ? safe.top : 0;
   const {left, top, width: menuWidth, height, originX, originY} = itemMenuGeometry({
     panel: {...target.bounds, top: target.bounds.top + windowOffset},
     anchor: {...target.anchor, top: target.anchor.top + windowOffset},
+    // Touch coordinates already include the edge-to-edge root's status bar area.
+    ...(target.point ? {point: target.point} : {}),
     viewport: {left: safe.left, top: safe.top, width: width - safe.left - safe.right, height: windowHeight - safe.top - safe.bottom},
     width: 338 * s, height: (actions.length * g.rowHeight + 2 * g.groupPadding) * s, inset, gap: 8 * s,
   });
+  const menuPadding = Math.min(inset, Math.max(0, (height - 1) / 2));
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => close()} onShow={() => syncSystemBars(isDark)}>
   <View testID={`${scope}-actions-overlay`} accessibilityViewIsModal style={{flex: 1}}>
     <Pressable testID={`${scope}-actions-dismiss`} accessibilityRole="button" accessibilityLabel={closeLabel} onPress={() => close()} style={StyleSheet.absoluteFill}/>
-    <Animated.View testID={`${scope}-actions`} accessibilityRole="menu" style={{position: 'absolute', left, top, width: menuWidth, paddingVertical: g.groupPadding * s, borderRadius: g.radius * s, backgroundColor: p.sheet,
+    <Animated.View testID={`${scope}-actions`} accessibilityRole="menu" style={{position: 'absolute', left, top, width: menuWidth, height, paddingVertical: menuPadding, borderRadius: g.radius * s, backgroundColor: p.sheet,
       boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)', opacity: progress,
       transformOrigin: [originX, originY, 0], transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
       <Pressable accessible={false} onPress={() => close()} style={StyleSheet.absoluteFill}/>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * inset)}}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * menuPadding)}}>
       {actions.map(item => <RowPressable key={item.icon} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={g.controlRadius * s} highlightInset={g.highlightInset * s}
         contentStyle={{height: g.rowHeight * s, paddingHorizontal: g.rowInset * s, flexDirection: 'row', gap: 18 * s, alignItems: 'center'}}>
         <SettingsIcon name={item.icon} size={32 * s} color={item.danger ? c.error : p.text}/>

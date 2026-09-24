@@ -1,12 +1,16 @@
 import {Text, View} from 'react-native';
 
-export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy';
+export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy' | 'folder';
 
 export function SettingsIcon({name, color, size = 22}: {name: SettingsIconName; color: string; size?: number}) {
   const s = size / 24;
   const line = {position: 'absolute' as const, backgroundColor: color, height: 1.7 * s, borderRadius: 2 * s};
   const outline = {position: 'absolute' as const, borderWidth: 1.7 * s, borderColor: color};
   return <View pointerEvents="none" accessible={false} style={{width: size, height: size}}>
+    {name === 'folder' && <>
+      <View style={[outline, {left: 2 * s, top: 3 * s, width: 9 * s, height: 5 * s, borderBottomWidth: 0, borderTopLeftRadius: 2 * s, borderTopRightRadius: 2 * s}]}/>
+      <View style={[outline, {left: 2 * s, top: 7 * s, width: 20 * s, height: 14 * s, borderRadius: 2 * s}]}/>
+    </>}
     {name === 'copy' && <>
       <View style={[outline, {left: 2 * s, top: 2 * s, width: 14 * s, height: 14 * s, borderRadius: 3 * s}]}/>
       <View style={[outline, {left: 8 * s, top: 8 * s, width: 14 * s, height: 14 * s, borderRadius: 3 * s}]}/>

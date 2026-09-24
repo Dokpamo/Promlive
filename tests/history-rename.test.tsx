@@ -63,6 +63,15 @@ it.each(['이름 변경 취소', '이름 변경 바깥 눌러 닫기'])('keeps e
   expect(locks.current).toBe(0);
 });
 
+it('selects the prefilled name on open and permits confirmation without editing', async () => {
+  const {onSave, onClose} = await setup();
+  expect(document.activeElement).toBe(input());
+  expect([input().selectionStart, input().selectionEnd]).toEqual([0, conversation.title.length]);
+  await press('이름 변경 완료');
+  expect(onSave).toHaveBeenCalledExactlyOnceWith(conversation.title);
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
 it('rejects a blank name and commits a trimmed name only once while saving', async () => {
   let resolve!: () => void;
   const onSave = vi.fn<(title: string) => Promise<void>>(() => new Promise(done => {resolve = done;}));

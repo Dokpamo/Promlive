@@ -17,9 +17,9 @@ import {SettingsIcon} from '../settings/SettingsIcon';
 import {SettingsTextEditorHost, SettingsTextField} from '../settings/SettingsTextField';
 import type {Persona, PersonaFields, PersonaPreferences} from './personaPreferences';
 
-interface Props {item?: Persona; store: PersonaPreferences; onClose: () => void; onCreated: () => void}
+interface Props {item?: Persona; folderId?: string | null; store: PersonaPreferences; onClose: () => void; onCreated: () => void}
 
-export function PersonaEditorSheet({item, store, onClose, onCreated}: Props) {
+export function PersonaEditorSheet({item, folderId = null, store, onClose, onCreated}: Props) {
   const [height, setHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,7 +47,7 @@ export function PersonaEditorSheet({item, store, onClose, onCreated}: Props) {
     if (pending.current || closing || !current.current.name.trim()) return;
     pending.current = true; setSaving(true); setError('');
     try {
-      await store.create(current.current);
+      await store.create(current.current, folderId);
       if (mounted.current) {onCreated(); close();}
     } catch {if (mounted.current) setError('페르소나를 만들지 못했어요. 다시 시도해 주세요.');}
     finally {pending.current = false; if (mounted.current) setSaving(false);}

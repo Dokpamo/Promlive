@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from 'react';
-import {Animated, BackHandler, FlatList, Keyboard, Platform, Text, View, useWindowDimensions, type CellRendererProps} from 'react-native';
+import {Animated, BackHandler, FlatList, Keyboard, Platform, Text, View, useWindowDimensions, type CellRendererProps, type GestureResponderEvent} from 'react-native';
+import type {MenuPoint} from './itemMenuGeometry';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {SettingsIcon} from '../features/settings/SettingsIcon';
 import {RowPressable} from './RowPressable';
@@ -86,13 +87,13 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
       });
     });
   };
-  const openMenu = (item: T, row: View) => {
+  const openMenu = (item: T, row: View, point?: MenuPoint) => {
     if (selected || deletion.current || !active) return;
     Keyboard.dismiss();
     measureMenu(row, placement => {
       menuRow.current = row;
       selectionHaptic();
-      setMenu({item, ...placement});
+      setMenu({item, ...placement, ...(point ? {point} : {})});
     });
   };
   const measureList = (kind: 'content' | 'viewport', height: number) => {
@@ -118,7 +119,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
             {item.kind === 'divider' ? <ItemPinDivider scope={scope} visible={item.visible} scale={s} inset={geo.padding} reduced={reduced}/> :
               <ItemRow item={item.item} scope={scope} scale={s} height={rowHeight} geometry={geo} leading={leading?.(item.item)} selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced}
                 selected={selected ? selected.has(item.item.id) : item.item.id === (menu?.item.id ?? selectedId)} disabled={deleting}
-                onPress={() => select(item.item)} onLongPress={row => openMenu(item.item, row)}/>}
+                onPress={() => select(item.item)} onLongPress={(row, point) => openMenu(item.item, row, point)}/>}
           </ItemMotionCell>}/>
       </View>
       <SelectionFooter scope={scope} selection={selection} selected={selected} count={selectionCount} deleting={deleting} scale={s} height={footerHeight} bottom={footerBottom} onDelete={() => {if (selected) void remove([...selected]);}}/>
@@ -149,11 +150,14 @@ function ItemPinDivider({scope, visible, scale: s, inset, reduced}: {scope: 'car
 }
 function ItemRow({item, scope, scale: s, height, geometry, leading, selecting, selectionProgress, reduced, selected, disabled, onPress, onLongPress}: {
   item: ListItem; scope: 'card' | 'history'; scale: number; height: number; geometry: NonNullable<Props<ListItem>['geometry']>; leading?: ReactNode;
-  selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; disabled: boolean; onPress: () => void; onLongPress: (row: View) => void;
+  selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; disabled: boolean; onPress: () => void; onLongPress: (row: View, point?: MenuPoint) => void;
 }) {
   const {colors: c} = useAppearance();
   const row = useRef<View>(null);
-  const openMenu = () => {if (row.current) onLongPress(row.current);};
+  const openMenu = (event?: GestureResponderEvent) => {
+    const touch = event?.nativeEvent;
+    if (row.current) onLongPress(row.current, touch ? {x: touch.pageX, y: touch.pageY} : undefined);
+  };
   const {progress: highlight} = useItemPresence(selected, reduced, true);
   const {progress: pinned} = useItemPresence(item.pinnedAt != null, reduced);
   const pinVisibility = Animated.multiply(pinned, Animated.subtract(1, selectionProgress));

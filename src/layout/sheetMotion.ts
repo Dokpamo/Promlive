@@ -1,4 +1,4 @@
-export interface SheetScrollState {offset: number; canScroll: boolean; maxOffset?: number; hasScrolled?: boolean; nativeGesture?: boolean}
+export interface SheetScrollState {offset: number; canScroll: boolean; maxOffset?: number; hasScrolled?: boolean; nativeGesture?: boolean; horizontalGesture?: boolean}
 
 export const sheetPullLimits = {sideways: 16, upward: 72} as const;
 const resistance = 0.35;
