@@ -4,6 +4,17 @@ type Point = {x: number; y: number};
 type Edge = 'top' | 'bottom';
 export type SheetScrollPull = Point & {returnOnly?: boolean};
 
+/** Consume the elastic pull first, then use the remaining travel to scroll. */
+export function splitSheetScrollReturn(pull: Point, initialOffset: number, maxOffset: number) {
+  const position = initialOffset - pull.y;
+  const offset = Math.max(0, Math.min(maxOffset, position));
+  return {
+    x: position <= 0 || position >= maxOffset ? pull.x : 0,
+    y: offset - position,
+    offset,
+  };
+}
+
 function edgeAt(scroll?: SheetScrollState): Edge | undefined {
   if (!scroll?.canScroll) return;
   if (scroll.offset <= 1) return 'top';
@@ -32,6 +43,12 @@ export function createSheetScrollHandoff() {
       scrollDirection = undefined;
       startedScrollable = scroll?.canScroll === true;
       startingEdge = edgeAt(scroll);
+    },
+    // Native scrolling is paused after capture; remember any later movement
+    // through the contents so only the edge actually reached stays armed.
+    didScroll(offset: number, maxOffset: number) {
+      hasScrolled = true;
+      armedEdge = edgeAt({offset, maxOffset, canScroll: true});
     },
     move(x: number, y: number, scroll?: SheetScrollState): SheetScrollPull | undefined {
       hasScrolled ||= scroll?.hasScrolled === true;

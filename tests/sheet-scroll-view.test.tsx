@@ -9,13 +9,14 @@ import type {SheetDrag} from '../src/layout/SwipeBackModal';
 const native = vi.hoisted(() => ({
   callbacks: {} as Record<string, (...args: any[]) => void>,
   props: [] as {scrollEnabled: boolean}[],
+  scrollTo: vi.fn(),
   drag: {canStart: () => true, begin: vi.fn(), move: vi.fn(), release: vi.fn()},
 }));
 vi.mock('../src/layout/SwipeBackModal', () => ({useSheetDrag: () => native.drag}));
 vi.mock('react-native', async () => {
   const React = await import('react');
   return {ScrollView: ({ref, children}: {ref?: Ref<unknown>; children?: ReactNode}) => {
-    React.useImperativeHandle(ref, () => ({setNativeProps: (props: {scrollEnabled: boolean}) => native.props.push(props)}), []);
+    React.useImperativeHandle(ref, () => ({setNativeProps: (props: {scrollEnabled: boolean}) => native.props.push(props), scrollTo: native.scrollTo}), []);
     return <div>{children}</div>;
   }};
 });
@@ -127,6 +128,69 @@ it('never moves or closes the sheet for ordinary scrolling and taps', async () =
   expect(native.drag.begin).not.toHaveBeenCalled();
   expect(native.drag.release).not.toHaveBeenCalled();
   expect(native.props).toEqual([]);
+});
+
+it.each([{edge: 0, direction: 1}, {edge: 300, direction: -1}])('returns a pull at $edge to scrolling without lifting, even through the opposite edge', async ({edge, direction}) => {
+  const scroll = await render();
+  touch('onBegin', 400);
+  touch('onUpdate', 400 + direction * 50);
+  scroll.current.offset = edge;
+  touch('onUpdate', 400 + direction * 200);
+  touch('onUpdate', 400 + direction * 260);
+  expect(native.drag.move).toHaveBeenLastCalledWith(0, direction * 60);
+  touch('onUpdate', 400 + direction * 240);
+  expect(native.drag.move).toHaveBeenLastCalledWith(0, direction * 40);
+  expect(native.scrollTo).not.toHaveBeenCalled();
+
+  // Restore the sheet first; only movement past its origin scrolls the text.
+  touch('onUpdate', 400 + direction * 150);
+  expect(native.drag.move).toHaveBeenLastCalledWith(0, 0);
+  expect(native.scrollTo).toHaveBeenLastCalledWith({y: edge + direction * 50, animated: false});
+  expect(scroll.current.offset).toBe(edge + direction * 50);
+  // A delayed native scroll report must not become the next drag origin.
+  scroll.current.offset = edge;
+  touch('onUpdate', 400 + direction * 130);
+  expect(native.scrollTo).toHaveBeenLastCalledWith({y: edge + direction * 70, animated: false});
+
+  touch('onUpdate', 400 - direction * 130);
+  expect(native.scrollTo).toHaveBeenLastCalledWith({y: 300 - edge, animated: false});
+  expect(native.drag.move).toHaveBeenLastCalledWith(0, -direction * 30);
+  touch('onFinalize', 400 - direction * 130, {velocityY: -direction * 3000});
+  expect(native.drag.begin).toHaveBeenCalledExactlyOnceWith(0, 0, true);
+  expect(native.drag.release).toHaveBeenLastCalledWith(0, -direction * 30, 0, -direction * 3, false);
+  expect(native.props).toEqual([{scrollEnabled: false}, {scrollEnabled: true}]);
+});
+
+it('does not count a return into the contents as permission to dismiss on the next edge arrival', async () => {
+  const scroll = await render();
+  touch('onBegin', 100);
+  touch('onUpdate', 150);
+  scroll.current.offset = 0;
+  touch('onUpdate', 200);
+  touch('onUpdate', 240);
+  touch('onUpdate', 150);
+  touch('onFinalize', 150);
+  expect(scroll.current.offset).toBe(50);
+  touch('onBegin', 300);
+  touch('onUpdate', 330);
+  scroll.current.offset = 0;
+  touch('onUpdate', 370);
+  expect(native.drag.begin).toHaveBeenLastCalledWith(0, 0, true);
+});
+
+it('returns an already scrolled edge pull that was captured away from its original touch point', async () => {
+  const scroll = await render(0);
+  Object.assign(scroll.current, {hasScrolled: true});
+  touch('onBegin', 200);
+  touch('onUpdate', 230);
+  expect(native.drag.begin).toHaveBeenLastCalledWith(0, 30, true);
+  touch('onUpdate', 180);
+  expect(native.scrollTo).toHaveBeenLastCalledWith({y: 20, animated: false});
+  // Cancel out the captured 30px too, so the sheet actually reaches rest.
+  expect(native.drag.move).toHaveBeenLastCalledWith(0, -30);
+  touch('onFinalize', 180, {}, false);
+  expect(native.drag.release).toHaveBeenLastCalledWith(0, -30, 0, 0.6, true);
+  expect(native.props.at(-1)).toEqual({scrollEnabled: true});
 });
 
 it('pulls a newly opened list immediately before any internal scrolling', async () => {

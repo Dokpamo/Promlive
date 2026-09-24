@@ -2,7 +2,7 @@ import {useImperativeHandle, useMemo, useRef, useState} from 'react';
 import {ScrollView} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import type {SheetScrollViewProps} from './SheetScrollView';
-import {createSheetScrollHandoff} from './sheetScrollHandoff';
+import {createSheetScrollHandoff, splitSheetScrollReturn} from './sheetScrollHandoff';
 import {useSheetDrag} from './SwipeBackModal';
 import type {SheetDrag} from './SwipeBackModal';
 import {SheetInputGesture} from './SheetTextInput.touch';
@@ -20,12 +20,33 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
 
   const gestures = useMemo(() => {
     const handoff = createSheetScrollHandoff();
-    let claim: {x: number; y: number; dx: number; dy: number} | undefined;
+    let claim: {x: number; y: number; dx: number; dy: number; returnOnly?: boolean; offset: number} | undefined;
+    let controlledOffset = 0;
+    let movement = {x: 0, y: 0};
     let owned = false;
     let cancelled = false;
     let axis: 'horizontal' | 'vertical' | undefined;
     let owner: SheetDrag | undefined;
     let origin = {x: 0, y: 0};
+    const move = (x: number, y: number) => {
+      if (!claim) return;
+      movement = {x: x - claim.x, y: y - claim.y};
+      const scroll = latest.current.sheetScroll.current;
+      if (claim.returnOnly && scroll.maxOffset !== undefined) {
+        const next = splitSheetScrollReturn({x: claim.dx + movement.x, y: claim.dy + movement.y}, claim.offset, scroll.maxOffset);
+        movement = {x: next.x - claim.dx, y: next.y - claim.dy};
+        if (next.offset !== controlledOffset) {
+          controlledOffset = next.offset;
+          scroll.offset = next.offset;
+          scroll.hasScrolled = true;
+          handoff.didScroll(next.offset, scroll.maxOffset);
+          // Re-enabling a cancelled native pan cannot resume the same touch.
+          // Keep this pan in charge until lift-off and forward only content travel.
+          scrollView.current?.scrollTo({y: next.offset, animated: false});
+        }
+      }
+      owner?.move(movement.x, movement.y);
+    };
     const native = Gesture.Native().shouldCancelWhenOutside(false);
     let inputOrigin = {x: 0, y: 0};
     const input = Gesture.Native().runOnJS(true).simultaneousWithExternalGesture(native)
@@ -48,6 +69,7 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
         origin = {x: event.absoluteX, y: event.absoluteY};
         axis = undefined; owner = undefined; owned = false;
         claim = undefined;
+        movement = {x: 0, y: 0};
         cancelled = false;
       })
       .onUpdate(event => {
@@ -57,14 +79,15 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
           const dx = event.absoluteX - origin.x, dy = event.absoluteY - origin.y;
           if (!axis && Math.hypot(dx, dy) > 10) axis = Math.abs(dx) > Math.abs(dy) * 1.25 && latest.current.horizontalDrag ? 'horizontal' : 'vertical';
           if (axis === 'horizontal' && !latest.current.horizontalDrag?.canStart()) return;
-          const movement = axis === 'horizontal' ? {x: dx, y: dy, returnOnly: false} : handoff.move(event.absoluteX, event.absoluteY, latest.current.sheetScroll.current);
-          if (!movement) return;
+          const pull = axis === 'horizontal' ? {x: dx, y: dy, returnOnly: false} : handoff.move(event.absoluteX, event.absoluteY, latest.current.sheetScroll.current);
+          if (!pull) return;
           owner = axis === 'horizontal' ? latest.current.horizontalDrag : latest.current.drag;
-          claim = {x: event.absoluteX, y: event.absoluteY, dx: movement.x, dy: movement.y};
+          controlledOffset = Math.max(0, latest.current.sheetScroll.current.offset);
+          claim = {x: event.absoluteX, y: event.absoluteY, dx: pull.x, dy: pull.y, returnOnly: pull.returnOnly === true, offset: controlledOffset};
           owned = true;
           scrollView.current?.setNativeProps({scrollEnabled: false});
-          owner?.begin(claim.dx, claim.dy, movement.returnOnly);
-        } else owner?.move(event.absoluteX - claim.x, event.absoluteY - claim.y);
+          owner?.begin(claim.dx, claim.dy, pull.returnOnly);
+        } else move(event.absoluteX, event.absoluteY);
       })
       .onFinalize((event, success) => {
         setInputEnabled(true);
@@ -73,7 +96,8 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
         // Restore first: a dismissal may immediately disable this outgoing
         // scroller again so the next gesture can belong to the underlying page.
         scrollView.current?.setNativeProps({scrollEnabled: latest.current.enabled});
-        owner?.release(event.absoluteX - claim.x, event.absoluteY - claim.y, event.velocityX / 1000, event.velocityY / 1000, !success || cancelled);
+        const delta = claim.returnOnly ? movement : {x: event.absoluteX - claim.x, y: event.absoluteY - claim.y};
+        owner?.release(delta.x, delta.y, event.velocityX / 1000, event.velocityY / 1000, !success || cancelled);
         claim = undefined;
       });
     return {pan, native, input};
