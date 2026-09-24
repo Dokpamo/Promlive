@@ -34,12 +34,13 @@ vi.mock('../src/layout/RowPressable', () => ({rowPressedScale: 0.96, RowPressabl
   children: ReactNode; onPress: () => void; onLongPress?: () => void; accessibilityLabel: string; accessibilityRole?: string; accessibilityState?: {checked?: boolean}; disabled?: boolean;
 }) => <button role={accessibilityRole} aria-label={accessibilityLabel} aria-checked={accessibilityState?.checked} disabled={disabled} onClick={onPress} onContextMenu={event => {event.preventDefault(); onLongPress?.();}}>{children}</button>}));
 vi.mock('../src/layout/PressSurface', () => ({PressSurface: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} disabled={disabled} onClick={onPress}>{children}</button>}));
-vi.mock('../src/layout/ItemRenameSheet', () => ({ItemRenameSheet: ({item, heading, onClose, onSave}: {item: {title: string}; heading: string; onClose: () => void; onSave: (name: string) => Promise<void>}) => {
+vi.mock('../src/layout/ItemRenameSheet', () => ({ItemRenameSheet: ({item, heading = '이름 변경', onClose, onSave}: {item: {title: string}; heading?: string; onClose: () => void; onSave: (name: string) => Promise<void>}) => {
   const mounted = useRef(true);
+  const [name, setName] = useState(item.title);
   const [error, setError] = useState('');
   useEffect(() => () => {mounted.current = false;}, []);
-  return <div data-testid="folder-name-editor"><input aria-label="폴더 이름" value={item.title} readOnly/><button aria-label={`${heading} 취소`} onClick={onClose}/><button aria-label={`${heading} 완료`} onClick={() => {
-    void onSave(item.title).then(() => {if (mounted.current) onClose();}, cause => {if (mounted.current) setError(cause.message);});
+  return <div data-testid="folder-name-editor"><input aria-label="폴더 이름" value={name} onChange={event => setName(event.target.value)}/><button aria-label={`${heading} 취소`} onClick={onClose}/><button aria-label={`${heading} 완료`} onClick={() => {
+    void onSave(name).then(() => {if (mounted.current) onClose();}, cause => {if (mounted.current) setError(cause.message);});
   }}/>{error && <span role="alert">{error}</span>}</div>;
 }}));
 vi.mock('../src/features/personas/PersonaEditorSheet', () => ({PersonaEditorSheet: ({item, onClose}: {item?: {name: string}; onClose: () => void}) => <div data-testid="editor">{item?.name}<button aria-label="편집 닫기" onClick={onClose}/></div>}));
@@ -80,7 +81,7 @@ it('opens a long-press menu without selecting or editing, and closes it without 
   const {store} = await setup();
   const before = store.snapshot().value;
   await hold('여행자');
-  expect([...document.querySelectorAll('[role="menuitem"]')].map(item => item.getAttribute('aria-label'))).toEqual(['선택', '폴더 이동', '삭제']);
+  expect([...document.querySelectorAll('[role="menuitem"]')].map(item => item.getAttribute('aria-label'))).toEqual(['선택', '폴더 이동', '페르소나 편집', '삭제']);
   expect(document.querySelector('[aria-checked]')).toBeNull();
   expect(document.querySelector('[data-testid="editor"]')).toBeNull();
   expect(document.querySelector('[data-testid="persona-drag-preview"]')).toBeNull();
@@ -88,6 +89,19 @@ it('opens a long-press menu without selecting or editing, and closes it without 
   expect(document.querySelector('[role="menuitem"]')).toBeNull();
   expect(store.snapshot().value).toBe(before);
   await press('여행자'); expect(document.querySelector('[data-testid="editor"]')).not.toBeNull();
+});
+
+it('opens the same persona editor from the item menu as from a normal tap', async () => {
+  const {store} = await setup();
+  const before = store.snapshot().value;
+  await press('여행자');
+  const tapped = document.querySelector('[data-testid="editor"]')!.textContent;
+  await press('편집 닫기');
+  await hold('여행자'); await press('페르소나 편집');
+  expect(document.querySelector('[role="menuitem"]')).toBeNull();
+  expect(document.querySelector('[data-testid="editor"]')!.textContent).toBe(tapped);
+  expect(document.querySelector('[data-testid="folder-name-editor"]')).toBeNull();
+  expect(store.snapshot().value).toBe(before);
 });
 
 it('moves a persona through the popup and can move it back out of a folder', async () => {
@@ -538,4 +552,38 @@ it('shows the full folder path and can return directly to a distant ancestor', a
   const remaining = document.querySelectorAll('[data-testid="persona-folder-path"]');
   await act(async () => remaining[remaining.length - 1]!.querySelector<HTMLButtonElement>('[aria-label="페르소나 경로"]')!.click());
   expect(button('상위 폴더, 페르소나')).toBeNull();
+});
+
+it('cancels selection from the shared bottom bar without editing or deleting personas', async () => {
+  const {store} = await setup();
+  const before = store.snapshot().value;
+  await select('여행자'); await press('작가');
+  expect(document.querySelector('[data-testid="persona-selection-footer"]')!.contains(button('선택 취소'))).toBe(true);
+  expect(button('페르소나 선택 취소')).toBeNull();
+  await press('선택 취소');
+  expect(document.querySelector('[aria-checked]')).toBeNull();
+  expect(document.querySelector('[data-testid="persona-selection-footer"]')).toBeNull();
+  expect(store.snapshot().value).toBe(before);
+});
+
+it('renames a folder from its menu without changing its contents or sibling names', async () => {
+  const {store, a} = await setup();
+  let id = '';
+  await act(async () => {id = (await store.createFolder('보관', [a.id])).id; await store.createFolder('다른 폴더');});
+  await hold('보관 폴더'); await press('이름 변경');
+  const edit = async (name: string) => act(async () => {
+    const input = document.querySelector<HTMLInputElement>('[aria-label="폴더 이름"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, name);
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+  await edit('취소할 이름'); await press('이름 변경 취소');
+  expect(store.snapshot().value.folders.find(folder => folder.id === id)?.name).toBe('보관');
+  await hold('보관 폴더'); await press('이름 변경');
+  await edit('이야기'); await press('이름 변경 완료');
+  expect(button('이야기 폴더')).not.toBeNull();
+  expect(button('보관 폴더')).toBeNull();
+  expect(store.snapshot().value.items.find(item => item.id === a.id)?.folderId).toBe(id);
+  expect(store.snapshot().value.folders.map(folder => folder.name)).toEqual(['이야기', '다른 폴더']);
+  await press('이야기 폴더');
+  expect(button('여행자')).not.toBeNull();
 });

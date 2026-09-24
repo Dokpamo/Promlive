@@ -21,23 +21,23 @@ vi.mock('react-native', async () => {
   }};
 });
 vi.mock('react-native-gesture-handler', () => {
-  function builder() {
+  function builder(kind: 'native' | 'pan') {
     const chain: Record<string, (...args: any[]) => unknown> = {};
-    for (const name of ['minDistance', 'runOnJS', 'maxPointers', 'shouldCancelWhenOutside', 'simultaneousWithExternalGesture']) chain[name] = () => chain;
-    for (const name of ['onBegin', 'onUpdate', 'onFinalize', 'onTouchesDown', 'onTouchesMove']) chain[name] = callback => {native.callbacks[name] = callback; return chain;};
+    for (const name of ['enabled', 'minDistance', 'runOnJS', 'maxPointers', 'shouldCancelWhenOutside', 'simultaneousWithExternalGesture']) chain[name] = () => chain;
+    for (const name of ['onBegin', 'onUpdate', 'onFinalize', 'onTouchesDown', 'onTouchesMove']) chain[name] = callback => {native.callbacks[kind === 'native' && name === 'onFinalize' ? 'onNativeFinalize' : name] = callback; return chain;};
     return chain;
   }
-  return {Gesture: {Native: builder, Pan: builder}, GestureDetector: ({children}: {children: ReactNode}) => children};
+  return {Gesture: {Native: () => builder('native'), Pan: () => builder('pan')}, GestureDetector: ({children}: {children: ReactNode}) => children};
 });
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-async function render(offset = 100, canStartInputScroll = () => true, horizontalDrag?: SheetDrag) {
+async function render(offset = 100, canStartInputScroll = () => true, horizontalDrag?: SheetDrag, sheetDrag?: SheetDrag | null) {
   const container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   const scroll = {current: {offset, canScroll: true, maxOffset: 300}};
-  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll} canStartInputScroll={canStartInputScroll} {...(horizontalDrag ? {horizontalDrag} : {})}>
+  await act(async () => root!.render(<SheetScrollView sheetScroll={scroll} canStartInputScroll={canStartInputScroll} {...(horizontalDrag ? {horizontalDrag} : {})} {...(sheetDrag !== undefined ? {sheetDrag} : {})}>
     <SheetInputGesture.Consumer>{binding => <span data-testid="input-gesture" data-enabled={binding?.enabled}/>}</SheetInputGesture.Consumer>
   </SheetScrollView>));
   return scroll;
@@ -125,6 +125,18 @@ it('never moves or closes the sheet for ordinary scrolling and taps', async () =
   touch('onFinalize', 100);
   touch('onBegin', 300);
   touch('onFinalize', 300, {}, false);
+  expect(native.drag.begin).not.toHaveBeenCalled();
+  expect(native.drag.release).not.toHaveBeenCalled();
+  expect(native.props).toEqual([]);
+});
+
+it.each([0, 300])('keeps fixed-editor scrolling native at edge %s without falling back to the parent sheet', async edge => {
+  await render(edge, () => true, undefined, null);
+  for (let repeat = 0; repeat < 2; repeat++) {
+    touch('onBegin', 300);
+    touch('onUpdate', edge === 0 ? 600 : 50);
+    touch('onFinalize', edge === 0 ? 600 : 50);
+  }
   expect(native.drag.begin).not.toHaveBeenCalled();
   expect(native.drag.release).not.toHaveBeenCalled();
   expect(native.props).toEqual([]);
@@ -240,4 +252,14 @@ it.each([false, true])('cancels an editor long press for scrolling, but keeps ex
   expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe(String(selected));
   await act(async () => touch('onFinalize', 150));
   expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe('true');
+});
+
+it('restores text editing after a fixed-editor scroll without a sheet pan finalizer', async () => {
+  await render(100, () => true, undefined, null);
+  native.callbacks.onTouchesDown!({allTouches: [{absoluteX: 50, absoluteY: 100}], numberOfTouches: 1});
+  await act(async () => native.callbacks.onTouchesMove!({allTouches: [{absoluteX: 50, absoluteY: 150}], numberOfTouches: 1}));
+  expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe('false');
+  await act(async () => touch('onNativeFinalize', 150));
+  expect(document.querySelector('[data-testid="input-gesture"]')?.getAttribute('data-enabled')).toBe('true');
+  expect(native.drag.begin).not.toHaveBeenCalled();
 });

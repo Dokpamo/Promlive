@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type RefObject} from 'react';
-import {Animated, Keyboard, NativeModules, Platform, Pressable, StyleSheet, Text, TextInput, View, findNodeHandle, useWindowDimensions, type ViewStyle} from 'react-native';
+import {Animated, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardDock, KeyboardMotionProvider, useKeyboardFrame} from './KeyboardMotion';
 import {HeaderButton, ScreenHeader} from './ScreenHeader';
@@ -8,6 +8,7 @@ import {headerScale, referenceHeader, referenceTypography} from './metrics';
 import {panelReference as g} from './panelGeometry';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {useDrawerModalLock} from '../features/chat/DrawerGestureBoundary';
+import {focusWithKeyboard} from './focusWithKeyboard';
 
 interface RenameProps {
   item: {title: string};
@@ -26,11 +27,7 @@ export function ItemRenameSheet({item, scope = 'history', heading = '이름 변�
   const input = useRef<TextInput>(null);
   const keyboardVisible = useRef(false);
   useDrawerModalLock();
-  return <SwipeBackModal sheet sheetHeight={height} onClose={onClose} onShow={() => {
-    input.current?.focus();
-    const tag = Platform.OS === 'android' ? findNodeHandle(input.current) : null;
-    if (tag) NativeModules.PromliveKeyboard?.showForInput?.(tag);
-  }} onDismissStart={() => {
+  return <SwipeBackModal sheet sheetHeight={height} onClose={onClose} onShow={() => focusWithKeyboard(input.current)} onDismissStart={() => {
     if (Platform.OS !== 'web') input.current?.setNativeProps({editable: false, scrollEnabled: false});
     setClosing(true);
   }} onBackRequest={() => {
@@ -64,6 +61,7 @@ function RenameEditor({item, scope, heading, inputLabel, maxLength, onSave, clos
   const [saving, setSaving] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(false);
+  const focusedOnLayout = useRef(false);
   const closingRef = useRef(closing);
   closingRef.current = closing;
   const fraction = useRef(new Animated.Value(1)).current.interpolate({inputRange: [0, 1], outputRange: [1, 1]});
@@ -109,6 +107,7 @@ function RenameEditor({item, scope, heading, inputLabel, maxLength, onSave, clos
         </ScreenHeader>
         <SwipeBackBoundary style={{marginHorizontal: g.groupPadding * s}}>
           <TextInput ref={input} testID={`${scope}-rename-input`} accessibilityLabel={inputLabel ?? (scope === 'card' ? '카드 이름' : '채팅 이름')} selectTextOnFocus value={title}
+            onLayout={() => {if (!focusedOnLayout.current) {focusedOnLayout.current = true; focusWithKeyboard(input.current);}}}
             maxLength={maxLength} onChangeText={value => {setTitle(value); setError('');}} editable={!saving && !closing} autoCorrect={false}
             onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
             returnKeyType="done" submitBehavior="submit" onSubmitEditing={() => {void save();}}

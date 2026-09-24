@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import {act, useState, type ReactNode} from 'react';
+import {act, useRef, useState, type ReactNode, type CSSProperties} from 'react';
+import {Keyboard, TextInput} from 'react-native';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
-import {SettingsTextEditorHost, SettingsTextField} from '../src/features/settings/SettingsTextField';
+import {SettingsTextEditorHost, SettingsTextField, useTextEditorCovered} from '../src/features/settings/SettingsTextField';
 
+const keyboard = vi.hoisted(() => ({height: 0}));
 const closing = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
@@ -13,7 +15,7 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 24, right: 0, bottom: 24, left: 0})}));
 vi.mock('../src/layout/KeyboardMotion', () => ({
-  useKeyboardFrame: () => ({height: 0}),
+  useKeyboardFrame: () => keyboard,
   KeyboardDock: ({children}: {children: ReactNode}) => <div>{children}</div>,
   KeyboardMotionProvider: ({children}: {children: ReactNode}) => <div>{children}</div>,
 }));
@@ -23,7 +25,7 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
 });
 // Retain the real field/editor and focus lifecycle; control only exit completion.
 vi.mock('../src/layout/SwipeBackModal', () => ({
-  SwipeBackBoundary: ({children}: {children: ReactNode}) => <div>{children}</div>,
+  SwipeBackBoundary: ({children, style}: {children: ReactNode; style?: CSSProperties}) => <div style={style}>{children}</div>,
   SwipeBackModal: ({children, onDismissStart, onClose}: {children: (close: () => void, motion: object) => ReactNode; onDismissStart: () => void; onClose: () => void}) => <div>{children(() => {
     onDismissStart();
     if (closing.defer) closing.finishes.push(onClose); else onClose();
@@ -41,7 +43,7 @@ function Form() {
   </SettingsTextEditorHost>;
 }
 async function render() {
-  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
   await act(async () => root!.render(<Form/>));
 }
 async function press(label: string) {await act(async () => (document.querySelector(`[aria-label="${label}"]`) as HTMLElement).click());}
@@ -54,7 +56,7 @@ async function enter(value: string) {
 }
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
-  root = undefined; closing.defer = false; closing.finishes = []; changes.mockClear(); document.body.replaceChildren();
+  root = undefined; keyboard.height = 0; closing.defer = false; closing.finishes = []; changes.mockClear(); vi.restoreAllMocks(); document.body.replaceChildren();
 });
 
 it('keeps saved secrets out of the preview and reveals them only inside the focused editor', async () => {
@@ -88,7 +90,7 @@ it('updates immediately and masks the saved preview after confirming with the ch
 
 it('accepts empty values without restoring stale text or requiring a save button', async () => {
   await render(); await press('API 키'); await enter('');
-  await press('입력창 바깥 눌러 닫기');
+  await press('입력창 닫기');
   expect(changes).toHaveBeenLastCalledWith('');
   await press('API 키');
   expect(document.querySelector('input')?.value).toBe('');
@@ -104,4 +106,48 @@ it('does not let an old dismissal close a newly opened field', async () => {
   await act(async () => closing.finishes[0]!());
   expect(document.querySelector('textarea')).toBe(editor);
   expect(document.activeElement).toBe(editor);
+});
+
+it('keeps the full-screen editor fixed while its text viewport follows the keyboard', async () => {
+  await render(); await press('프롬프트');
+  const surface = document.querySelector<HTMLElement>('[data-testid="settings-text-editor"]')!;
+  const editor = document.querySelector('textarea')!;
+  const viewport = document.querySelector<HTMLElement>('[data-testid="settings-text-editor-viewport"]')!;
+  const full = parseFloat(viewport.style.height);
+  expect([surface.style.top, surface.style.left, surface.style.width, surface.style.height]).toEqual(['0px', '0px', '412px', '892px']);
+  expect(document.querySelector('[data-testid="settings-text-editor-handle"]')).toBeNull();
+  expect(document.querySelector('[data-testid="settings-text-editor-footer"]')!.contains(document.querySelector('[aria-label="입력 완료"]'))).toBe(true);
+  keyboard.height = 336; await render();
+  expect(parseFloat(viewport.style.height)).toBeLessThan(full - 250);
+  expect(surface.style.height).toBe('892px');
+  keyboard.height = 0; await render();
+  expect(parseFloat(viewport.style.height)).toBe(full);
+  expect(document.querySelector('textarea')).toBe(editor);
+  expect(document.activeElement).toBe(editor);
+  await press('입력 완료');
+  expect(document.querySelector('textarea')).toBeNull();
+});
+
+it('leaves the underlying persona editor mounted and returns focus without dismissing its keyboard', async () => {
+  function Covered() {return <span data-testid="covered" data-covered={useTextEditorCovered()}/>;}
+  function MiniEditor() {
+    const name = useRef<TextInput>(null);
+    return <SettingsTextEditorHost resumeInput={name}>
+      <TextInput ref={name} testID="parent-name" value="여행자"/>
+      <Covered/>
+      <SettingsTextField label="설명" value="기존 내용" onChange={() => {}} placeholder="설명" multiline/>
+    </SettingsTextEditorHost>;
+  }
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<MiniEditor/>));
+  const name = document.querySelector<HTMLInputElement>('[data-testid="parent-name"]')!;
+  const dismissKeyboard = vi.spyOn(Keyboard, 'dismiss');
+  await press('설명');
+  expect(document.querySelector('[data-testid="parent-name"]')).toBe(name);
+  expect(document.querySelector('[data-testid="covered"]')?.getAttribute('data-covered')).toBe('true');
+  await press('입력창 닫기');
+  expect(document.querySelector('[data-testid="parent-name"]')).toBe(name);
+  expect(document.querySelector('[data-testid="covered"]')?.getAttribute('data-covered')).toBe('false');
+  expect(document.activeElement).toBe(name);
+  expect(dismissKeyboard).not.toHaveBeenCalled();
 });

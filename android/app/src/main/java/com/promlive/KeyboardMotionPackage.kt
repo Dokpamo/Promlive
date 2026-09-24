@@ -33,6 +33,7 @@ import com.facebook.react.uimanager.annotations.ReactProp
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.views.view.ReactViewGroup
 import com.facebook.react.views.view.ReactViewManager
+import com.facebook.react.views.textinput.ReactEditText
 
 /** The dock follows the IME on the UI thread, without waiting for a JS layout. */
 class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactViewGroup(reactContext) {
@@ -202,6 +203,7 @@ class KeyboardMotionViewManager : ReactViewManager() {
 class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   private val handler = Handler(Looper.getMainLooper())
   private var expansionReady: (() -> Unit)? = null
+  private var showRequest = 0
 
   override fun getName() = "PromliveKeyboard"
 
@@ -214,7 +216,7 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
         UIManagerHelper.getUIManagerForReactTag(reactApplicationContext, reactTag)?.resolveView(reactTag)
       }.getOrNull()
       val insets = editor?.let(ViewCompat::getRootWindowInsets)
-      if (editor == null || !editor.isAttachedToWindow || Build.VERSION.SDK_INT < 30 ||
+      if (editor == null || Build.VERSION.SDK_INT < 30 ||
         insets?.isVisible(WindowInsetsCompat.Type.ime()) == true || hardwareKeyboardOnly(editor)) {
         promise.resolve(null)
         return@runOnUiThread
@@ -235,13 +237,8 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
       timeout = Runnable { finish() }
       expansionReady = finish
       handler.postDelayed(timeout, 750)
-      if (editor.hasFocus()) {
-        val accepted = (editor.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-          .showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
-        if (!accepted) finish()
-      }
-      // A newly focused editor is shown by ReactEditText's focus command, which
-      // the caller issues immediately after arming this callback.
+      // focusWithKeyboard requests focus/show immediately after arming this
+      // callback. showForInput waits for attachment and the served-view handoff.
     }
   }
 
@@ -258,33 +255,56 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
   @ReactMethod
   fun showForInput(reactTag: Int) {
     UiThreadUtil.runOnUiThread {
+      val request = ++showRequest
       val editor = runCatching {
         UIManagerHelper.getUIManagerForReactTag(reactApplicationContext, reactTag)?.resolveView(reactTag)
       }.getOrNull() ?: return@runOnUiThread
-      if (!editor.isAttachedToWindow || hardwareKeyboardOnly(editor)) return@runOnUiThread
+      if (hardwareKeyboardOnly(editor)) return@runOnUiThread
       val show = {
-        editor.post {
-          if (editor.isAttachedToWindow && editor.hasWindowFocus() && editor.hasFocus()) {
-            SoftwareKeyboardControllerCompat(editor).show()
-          }
-        }
+        editor.post { showWhenReady(editor, request) }
       }
-      if (editor.hasWindowFocus()) {
+      if (editor.isAttachedToWindow && editor.hasWindowFocus()) {
         show()
       } else {
-        val observer = editor.viewTreeObserver
         val listener = object : ViewTreeObserver.OnWindowFocusChangeListener, View.OnAttachStateChangeListener {
+          private var observer: ViewTreeObserver? = null
           private fun remove() {
-            if (observer.isAlive) observer.removeOnWindowFocusChangeListener(this)
+            observer?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(this)
             editor.removeOnAttachStateChangeListener(this)
+          }
+          fun watchWindow() {
+            if (request != showRequest) { remove(); return }
+            if (!editor.isAttachedToWindow) return
+            if (editor.hasWindowFocus()) { remove(); show(); return }
+            observer = editor.viewTreeObserver
+            observer?.addOnWindowFocusChangeListener(this)
           }
           override fun onWindowFocusChanged(hasFocus: Boolean) { if (hasFocus) { remove(); show() } }
           override fun onViewDetachedFromWindow(view: View) { remove() }
-          override fun onViewAttachedToWindow(view: View) = Unit
+          override fun onViewAttachedToWindow(view: View) { watchWindow() }
         }
-        observer.addOnWindowFocusChangeListener(listener)
         editor.addOnAttachStateChangeListener(listener)
+        listener.watchWindow()
       }
+    }
+  }
+
+  private fun showWhenReady(editor: View, request: Int, framesLeft: Int = 12) {
+    if (request != showRequest || !editor.isAttachedToWindow) return
+    // Fabric can dispatch focus before layout and InputMethodManager's served-view
+    // handoff. A single show at that point is rejected with PHASE_CLIENT_VIEW_SERVED.
+    // Retry only until this editor is served; never delay an already-ready input.
+    val inputMethod = editor.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+    if (editor.hasWindowFocus() && editor.width > 0 && editor.height > 0 && !editor.hasFocus()) {
+      // Removing an outgoing editor can move focus after Fabric's JS focus
+      // command. Restore the requested input after that native commit.
+      (editor as? ReactEditText)?.requestFocusFromJS()
+    }
+    if (editor.hasWindowFocus() && editor.hasFocus() && editor.width > 0 && editor.height > 0 && inputMethod.isActive(editor)) {
+      if (ViewCompat.getRootWindowInsets(editor)?.isVisible(WindowInsetsCompat.Type.ime()) == true) keyboardWillAnimate()
+      SoftwareKeyboardControllerCompat(editor).show()
+    } else if (framesLeft > 0) {
+      editor.postOnAnimation { showWhenReady(editor, request, framesLeft - 1) }
     }
   }
 
@@ -297,7 +317,7 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
   }
 
   override fun invalidate() {
-    UiThreadUtil.runOnUiThread { expansionReady?.invoke() }
+    UiThreadUtil.runOnUiThread { showRequest++; expansionReady?.invoke() }
     super.invalidate()
   }
 }

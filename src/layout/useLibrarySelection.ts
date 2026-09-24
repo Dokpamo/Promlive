@@ -13,12 +13,10 @@ const emptySnapshot = () => emptyState;
 
 export function useLibrarySelection<T extends ListItem>(allItems: readonly T[], library: FolderLibrary | undefined, active: boolean, report: (error: unknown) => void) {
   const state = useSyncExternalStore(library?.subscribe ?? noopSubscribe, library?.snapshot ?? emptySnapshot);
-  const [folderId, setFolderId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [organize, setOrganize] = useState<LibraryOrganization | null>(null);
   const [deletion, setDeletion] = useState<(LibraryTargets & {detail: string}) | null>(null);
   useEffect(() => {if (active) void library?.refresh().catch(report);}, [library, allItems, active, report]);
-  useEffect(() => {if (state.ready && folderId && !state.value.folders.some(folder => folder.id === folderId)) setFolderId(null);}, [state, folderId]);
   const entries: LibraryEntry<T>[] = [
     ...state.value.folders.map(folder => ({id: `folder:${folder.id}`, title: folder.name, kind: 'folder' as const, folder})),
     ...allItems.map(item => ({id: `item:${item.id}`, title: item.title, pinnedAt: item.pinnedAt, kind: 'item' as const, item})),
@@ -34,7 +32,7 @@ export function useLibrarySelection<T extends ListItem>(allItems: readonly T[], 
     ids: entries.flatMap(entry => entry.kind === 'item' ? [entry.item.id] : []),
     folderIds: entries.flatMap(entry => entry.kind === 'folder' ? [entry.folder.id] : []),
   });
-  const requestMove = (entries: LibraryEntry<T>[]) => {
+  const requestMove = (entries: LibraryEntry<T>[], folderId: string | null) => {
     if (!entries.length || !state.ready) return;
     const chosen = targets(entries);
     setOrganize(state.value.folders.length ? {...chosen, screen: 'choose'} : {...chosen, screen: 'create', parentId: folderId, name: nextFolderName(state.value.folders.filter(folder => folder.parentId === folderId))});
@@ -45,5 +43,5 @@ export function useLibrarySelection<T extends ListItem>(allItems: readonly T[], 
     const detail = entries.length === 1 ? `“${entries[0]!.title}”` : '선택한 항목이 삭제돼요.';
     setDeletion({...chosen, detail: detail + (chosen.folderIds.length ? '\n폴더 안의 선택하지 않은 항목은 상위 목록으로 옮겨져요.' : '')});
   };
-  return {...state, folderId, setFolderId, entries, selected, selectedEntries, setSelected, toggle, organize, setOrganize, deletion, setDeletion, requestMove, requestDelete};
+  return {...state, entries, selected, selectedEntries, setSelected, toggle, organize, setOrganize, deletion, setDeletion, requestMove, requestDelete};
 }

@@ -87,6 +87,11 @@ it('long press opens actions without navigating; selection survives filtering an
   await press('선택');
   expect(locks.current).toBe(0);
   expect(button('첫 번째').getAttribute('aria-checked')).toBe('true');
+  expect(document.querySelector('[data-testid="history-selection-footer"]')!.contains(button('선택 취소'))).toBe(true);
+  await press('선택 취소');
+  expect(close).not.toHaveBeenCalled();
+  expect(document.querySelector('[aria-checked]')).toBeNull();
+  await hold('첫 번째 채팅 열기'); await press('선택');
   await search('두 번째'); await press('두 번째');
   expect(button('선택한 항목 삭제')).not.toBeNull();
   expect(document.querySelector('[data-testid="history-selection-footer"]')).not.toBeNull();
@@ -201,7 +206,10 @@ it('exits card selection when the last check is cleared and when the cancel butt
   await cardHost();
   await holdCard('첫 카드'); await press('선택'); await press('첫 카드');
   expect(document.querySelector('[data-testid="card-selection-footer"]')).toBeNull();
-  await holdCard('둘째 카드'); await press('선택'); await press('카드 선택 취소');
+  await holdCard('둘째 카드'); await press('선택');
+  expect(document.querySelector('[data-testid="card-selection-footer"]')!.contains(button('선택 취소'))).toBe(true);
+  expect(button('카드 선택 취소')).toBeNull();
+  await press('선택 취소');
   expect(document.querySelector('[aria-checked]')).toBeNull();
   await press('첫 카드 카드의 채팅 기록');
   expect(close).toHaveBeenCalledOnce();

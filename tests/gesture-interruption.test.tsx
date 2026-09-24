@@ -3,11 +3,11 @@ import {act, type ReactNode, type Ref} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {usePanelMotion} from '../src/features/chat/usePanelMotion';
-import {useComposerPull} from '../src/features/chat/useComposerPull';
+import {useBlankDismiss} from '../src/layout/useBlankDismiss';
 import {SwipeBackModal, SwipeBackScrollContent, useSheetDrag} from '../src/layout/SwipeBackModal';
 import {sheetPullDistance, sheetPullLimits} from '../src/layout/sheetMotion';
 import {useSettingsSheetState} from '../src/features/settings/useSettingsSheetState';
-import type {Animated, GestureResponderEvent, PanResponderCallbacks, PanResponderGestureState} from 'react-native';
+import type {GestureResponderEvent, PanResponderCallbacks, PanResponderGestureState} from 'react-native';
 
 // Model native animation positions separately from JS listeners, including
 // delayed stop/read responses and completion callbacks already in flight.
@@ -51,13 +51,14 @@ vi.mock('react-native', async () => {
   };
   return {
     View, Platform: {OS: 'android'}, Keyboard: {dismiss: vi.fn()},
+    Easing: {out: (curve: unknown) => curve, cubic: (t: number) => t * t * t},
     AccessibilityInfo: {isReduceMotionEnabled: async () => false, addEventListener: () => ({remove() {}})},
     Modal: ({children, onShow, onRequestClose}: {children: ReactNode; onShow: () => void; onRequestClose: () => void}) => {React.useEffect(onShow, []); native.requestClose = onRequestClose; return <div data-testid="native-modal">{children}</div>;},
     StyleSheet: {create: (styles: unknown) => styles, absoluteFill: {}, absoluteFillObject: {}},
     useWindowDimensions: () => ({width: 400, height: 800}),
     PanResponder: {create: (callbacks: PanResponderCallbacks) => {native.pans.push(callbacks); return {panHandlers: {mockPanIndex: native.pans.length - 1}};}},
     Animated: {
-      Value: native.Value, View, spring: native.spring,
+      Value: native.Value, View, spring: native.spring, timing: native.spring,
       multiply: () => ({}), subtract: () => ({}),
       parallel: (animations: ReturnType<typeof native.spring>[]) => ({
         start(done: (result: {finished: boolean}) => void) {
@@ -537,49 +538,140 @@ it.each(['ai', 'theme'])('keeps a newly opened %s page when the previous detail 
   expect(document.querySelectorAll('[data-testid="native-modal"]')).toHaveLength(1);
 });
 
-it('regrabs composer recovery immediately while preserving the text gesture boundary', async () => {
-  const x = new native.Value(0), y = new native.Value(0);
-  const grab = vi.fn(), restore = vi.fn(), close = vi.fn();
-  let pull!: ReturnType<typeof useComposerPull>;
-  function Host() {pull = useComposerPull({x, y} as unknown as {x: Animated.Value; y: Animated.Value}, {travel: 700, ready: () => true, grab, restore, close, scroll: {current: {offset: 0, canScroll: false}}, canScrollPull: () => true}); return null;}
+it('keeps a fixed editor in the modal stack without entrance, exit or parent sheet dragging', async () => {
+  const close = vi.fn();
+  let dismiss!: () => void;
+  let motion: unknown;
+  await render(<SwipeBackModal fixed sheet sheetHeight={800} onClose={close}>{(done, style) => {dismiss = done; motion = style; return null;}}</SwipeBackModal>);
+  expect(native.springs).toHaveLength(0);
+  expect(motion).toEqual({});
+  expect(document.querySelector('[data-testid="settings-sheet-swipe"]')!.getAttribute('data-pan-index')).toBeNull();
+  await act(async () => dismiss());
+  expect(close).toHaveBeenCalledOnce();
+  expect(native.springs).toHaveLength(0);
+});
+
+it('regrabs a blank-space return immediately and preserves the text gesture boundary', async () => {
+  const close = vi.fn();
+  let pull!: ReturnType<typeof useBlankDismiss>;
+  function Host() {pull = useBlankDismiss({height: 700, active: true, onClose: close}); return null;}
   await render(<Host/>);
+  const y = native.values[0]!;
   await act(async () => {
     touchDown();
     pan().onPanResponderMove!(event, gesture(0, 80));
     pan().onPanResponderRelease!(event, gesture(0, 80));
   });
-  expect(restore).toHaveBeenCalledOnce();
-  y.setValue(60); // Midway through the return spring.
+  expect(native.springs.at(-1)?.target).toBe(0);
+  y.setValue(60);
   await act(async () => {touchDown(); pan().onPanResponderMove!(event, gesture(0, 30));});
-  expect(grab).toHaveBeenCalledTimes(2);
   expect(y.displayed).toBe(90);
-  pan().onStartShouldSetPanResponderCapture!(event, gesture()); pull.blockInput();
+  pan().onStartShouldSetPanResponderCapture!(event, gesture()); pull.block();
   expect(pan().onStartShouldSetPanResponder!(event, gesture())).toBe(false);
-  expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 80))).toBe(false);
+  expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 800))).toBe(false);
   expect(close).not.toHaveBeenCalled();
 });
 
-it('returns the first composer edge pull even at dismissal velocity and leaves text selection alone', async () => {
-  const x = new native.Value(0), y = new native.Value(0);
-  const restore = vi.fn(), close = vi.fn();
-  let selecting = false;
-  let pull!: ReturnType<typeof useComposerPull>;
-  function Host() {
-    pull = useComposerPull({x, y} as unknown as {x: Animated.Value; y: Animated.Value}, {
-      travel: 700, ready: () => true, grab: vi.fn(), restore, close,
-      scroll: {current: {offset: 0, canScroll: true, nativeGesture: true}}, canScrollPull: () => !selecting,
-    });
+it('starts entrance with the keyboard and does not replay it on viewport changes or after closing', async () => {
+  const close = vi.fn();
+  function Host({active = true, ready = false, height = 700}) {
+    useBlankDismiss({height, active, onClose: close, entrance: ready ? 'ready' : 'waiting'});
     return null;
   }
   await render(<Host/>);
-  pull.blockScroll();
-  expect(pan().onMoveShouldSetPanResponderCapture!(event, gesture(0, 90))).toBe(false);
-  await act(async () => {pull.scrollDrag.begin(0, 90, true); pull.scrollDrag.move(0, 300);});
-  expect(y.displayed).toBeGreaterThan(0);
-  expect(y.displayed).toBeLessThan(72);
-  await act(async () => pull.scrollDrag.release(0, 300, 0, 2, false));
-  expect(restore).toHaveBeenCalledOnce();
+  const y = native.values[0]!;
+  expect(y.displayed).toBe(700);
+  expect(native.springs).toHaveLength(0);
+  expect(pan().onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+  await render(<Host ready/>);
+  const entrance = native.springs.at(-1)!;
+  expect(entrance.target).toBe(0);
+  y.setValue(0); entrance.finish();
+  await render(<Host ready height={650}/>);
+  expect(native.springs).toHaveLength(1);
+  expect(y.displayed).toBe(0);
+  await render(<Host active={false}/>);
+  await act(async () => entrance.finish());
+  expect(y.displayed).toBe(0);
   expect(close).not.toHaveBeenCalled();
-  selecting = true;
-  expect(pull.scrollDrag.canStart()).toBe(false);
+  await render(<Host ready/>);
+  expect(y.displayed).toBe(700);
+  expect(native.springs).toHaveLength(2);
+});
+
+it('reverses a text-screen entrance into its exit and ignores a late keyboard start', async () => {
+  const close = vi.fn(), start = vi.fn();
+  let pull!: ReturnType<typeof useBlankDismiss>;
+  function Host({ready = true}) {
+    pull = useBlankDismiss({active: true, height: 700, onClose: close, onDismissStart: start, entrance: ready ? 'ready' : 'waiting'});
+    return null;
+  }
+  await render(<Host/>);
+  native.values[0]!.setValue(250);
+  await act(async () => pull.dismiss());
+  expect(start).toHaveBeenCalledOnce();
+  expect(native.values[0]!.displayed).toBe(250);
+  expect(native.springs.at(-1)?.target).toBe(700);
+  expect(close).not.toHaveBeenCalled();
+  await render(<Host ready={false}/>);
+  await render(<Host/>);
+  expect(native.springs).toHaveLength(2);
+  await act(async () => native.springs.at(-1)!.finish());
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('hands blank-space dismissal to the composer morph without a second slide-out', async () => {
+  const close = vi.fn();
+  function Host() {useBlankDismiss({active: true, height: 700, onClose: close, managedExit: true}); return null;}
+  await render(<Host/>);
+  await act(async () => {
+    touchDown();
+    pan().onPanResponderMove!(event, gesture(0, 300));
+    pan().onPanResponderRelease!(event, gesture(0, 300, 0, 1));
+  });
+  expect(close).toHaveBeenCalledOnce();
+  expect(native.values[0]!.displayed).toBe(300);
+  expect(native.springs).toHaveLength(0);
+});
+
+it('never moves a fixed editor upward or sideways, even if the same touch then turns downward', async () => {
+  function Host() {useBlankDismiss({height: 700, active: true, onClose: vi.fn()}); return null;}
+  await render(<Host/>);
+  for (const [dx, dy] of [[0, -80], [100, 4], [-100, 4]]) {
+    await act(async () => {
+      touchDown();
+      pan().onPanResponderMove!(event, gesture(dx, dy));
+      pan().onPanResponderMove!(event, gesture(0, 300));
+      pan().onPanResponderRelease!(event, gesture(0, 300, 0, 1));
+    });
+    expect(native.values[0]!.displayed).toBe(0);
+  }
+  expect(native.springs).toHaveLength(0);
+});
+
+it('only closes after an explicit downward blank-space drag and cancels a multi-touch drag', async () => {
+  const close = vi.fn();
+  function Host() {useBlankDismiss({height: 700, active: true, onClose: close}); return null;}
+  await render(<Host/>);
+  await act(async () => {
+    touchDown();
+    pan().onPanResponderMove!(event, gesture(0, 300));
+    pan().onPanResponderStart!(event, {...gesture(), numberActiveTouches: 2});
+    pan().onPanResponderRelease!(event, gesture(0, 300, 0, 1));
+  });
+  expect(native.springs.at(-1)?.target).toBe(0);
+  expect(close).not.toHaveBeenCalled();
+  native.values[0]!.setValue(0);
+  await act(async () => {
+    touchDown();
+    pan().onPanResponderMove!(event, gesture(0, 300));
+    pan().onPanResponderMove!(event, gesture(0, -40));
+  });
+  expect(native.values[0]!.displayed).toBe(0);
+  await act(async () => {
+    pan().onPanResponderMove!(event, gesture(0, 300));
+    pan().onPanResponderRelease!(event, gesture(0, 300, 0, 1));
+    native.springs.at(-1)!.finish();
+  });
+  expect(close).toHaveBeenCalledOnce();
 });

@@ -10,8 +10,13 @@ const picker = vi.hoisted(() => vi.fn());
 const editPhoto = vi.hoisted(() => vi.fn());
 vi.mock('../src/adapters/profile/pickProfileImage', () => ({pickProfileImage: picker}));
 vi.mock('react-native', () => ({
+  useWindowDimensions: () => ({width: 412, height: 892}),
   View: ({children}: {children: ReactNode}) => <div>{children}</div>, Text: ({children}: {children: ReactNode}) => <span>{children}</span>, ActivityIndicator: () => <span>loading</span>, Keyboard: {dismiss: vi.fn()},
-  TextInput: ({ref, value, onChangeText, onFocus, onBlur, editable, accessibilityLabel}: {ref: Ref<HTMLInputElement>; value: string; onChangeText: (value: string) => void; onFocus: () => void; onBlur: () => void; editable: boolean; accessibilityLabel: string}) => <input ref={ref} aria-label={accessibilityLabel} value={value} disabled={!editable} onInput={event => onChangeText(event.currentTarget.value)} onFocus={onFocus} onBlur={onBlur}/>,
+  TextInput: ({ref, value, onChangeText, onFocus, onBlur, editable, accessibilityLabel, autoFocus, selectTextOnFocus}: {ref: Ref<HTMLInputElement>; value: string; onChangeText: (value: string) => void; onFocus: () => void; onBlur: () => void; editable: boolean; accessibilityLabel: string; autoFocus: boolean; selectTextOnFocus: boolean}) => <input ref={ref} aria-label={accessibilityLabel} value={value} disabled={!editable} autoFocus={autoFocus} onInput={event => onChangeText(event.currentTarget.value)} onFocus={event => {if (selectTextOnFocus) event.currentTarget.select(); onFocus();}} onBlur={onBlur}/>,
+}));
+vi.mock('../src/layout/ScreenHeader', () => ({
+  ScreenHeader: ({children}: {children: ReactNode}) => children,
+  HeaderButton: ({label, onPress, disabled}: {label: string; onPress: () => void; disabled: boolean}) => <button aria-label={label} onClick={onPress} disabled={disabled}/>,
 }));
 vi.mock('../src/features/appearance/AppAppearance', () => ({useAppearance: () => ({settings: {text: '#222', secondary: '#888'}})}));
 vi.mock('../src/layout/RowPressable', () => ({RowPressable: ({children, onPress, disabled, accessibilityLabel}: {children: ReactNode; onPress: () => void; disabled?: boolean; accessibilityLabel: string}) => <button aria-label={accessibilityLabel} onClick={onPress} disabled={disabled}>{children}</button>}));
@@ -27,9 +32,9 @@ const newPhoto = {uri: 'file:///selected.jpg', width: 800, height: 1200};
 let root: Root | undefined;
 afterEach(async () => {await act(async () => root?.unmount()); root = undefined; document.body.replaceChildren(); picker.mockReset(); editPhoto.mockReset();});
 function Account({location}: {location: string}) {const {value} = useUserProfile(); return <span data-account={location} data-photo={value.image}>{value.name}</span>;}
-async function render(profile: UserProfilePreferences) {
+async function render(profile: UserProfilePreferences, onClose?: () => void) {
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
-  await act(async () => root!.render(<UserProfileProvider store={profile}><Account location="settings"/><Account location="sidebar"/><ProfileEditor onEditPhoto={editPhoto}/></UserProfileProvider>));
+  await act(async () => root!.render(<UserProfileProvider store={profile}><Account location="settings"/><Account location="sidebar"/><ProfileEditor onEditPhoto={editPhoto} {...(onClose ? {onClose} : {})}/></UserProfileProvider>));
 }
 async function click(label: string) {await act(async () => {
   const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
@@ -48,6 +53,8 @@ it('starts the editor with the restored profile even when loading finishes after
   expect(document.querySelector('input')).toBeNull();
   await act(async () => loaded(JSON.stringify({name: '저장된 이름', image: oldImage})));
   expect(document.querySelector('input')?.value).toBe('저장된 이름');
+  expect(document.querySelector('input')?.selectionStart).toBe(0);
+  expect(document.querySelector('input')?.selectionEnd).toBe('저장된 이름'.length);
   expect(document.querySelector('[data-testid="profile-photo-preview"]')?.getAttribute('data-photo')).toBe(oldImage);
 });
 
@@ -101,4 +108,39 @@ it('keeps a failed name draft available for retry without an apply button', asyn
   await click('이름 저장 다시 시도');
   expect(profile.snapshot().value.name).toBe('다시 저장');
   expect(document.querySelector('[aria-label="이름 저장 다시 시도"]')).toBeNull();
+});
+
+it('finishes pending automatic saves before the header check closes the profile', async () => {
+  let release!: () => void;
+  const close = vi.fn();
+  const saved = vi.fn(() => new Promise<void>(resolve => {release = resolve;}));
+  const profile = new UserProfilePreferences({getSetting: async () => undefined, setSetting: saved});
+  await render(profile, close); await type('새 이름');
+  await click('프로필 편집 완료');
+  expect(close).not.toHaveBeenCalled();
+  expect(document.querySelector<HTMLButtonElement>('[aria-label="프로필 편집 완료"]')!.disabled).toBe(true);
+  await act(async () => release());
+  expect(close).toHaveBeenCalledOnce();
+  expect(profile.snapshot().value.name).toBe('새 이름');
+});
+
+it('keeps a failed profile draft open on confirmation and retries with the same check', async () => {
+  const save = vi.fn().mockRejectedValue(new Error('disk full'));
+  const profile = new UserProfilePreferences({getSetting: async () => undefined, setSetting: save});
+  const close = vi.fn();
+  await render(profile, close); await type('다시 저장');
+  await click('프로필 편집 완료');
+  expect(close).not.toHaveBeenCalled();
+  expect(document.querySelector('input')!.value).toBe('다시 저장');
+  save.mockResolvedValue(undefined);
+  await click('프로필 편집 완료');
+  expect(close).toHaveBeenCalledOnce();
+  expect(profile.snapshot().value.name).toBe('다시 저장');
+});
+
+it('also closes from the header X', async () => {
+  const close = vi.fn();
+  await render(new UserProfilePreferences({getSetting: async () => undefined, setSetting: async () => {}}), close);
+  await click('프로필 편집 닫기');
+  expect(close).toHaveBeenCalledOnce();
 });

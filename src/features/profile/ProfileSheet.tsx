@@ -48,9 +48,9 @@ function ProfileSurface({close, closing, obscured, onEditPhoto, keyboardVisible,
     <SwipeBackBoundary style={StyleSheet.absoluteFill}><Pressable accessibilityRole="button" accessibilityLabel="프로필 편집 바깥 눌러 닫기" onPress={close} style={{flex: 1}}/></SwipeBackBoundary>
     <KeyboardDock fraction={fraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
       <Animated.View testID="profile-sheet" accessibilityViewIsModal accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'} onLayout={event => onHeight(event.nativeEvent.layout.height + bottom)}
-        style={[{position: 'absolute', bottom, alignSelf: 'center', width: Math.min(r.contentMaxWidth, width - insets.left - insets.right - 2 * gap), borderRadius: r.radius * s, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
-        <Pressable testID="profile-sheet-close" accessibilityRole="button" accessibilityLabel="프로필 편집 닫기" onPress={close} style={{height: 58 * s, alignItems: 'center', paddingTop: r.sheetHandle.top * s}}><View style={{width: r.sheetHandle.width * s, height: r.sheetHandle.height * s, borderRadius: r.sheetHandle.radius * s, backgroundColor: p.divider}}/></Pressable>
-        <View style={{paddingHorizontal: r.sheetPadding * s, paddingBottom: r.groupPadding * s}}><ProfileEditor closing={closing} onEditPhoto={onEditPhoto}/></View>
+        style={[{position: 'absolute', bottom, alignSelf: 'center', width: Math.min(r.contentMaxWidth, width - insets.left - insets.right - 2 * gap), paddingTop: gap, paddingBottom: r.groupPadding * s, borderRadius: r.radius * s, backgroundColor: p.sheet, overflow: 'hidden'}, motionStyle]}>
+        <View pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: r.sheetHandle.top * s, width: r.sheetHandle.width * s, height: r.sheetHandle.height * s, borderRadius: r.sheetHandle.radius * s, backgroundColor: p.divider}}/>
+        <ProfileEditor closing={closing} onEditPhoto={onEditPhoto} onClose={close}/>
       </Animated.View>
     </KeyboardDock>
   </>;

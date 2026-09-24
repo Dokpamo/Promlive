@@ -19,7 +19,7 @@ import {panelReference} from '../../layout/panelGeometry';
 import {SheetScrollView} from '../../layout/SheetScrollView';
 import {SheetGestureRoot} from '../../layout/SheetGestureRoot';
 import type {SheetScrollState} from '../../layout/sheetMotion';
-import {useComposerPull} from './useComposerPull';
+import {useBlankDismiss} from '../../layout/useBlankDismiss';
 import {useComposerLayoutFrame} from './useComposerLayoutFrame';
 import type {ComposerAction} from './ChatSession';
 
@@ -37,7 +37,7 @@ interface Props {
   action: ComposerAction;
 }
 
-/** One permanently mounted editor and surface, from the bottom dock to the sheet. */
+/** Keep one editor mounted when switching between the dock and fixed full screen. */
 export function ChatComposer(p: Props) {
   const {colors: c, settings, isDark} = useAppearance();
   const window = useWindowDimensions();
@@ -68,7 +68,6 @@ export function ChatComposer(p: Props) {
   const hasSend = !!p.value.trim() || cancelling;
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
-  const drag = useRef({x: new Animated.Value(0), y: new Animated.Value(0)}).current;
   const motion = useRef({
     height: new Animated.Value(height), input: new Animated.Value(inputHeight),
     filled: new Animated.Value(filled ? 1 : 0), expand: new Animated.Value(expandable ? 1 : 0), send: new Animated.Value(hasSend ? 1 : 0),
@@ -98,6 +97,11 @@ export function ChatComposer(p: Props) {
     return () => motion.height.removeListener(listener);
   }, [height, motion.height, p.bottom, s]);
 
+  const sheet = expandedComposerFrame(window);
+  const pull = useBlankDismiss({height: sheet.height, active: visible, managedExit: true, onClose: () => close(),
+    onGrab: () => {generation.current++; animation.current?.stop(); setTransitioning(false); setExpanded(true);},
+    onRestore: () => settle(true),
+  });
   const settle = useCallback((open: boolean) => {
     const attempt = ++generation.current;
     animation.current?.stop();
@@ -110,17 +114,15 @@ export function ChatComposer(p: Props) {
       setTransitioning(false);
       if (!open) setVisible(false);
     };
-    if (reduceMotion) {
-      progress.setValue(open ? 1 : 0); drag.x.setValue(0); drag.y.setValue(0); finish();
-    } else {
+    if (reduceMotion) {progress.setValue(open ? 1 : 0); pull.y.setValue(0); finish();}
+    else {
       animation.current = Animated.parallel([
         Animated.spring(progress, {...panelSpringForDistance(window.height), toValue: open ? 1 : 0, useNativeDriver: false}),
-        Animated.spring(drag.x, {...panelSpringForDistance(), toValue: 0, useNativeDriver: false}),
-        Animated.spring(drag.y, {...panelSpringForDistance(), toValue: 0, useNativeDriver: false}),
+        Animated.spring(pull.y, {...panelSpringForDistance(), toValue: 0, useNativeDriver: false}),
       ]);
       animation.current.start(({finished}) => {if (finished) finish();});
     }
-  }, [drag, progress, reduceMotion, window.height]);
+  }, [progress, pull.y, reduceMotion, window.height]);
   const open = useCallback(() => {
     const editor = input.current;
     if (!editor) return;
@@ -163,23 +165,16 @@ export function ChatComposer(p: Props) {
     return undefined;
   }, [close, modal]);
 
-  const sheet = expandedComposerFrame(window, insets);
   const scroll = useRef<SheetScrollState>({offset: 0, canScroll: false, maxOffset: 0});
   const canScrollInput = useCallback(() => {
     const selection = input.current?.getSelection();
     return !selection || selection.start === selection.end;
   }, []);
-  const pull = useComposerPull(drag, {
-    travel: sheet.height, ready: () => visible,
-    grab: () => {generation.current++; animation.current?.stop(); setTransitioning(false); setExpanded(true);},
-    restore: () => settle(true), close, scroll,
-    canScrollPull: canScrollInput,
-  });
   const blend = (from: number, to: number) => from + (to - from) * frame.progress;
   const shape = (empty: number, full: number) => (empty + (full - empty) * frame.filled) * s;
   const collapsedWidth = Math.min(800, window.width - insets.left - insets.right) - 2 * r.inset * s;
   const collapsedLeft = insets.left + (window.width - insets.left - insets.right - collapsedWidth) / 2;
-  // Morph the surface around a stable text column instead of rewrapping every frame.
+  // Keep the same text column when switching sizes, preserving selection and wrapping.
   const textWidth = Math.max(1, Math.min(collapsedWidth - 54 * s, sheet.width - 52 * s));
   const compactTextLeft = filled ? (collapsedWidth - textWidth) / 2 - s : 116 * s;
   const compactTextWidth = filled ? textWidth : collapsedWidth - 144 * s;
@@ -189,8 +184,8 @@ export function ChatComposer(p: Props) {
   const textLeft = PixelRatio.roundToNearestPixel(blend(collapsedLeft + compactTextLeft + s, sheet.x + (sheet.width - textWidth) / 2)) - surfaceLeft - surfaceBorder;
   const sheetInset = panelReference.sheetInset * s;
   const headerSize = headerScale(p.width);
-  const inputTop = sheetInset + referenceHeader.barHeight * headerSize + 16 * s;
-  const footerHeight = sheetInset + referenceHeader.height * headerSize + 16 * s;
+  const inputTop = insets.top + referenceHeader.barHeight * headerSize + 16 * s;
+  const footerHeight = Math.max(0, insets.bottom - keyboard.height) + sheetInset + referenceHeader.height * headerSize + 16 * s;
   const editorHeight = composerEditorHeight(sheet, inputTop, measured, line, footerHeight, window.height - keyboard.height);
   const activeHeight = visible ? editorHeight : inputHeight;
   const scrollable = measured + (visible ? inputTop + footerHeight : 0) > activeHeight + 1;
@@ -214,17 +209,18 @@ export function ChatComposer(p: Props) {
         <EdgeTint edge="bottom" testID="composer-tint" style={{flex: 1}}/>
       </Animated.View>
       {modal && <Pressable accessibilityRole="button" accessibilityLabel="입력창 바깥 눌러 접기" onPress={close} style={{position: 'absolute', inset: 0}}/>}
-      <Animated.View nativeID="promlive-composer-surface" testID={visible ? 'expanded-composer-surface' : 'chat-composer'} accessibilityViewIsModal={visible} onAccessibilityEscape={visible ? close : undefined} {...pull.panHandlers} style={{
+      <Animated.View nativeID="promlive-composer-surface" testID={visible ? 'expanded-composer-surface' : 'chat-composer'} accessibilityViewIsModal={visible} onAccessibilityEscape={visible ? close : undefined} style={{
         position: 'absolute', left: surfaceLeft, width: blend(collapsedWidth, sheet.width),
         bottom: blend(p.bottom + r.bottom * s, window.height - sheet.y - sheet.height), height: blend(frame.height, sheet.height),
         borderRadius: blend(shape(r.compactHeight / 2, 40), sheet.radius), borderWidth: surfaceBorder, borderColor: c.border,
         backgroundColor, overflow: 'hidden',
-        boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)', transform: [{translateX: drag.x}, {translateY: drag.y}],
+        boxShadow: isDark || visible ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)', transform: [{translateY: pull.y}],
       }}>
         {/* Keep native gesture hit testing inside the composer, away from chat navigation. */}
         <SheetGestureRoot>
-        <Animated.View testID="composer-scroll-viewport" onStartShouldSetResponderCapture={pull.blockScroll} style={{position: 'absolute', left: textLeft, width: blend(compactTextWidth, textWidth), top: blend(shape((r.compactHeight - line / s) / 2, 25), 0), height: blend(frame.input, editorHeight), overflow: 'hidden'}}>
-          <SheetScrollView testID="composer-scroll" nativeID="promlive-composer-scroll" sheetScroll={scroll} sheetDrag={pull.scrollDrag} canStartInputScroll={canScrollInput} scrollEnabled={scrollable} keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={16} style={{flex: 1}} onScroll={event => {
+        <View style={{flex: 1}} {...pull.panHandlers}>
+        <Animated.View testID="composer-scroll-viewport" onStartShouldSetResponderCapture={() => scrollable ? pull.block() : false} style={{position: 'absolute', left: textLeft, width: blend(compactTextWidth, textWidth), top: blend(shape((r.compactHeight - line / s) / 2, 25), 0), height: blend(frame.input, editorHeight), overflow: 'hidden'}}>
+          <SheetScrollView testID="composer-scroll" nativeID="promlive-composer-scroll" sheetScroll={scroll} sheetDrag={null} canStartInputScroll={canScrollInput} scrollEnabled={scrollable} bounces={false} overScrollMode="never" keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={16} style={{flex: 1}} onScroll={event => {
             const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
             const state = scroll.current;
             if (Math.abs(state.offset - contentOffset.y) > 1) state.hasScrolled = true;
@@ -232,7 +228,7 @@ export function ChatComposer(p: Props) {
             state.maxOffset = Math.max(0, contentSize.height - layoutMeasurement.height);
           }}>
             <View pointerEvents="none" style={{height: frame.progress * inputTop}}/>
-            <View onStartShouldSetResponderCapture={pull.blockInput} style={{height: measured}}>
+            <View onStartShouldSetResponderCapture={pull.block} style={{height: measured}}>
               <ComposerInput focusRef={input} testID={visible ? 'expanded-composer-input' : 'chat-input'} label={visible ? '확장 메시지 입력' : '메시지 입력'} value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale} lineHeight={r.lineHeight * textScale} height={measured} fillHeight scroll={false} ready={p.ready}/>
             </View>
             <View pointerEvents="none" style={{height: frame.progress * footerHeight}}/>
@@ -249,21 +245,21 @@ export function ChatComposer(p: Props) {
             </Animated.View>
           </Animated.View>
         </Animated.View>
-        <Animated.View testID="expanded-composer-handle" pointerEvents="none" accessible={false} style={{position: 'absolute', alignSelf: 'center', top: panelReference.sheetHandle.top * s, width: panelReference.sheetHandle.width * s, height: panelReference.sheetHandle.height * s, borderRadius: panelReference.sheetHandle.radius * s, backgroundColor: settings.divider, opacity: expandedOpacity}}/>
-        <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', top: sheetInset, left: 0, right: 0, opacity: expandedOpacity}}>
+        <Animated.View onStartShouldSetResponderCapture={pull.block} pointerEvents={visible ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', top: insets.top, left: insets.left, right: insets.right, opacity: expandedOpacity}}>
           <ScreenHeader width={p.width} testID="expanded-composer-header" edgeTint={false}>
             <View style={{flex: 1}} pointerEvents="none"/>
             <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={close}/>
           </ScreenHeader>
         </Animated.View>
-        <Animated.View pointerEvents={expanded ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, opacity: expandedOpacity}}>
+        <Animated.View pointerEvents={visible ? 'box-none' : 'none'} aria-hidden={!visible} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, opacity: expandedOpacity}}>
           {/* Follow native IME frames independently of the fixed sheet. */}
-          <KeyboardDock fraction={footerFraction} bottomInset={window.height - sheet.y - sheet.height} freezeKeyboard={false} followCaret={false} composerGeometry={composerGeometry && {...composerGeometry, footer: true}}>
-            <View testID="expanded-composer-footer" pointerEvents="box-none" style={{position: 'absolute', right: referenceHeader.inset * headerSize, bottom: sheetInset}}>
+          <KeyboardDock fraction={footerFraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false} composerGeometry={composerGeometry && {...composerGeometry, footer: true}}>
+            <View testID="expanded-composer-footer" onStartShouldSetResponderCapture={pull.block} pointerEvents="box-none" style={{position: 'absolute', right: insets.right + referenceHeader.inset * headerSize, bottom: insets.bottom + sheetInset}}>
               <HeaderButton width={p.width} testID="expanded-composer-send" icon={cancelling ? 'stop' : 'send'} label={p.action.label} bright disabled={!p.action.enabled} onPress={() => {if (cancelling) p.onCancel(); else {p.onSend(); close();}}}/>
             </View>
           </KeyboardDock>
         </Animated.View>
+        </View>
         </SheetGestureRoot>
       </Animated.View>
     </DragClickBoundary>

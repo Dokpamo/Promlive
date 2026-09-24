@@ -12,7 +12,7 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
   const scrollView = useRef<ScrollView>(null);
   useImperativeHandle(ref, () => scrollView.current!, []);
   const modalDrag = useSheetDrag();
-  const drag = sheetDrag ?? modalDrag;
+  const drag = sheetDrag === undefined ? modalDrag : sheetDrag;
   const [inputEnabled, setInputEnabled] = useState(true);
   const latest = useRef({drag, horizontalDrag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false});
   latest.current = {drag, horizontalDrag, sheetScroll, canStartInputScroll, enabled: props.scrollEnabled !== false};
@@ -47,7 +47,8 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
       }
       owner?.move(movement.x, movement.y);
     };
-    const native = Gesture.Native().shouldCancelWhenOutside(false);
+    const native = Gesture.Native().shouldCancelWhenOutside(false).runOnJS(true)
+      .onFinalize(() => {if (latest.current.drag === null) setInputEnabled(true);});
     let inputOrigin = {x: 0, y: 0};
     const input = Gesture.Native().runOnJS(true).simultaneousWithExternalGesture(native)
       .onTouchesDown(event => {
@@ -105,8 +106,8 @@ export function SheetScrollView({sheetScroll, sheetDrag, horizontalDrag, canStar
 
   // The sheet supplies edge resistance; do not stretch its contents a second time.
   const inputBinding = useMemo(() => ({gesture: gestures.input, enabled: inputEnabled}), [gestures, inputEnabled]);
-  return <SheetInputGesture.Provider value={inputBinding}><GestureDetector gesture={gestures.pan}>
-    <GestureDetector gesture={gestures.native}>
+  return <SheetInputGesture.Provider value={inputBinding}><GestureDetector gesture={gestures.pan.enabled(drag !== null)}>
+    <GestureDetector gesture={gestures.native.enabled(drag !== null || props.scrollEnabled !== false)}>
       <ScrollView {...props} ref={scrollView} bounces={false} overScrollMode="never"/>
     </GestureDetector>
   </GestureDetector></SheetInputGesture.Provider>;

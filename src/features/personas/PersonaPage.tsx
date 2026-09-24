@@ -21,7 +21,7 @@ import {PersonaFolderSheet} from './PersonaFolderSheet';
 import {PersonaFolderRow, PersonaParentRow, PersonaRow} from './PersonaLibraryRows';
 import {PersonaSelectionBar, personaSelectionHeight} from './PersonaSelectionBar';
 import {PersonaBreadcrumbs} from './PersonaBreadcrumbs';
-import {libraryPersonas, nextPersonaFolderName, personaEntryOrder, personaFolderPath, type Persona} from './personaPreferences';
+import {libraryPersonas, nextPersonaFolderName, personaEntryOrder, personaFolderPath, type Persona, type PersonaFolder} from './personaPreferences';
 import {personaEntryKey as entryKey, type PersonaEntry as Entry} from './personaLibrary';
 
 type Deletion = {ids: string[]; folderIds: string[]; title: string; detail: string};
@@ -42,6 +42,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const [organize, setOrganize] = useState<Organization | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
+  const [renaming, setRenaming] = useState<PersonaFolder | null>(null);
   const panel = useRef<View>(null);
   const menuRequest = useRef(0);
   const mounted = useRef(false);
@@ -50,7 +51,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const selection = useItemPresence(selected !== null, reduced);
   const allEntries: Entry[] = [...value.folders.map(item => ({kind: 'folder' as const, item})), ...value.items.map(item => ({kind: 'persona' as const, item}))];
   const selectedEntries = allEntries.filter(entry => selected?.has(entryKey(entry)));
-  const obscured = !!editor || !!folder || !!deletion || !!organize || !!menu;
+  const obscured = !!editor || !!folder || !!deletion || !!organize || !!menu || !!renaming;
   const currentFolder = value.folders.find(item => item.id === folderId);
   const parentId = currentFolder?.parentId ?? null;
   const parentName = value.folders.find(item => item.id === parentId)?.name ?? '페르소나';
@@ -148,11 +149,12 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
         }
       </View>
       <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}><ScreenHeader width={width} topInset={insets.top} surfaceColor={c.drawer}>
-        <HeaderButton width={width} icon="back" label={selected ? '페르소나 선택 취소' : folderId ? '페르소나 목록으로 돌아가기' : '페르소나 닫기'} onPress={() => {if (selected) setSelected(null); else back();}}/>
+        <HeaderButton width={width} icon="back" label={folderId ? '페르소나 목록으로 돌아가기' : '페르소나 닫기'} onPress={back}/>
         <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: referenceHeader.titleFont * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text></View>
         <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
       </ScreenHeader></View>
       <PersonaSelectionBar count={selectedEntries.length} canMove={selectedEntries.length > 0} progress={selection.progress} present={selection.present} scale={s} bottom={footerBottom}
+        onCancel={() => setSelected(null)}
         onFolder={() => requestMove(selectedEntries)}
         onDelete={() => requestDelete(selectedEntries)}/>
     </SafeAreaView>
@@ -162,8 +164,14 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
         else selectEntry(menu.entry);
       }},
       {label: '폴더 이동', icon: 'folder', action: () => requestMove(menuEntries)},
+      {label: menu.entry.kind === 'folder' ? '이름 변경' : '페르소나 편집', icon: 'edit', action: () => {
+        if (menu.entry.kind === 'folder') setRenaming(menu.entry.item);
+        else edit(menu.entry.item);
+      }},
       {label: '삭제', icon: 'delete', danger: true, action: () => requestDelete(menuEntries)},
     ]}/>}
+    {renaming && store && <ItemRenameSheet scope="persona-folder" item={{title: renaming.name}} inputLabel="폴더 이름" maxLength={40}
+      onClose={() => setRenaming(null)} onSave={name => store.renameFolder(renaming.id, name)}/>}
     {deletion && store && <PersonaDeleteDialog title={deletion.title} detail={deletion.detail}
       onClose={() => {setDeletion(null); setSelected(null);}} onDelete={() => store.removeMany(deletion.ids, deletion.folderIds)}/>}
     {organize?.screen === 'choose' && store && <PersonaFolderSheet ids={organize.ids} folderIds={organize.folderIds} initialFolderId={folderId} value={value} store={store} onClose={() => setOrganize(null)}

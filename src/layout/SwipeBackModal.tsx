@@ -42,7 +42,7 @@ export function SwipeBackScrollContent({children, sheetScroll}: {children: React
 }
 
 /** A transparent modal keeps the previous screen visible beneath a back swipe. */
-export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, children, sheet = false, sheetHeight = 0, slideFrom = 'bottom', dismiss = false, active = true}: {
+export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, children, sheet = false, sheetHeight = 0, slideFrom = 'bottom', dismiss = false, active = true, fixed = false}: {
   onClose: () => void;
   onDismissStart?: () => void;
   onBackRequest?: () => boolean;
@@ -53,6 +53,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   slideFrom?: 'bottom' | 'right';
   dismiss?: boolean;
   active?: boolean;
+  /** Keep full-screen editors in the modal stack without sheet motion or edge gestures. */
+  fixed?: boolean;
 }) {
   const {isDark} = useAppearance();
   const parentGuard = useContext(GestureGuard);
@@ -70,7 +72,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   const travel = horizontal ? width : sheetHeight || height;
   const crossLimit = horizontal ? sheetPullLimits.upward : sheetPullLimits.sideways;
   const corners = useScreenCorners();
-  const progress = useRef(new Animated.Value(1)).current;
+  const progress = useRef(new Animated.Value(fixed ? 0 : 1)).current;
   const pull = useRef(new Animated.Value(0)).current;
   const sideways = useRef(new Animated.Value(0)).current;
   const sidewaysOrigin = useRef(0);
@@ -144,7 +146,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       setDismissing(back);
     }
     if (back) {
-      Keyboard.dismiss();
+      // Fixed editor surfaces coordinate their own keyboard and exit animation.
+      if (!fixed) Keyboard.dismiss();
       selectionHaptic();
     }
     const finish = () => {
@@ -152,7 +155,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       position.current = back ? 1 : 0;
       if (back) {finalized.current = true; onCloseRef.current();}
     };
-    if (reduceMotion) {
+    if (fixed || reduceMotion) {
       progress.setValue(back ? 1 : 0);
       pull.setValue(0);
       sideways.setValue(0);
@@ -170,7 +173,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       Animated.spring(sideways, {...panelSpringForDistance(), toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
     ]) : slide;
     animation.start(({finished}) => {if (finished) finish();});
-  }, [inline, parentExitingPanels, parentPanels, progress, pull, reduceMotion, sheet, panelId, sideways, travel]);
+  }, [fixed, inline, parentExitingPanels, parentPanels, progress, pull, reduceMotion, sheet, panelId, sideways, travel]);
   const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
   useEffect(() => {if (dismiss) close();}, [close, dismiss]);
   const requestClose = useCallback(() => {
@@ -332,20 +335,20 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
     {translateY: horizontal ? sideways : Animated.subtract(Animated.multiply(progress, travel), pull)},
   ]};
   const content = <GestureGuard.Provider value={{blocked, sheet, scroller, panels, exitingPanels, canInteract, sheetDrag: {
-    canStart: () => sheet && canInteract() && entered.current && !blocked.current,
+    canStart: () => !fixed && sheet && canInteract() && entered.current && !blocked.current,
     begin: beginDrag, move: moveDrag, release: releaseDrag,
   }}}>
     <DragClickBoundary cancelClick={cancelClick}>
-      <View ref={gestureView} testID={sheet ? 'settings-sheet-swipe' : 'settings-back-swipe'} pointerEvents={dismissing ? 'none' : 'auto'} accessibilityElementsHidden={dismissing} importantForAccessibility={dismissing ? 'no-hide-descendants' : 'auto'} style={[styles.root, inline && StyleSheet.absoluteFill]} {...pan.panHandlers} onAccessibilityEscape={active ? requestClose : undefined}>
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? isDark ? 0.4 : 0.2 : 0.18, 0], extrapolate: 'clamp'})}]}/>
-        <Animated.View testID={sheet ? 'settings-sheet-motion' : 'settings-page-motion'} style={[styles.surface, !sheet && {
+      <View ref={gestureView} testID={sheet ? 'settings-sheet-swipe' : 'settings-back-swipe'} pointerEvents={dismissing ? 'none' : 'auto'} accessibilityElementsHidden={dismissing} importantForAccessibility={dismissing ? 'no-hide-descendants' : 'auto'} style={[styles.root, inline && StyleSheet.absoluteFill]} {...(fixed ? {} : pan.panHandlers)} onAccessibilityEscape={active ? requestClose : undefined}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#000000', opacity: fixed ? 0 : progress.interpolate({inputRange: [0, 1], outputRange: [sheet ? isDark ? 0.4 : 0.2 : 0.18, 0], extrapolate: 'clamp'})}]}/>
+        <Animated.View testID={sheet ? 'settings-sheet-motion' : 'settings-page-motion'} style={[styles.surface, !fixed && !sheet && {
           borderTopLeftRadius: radius(corners.topLeft),
           borderTopRightRadius: radius(corners.topRight),
           borderBottomLeftRadius: radius(corners.bottomLeft),
           borderBottomRightRadius: radius(corners.bottomRight),
           transform: [{translateX: Animated.multiply(progress, travel)}],
         }]}>
-          {children(close, sheetMotion)}
+          {children(close, fixed ? {} : sheetMotion)}
         </Animated.View>
       </View>
     </DragClickBoundary>

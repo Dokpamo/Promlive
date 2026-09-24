@@ -17,5 +17,5 @@ export function CardConversationPanel({history, openConversation, report, scale,
   return <ManagedItemList scope="history" items={conversations} allItems={allItems} library={history.folderLibrary(card.id)} search={search} selectedId={history.selected?.id} scale={scale}
     actions={history} report={report} resetKey={`${card.id}:${query}`} empty={query ? '검색 결과가 없어요.' : '아직 채팅이 없어요.'}
     onOpen={item => {void openConversation(item).then(close).catch(report);}} scroll={scroll} onListTouch={onListTouch}
-    header={({selecting, cancel}) => <CardConversationHeader card={card} scale={scale} onClose={selecting ? cancel : onClose} closeLabel={selecting ? '선택 취소' : '채팅내역 닫기'}/>}/>;
+    header={() => <CardConversationHeader card={card} scale={scale} onClose={onClose} closeLabel="채팅내역 닫기"/>}/>;
 }

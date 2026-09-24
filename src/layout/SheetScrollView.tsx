@@ -3,7 +3,7 @@ import {PanResponder, ScrollView, type ScrollViewProps} from 'react-native';
 import type {SheetScrollState} from './sheetMotion';
 import {useSheetDrag, type SheetDrag} from './SwipeBackModal';
 
-export type SheetScrollViewProps = ScrollViewProps & {ref?: Ref<ScrollView>; sheetScroll: RefObject<SheetScrollState>; sheetDrag?: SheetDrag; horizontalDrag?: SheetDrag; canStartInputScroll?: () => boolean};
+export type SheetScrollViewProps = ScrollViewProps & {ref?: Ref<ScrollView>; sheetScroll: RefObject<SheetScrollState>; sheetDrag?: SheetDrag | null; horizontalDrag?: SheetDrag; canStartInputScroll?: () => boolean};
 
 export function SheetScrollView({sheetScroll, sheetDrag: _sheetDrag, horizontalDrag, canStartInputScroll: _canStartInputScroll, ...props}: SheetScrollViewProps) {
   const modalDrag = useSheetDrag();

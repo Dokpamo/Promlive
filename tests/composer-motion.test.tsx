@@ -103,7 +103,7 @@ it('keeps the text column width unchanged through expansion and collapse', async
   expect(parseFloat(viewport().style.width)).toBe(compactWidth);
 });
 
-it('reverses an unfinished expansion from its displayed layout without replacing or blurring the editor', async () => {
+it('reverses the full-screen expansion into the same compact editor without losing focus or selection', async () => {
   accessibility.reduceMotion = false;
   await render();
   const editor = document.querySelector('textarea')!;
@@ -120,13 +120,14 @@ it('reverses an unfinished expansion from its displayed layout without replacing
   await act(async () => runs[0]!.value.setValue(0.65));
   const midway = surfaceHeight();
   expect(midway).toBeGreaterThan(compactHeight);
+  expect(midway).toBeLessThan(892);
   await press('입력창 접기');
   expect(surfaceHeight()).toBe(midway);
-  await act(async () => runs[3]!.value.setValue(0.25));
+  await act(async () => runs[2]!.value.setValue(0.25));
   expect(surfaceHeight()).toBeGreaterThan(compactHeight);
   expect(surfaceHeight()).toBeLessThan(midway);
   await act(async () => {
-    for (const run of runs.slice(3)) {run.value.setValue(run.target); run.finish?.({finished: true});}
+    for (const run of runs.slice(2)) {run.value.setValue(run.target); run.finish?.({finished: true});}
   });
   expect(surfaceHeight()).toBe(compactHeight);
   expect(document.querySelector('textarea')).toBe(editor);
@@ -136,7 +137,7 @@ it('reverses an unfinished expansion from its displayed layout without replacing
   expect(change).not.toHaveBeenCalled();
 });
 
-it('requests focus immediately and starts the morph when the keyboard starts moving', async () => {
+it('requests focus immediately and starts expanding when the keyboard starts moving', async () => {
   opening.defer = true;
   await render();
   const editor = document.querySelector('textarea')!;

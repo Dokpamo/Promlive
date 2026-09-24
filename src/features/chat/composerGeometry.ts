@@ -1,18 +1,9 @@
-import {composerScale} from './chatAppearance';
-import {panelReference} from '../../layout/panelGeometry';
-
 export interface ComposerFrame {x: number; y: number; width: number; height: number; radius: number}
 interface Viewport {width: number; height: number}
-interface Insets {top: number; right: number; bottom: number; left: number}
 
-/** The sheet belongs to the full window; the keyboard never changes its bounds. */
-export function expandedComposerFrame(viewport: Viewport, insets: Insets): ComposerFrame {
-  const scale = composerScale(viewport.width);
-  const inset = panelReference.sheetInset * scale;
-  const bottom = Math.max(insets.bottom, inset);
-  const width = Math.min(panelReference.contentMaxWidth, viewport.width - insets.left - insets.right - 2 * inset);
-  const height = Math.max(0, Math.min(viewport.height * 0.9, viewport.height - insets.top - inset - bottom));
-  return {x: insets.left + (viewport.width - insets.left - insets.right - width) / 2, y: viewport.height - bottom - height, width, height, radius: panelReference.radius * scale};
+/** The editor fills the window. Safe areas belong to its controls, not the surface. */
+export function expandedComposerFrame(viewport: Viewport): ComposerFrame {
+  return {x: 0, y: 0, width: viewport.width, height: viewport.height, radius: 0};
 }
 
 /** The insets scroll with the text; the viewport reaches behind both floating controls. */

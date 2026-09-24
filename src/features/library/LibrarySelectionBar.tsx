@@ -3,10 +3,11 @@ import {PressSurface} from '../../layout/PressSurface';
 import {panelReference as g} from '../../layout/panelGeometry';
 import {useAppearance} from '../appearance/AppAppearance';
 import {SettingsIcon} from '../settings/SettingsIcon';
+import {ChatIcon} from '../chat/ChatIcon';
 
 export const librarySelectionHeight = 78;
-export function LibrarySelectionBar({count, canMove, progress, present, scale: s, bottom, onFolder, onDelete, scope = 'persona'}: {
-  scope?: string; count: number; canMove: boolean; progress: Animated.Value; present: boolean; scale: number; bottom: number; onFolder: () => void; onDelete: () => void;
+export function LibrarySelectionBar({count, canMove, progress, present, scale: s, bottom, onFolder, onDelete, onCancel, scope = 'persona'}: {
+  scope?: string; count: number; canMove: boolean; progress: Animated.Value; present: boolean; scale: number; bottom: number; onFolder: () => void; onDelete: () => void; onCancel: () => void;
 }) {
   const {colors: c, settings: p, isDark} = useAppearance();
   if (!present) return null;
@@ -17,11 +18,12 @@ export function LibrarySelectionBar({count, canMove, progress, present, scale: s
     {([
       {id: 'folder', icon: 'folder', accessibilityLabel: '선택한 항목 폴더 이동', disabled: !canMove, onPress: onFolder, color: p.text},
       {id: 'delete', icon: 'delete', accessibilityLabel: '선택한 항목 삭제', disabled: !count, onPress: onDelete, color: c.error},
-    ] as const).map(action => <PressSurface key={action.id} testID={`${scope}-${action.id}-selected`} accessibilityRole="button"
+      {id: 'cancel', icon: 'close', accessibilityLabel: '선택 취소', disabled: !count, onPress: onCancel, color: p.text},
+    ] as const).map(action => <PressSurface compact key={action.id} testID={`${scope}-${action.id}-selected`} surfaceTestID={`${scope}-${action.id}-surface`} accessibilityRole="button"
         accessibilityLabel={action.accessibilityLabel} disabled={action.disabled} onPress={action.onPress}
         radius={(g.controlRadius - 5) * s} highlightColor={p.selected} style={{height: '100%', width: 86 * s}}
         contentStyle={{alignItems: 'center', justifyContent: 'center'}}>
-        <SettingsIcon name={action.icon} size={30 * s} color={action.color}/>
+        {action.icon === 'close' ? <ChatIcon name="close" size={30 * s} color={action.color}/> : <SettingsIcon name={action.icon} size={30 * s} color={action.color}/>}
       </PressSurface>)}
   </Animated.View>;
 }
