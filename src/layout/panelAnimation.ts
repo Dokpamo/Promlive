@@ -11,14 +11,6 @@ export function panelSpringForDistance(pointsPerUnit = 1) {
   return {...panelSpring, restDisplacementThreshold: 0.5 / scale, restSpeedThreshold: 8 / scale};
 }
 
-/** Spread exit travel across the animation instead of rushing behind the keyboard. */
-export function editorExitTiming(remaining = 1) {
-  return {
-    duration: Math.max(180, 620 * Math.sqrt(Math.max(0, Math.min(1, remaining)))),
-    easing: (progress: number) => progress * progress * (3 - 2 * progress),
-  };
-}
-
 /** Native animations can be ahead of JS listeners. Read all stopped axes before grabbing. */
 export function stopAndRead(values: readonly Animated.Value[], done: (positions: number[]) => void) {
   const positions: number[] = [];

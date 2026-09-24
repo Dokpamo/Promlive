@@ -2,17 +2,19 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
 import {Animated, PanResponder, Platform} from 'react-native';
 import {useItemReducedMotion} from './itemListMotion';
 import {shouldDismissSheet} from './sheetMotion';
-import {editorExitTiming, panelSpringForDistance} from './panelAnimation';
+import {panelSpringForDistance} from './panelAnimation';
 
 /** Full-screen editors only follow a downward drag that starts outside text and controls. */
 export function useBlankDismiss(options: {
   active: boolean; height: number; onClose: () => void; entrance?: 'waiting' | 'ready';
+  /** A keyboard that stays open is already an opaque exit boundary. */
+  exitHeight?: number;
   onDismissStart?: () => void;
   onEntered?: () => void;
   /** The composer owns its return to the compact bar, including the drag offset. */
   onGrab?: () => void; onRestore?: () => void; managedExit?: boolean;
 }) {
-  const {active, height, entrance} = options;
+  const {active, height, entrance, exitHeight = height} = options;
   const y = useRef(new Animated.Value(active && entrance ? height : 0)).current;
   const cancelClick = useRef(false);
   const reduced = useItemReducedMotion();
@@ -20,6 +22,7 @@ export function useBlankDismiss(options: {
   latest.current = {...options, reduced};
   const entry = useRef({active: false, pending: false, moving: false});
   const closing = useRef(false);
+  const exitTarget = useRef<number | null>(null);
   const state = useRef({blocked: false, dragging: false, multiple: false, offAxis: false, origin: 0, position: 0, captured: 0, lastMove: 0});
   const generation = useRef(0);
   useEffect(() => {
@@ -30,6 +33,7 @@ export function useBlankDismiss(options: {
     if (!active) {
       generation.current++; y.stopAnimation(); y.setValue(0); state.current.dragging = false;
       closing.current = false;
+      exitTarget.current = null;
       entry.current = {active: false, pending: false, moving: false};
       return;
     }
@@ -63,13 +67,28 @@ export function useBlankDismiss(options: {
       if (attempt !== generation.current) return;
       if (close) latest.current.onClose(); else latest.current.onEntered?.();
     };
-    const target = close ? latest.current.height : 0;
-    if (latest.current.reduced) {y.setValue(target); finish(); return;}
-    const animation = close
-      ? Animated.timing(y, {...editorExitTiming((target - state.current.position) / Math.max(1, target)), toValue: target, useNativeDriver: false})
-      : Animated.spring(y, {...panelSpringForDistance(), toValue: target, useNativeDriver: false});
-    animation.start(({finished}) => {if (finished) finish();});
+    const boundary = Math.max(0, Math.min(latest.current.height, latest.current.exitHeight ?? latest.current.height));
+    // An interrupted entrance or a long drag can already be below the keyboard.
+    // Never spring back upward just to reach the exit boundary.
+    const target = close ? Math.max(state.current.position, boundary) : 0;
+    if (close) exitTarget.current = target;
+    if (latest.current.reduced || Math.abs(target - state.current.position) < 0.5) {y.setValue(target); finish(); return;}
+    Animated.spring(y, {...panelSpringForDistance(), toValue: target, useNativeDriver: false})
+      .start(({finished}) => {if (finished) finish();});
   }, [y]);
+  useLayoutEffect(() => {
+    if (!closing.current || exitTarget.current === null || latest.current.managedExit) return;
+    const target = Math.max(state.current.position, Math.min(height, exitHeight));
+    if (target <= exitTarget.current) return;
+    // If the keyboard is dismissed mid-exit, continue to the newly exposed edge.
+    // Starting the replacement spring on the same value retains its velocity.
+    exitTarget.current = target;
+    const attempt = ++generation.current;
+    const finish = () => {if (attempt === generation.current) latest.current.onClose();};
+    if (reduced) {y.stopAnimation(); y.setValue(target); finish(); return;}
+    Animated.spring(y, {...panelSpringForDistance(), toValue: target, useNativeDriver: false})
+      .start(({finished}) => {if (finished) finish();});
+  }, [exitHeight, height, reduced, y]);
   const dismiss = useCallback(() => settle(true), [settle]);
   const pan = useMemo(() => {
     const move = (dy: number) => {

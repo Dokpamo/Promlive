@@ -60,7 +60,7 @@ export function ExpandedComposer(p: Props) {
   useLayoutEffect(restoreReading, [restoreReading]);
   const [contentHeight, setContentHeight] = useState(p.initialHeight);
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
-  const pull = useBlankDismiss({active: true, height: sheet.height, entrance: keyboardStarted ? 'ready' : 'waiting', onEntered: () => setEntered(true), onClose: p.onClose, onDismissStart: () => {
+  const pull = useBlankDismiss({active: true, height: sheet.height, exitHeight: Math.max(0, window.height - keyboard.height), entrance: keyboardStarted ? 'ready' : 'waiting', onEntered: () => setEntered(true), onClose: p.onClose, onDismissStart: () => {
     exitStarted.current = true;
     setExiting(true);
     // Transfer focus before unmounting so the IME never loses its served input.

@@ -641,6 +641,44 @@ it('reverses a text-screen entrance into its exit and ignores a late keyboard st
   expect(close).toHaveBeenCalledOnce();
 });
 
+it('extends an exit when the keyboard hides without jumping or accepting the old completion', async () => {
+  const close = vi.fn();
+  let pull!: ReturnType<typeof useBlankDismiss>;
+  function Host({exitHeight = 400}) {
+    pull = useBlankDismiss({active: true, height: 700, exitHeight, onClose: close});
+    return null;
+  }
+  await render(<Host/>);
+  await act(async () => pull.dismiss());
+  const first = native.springs.at(-1)!;
+  expect(first.target).toBe(400);
+  native.values[0]!.setValue(350);
+  await render(<Host exitHeight={700}/>);
+  const continued = native.springs.at(-1)!;
+  expect(continued.target).toBe(700);
+  expect(native.values[0]!.displayed).toBe(350);
+  await act(async () => first.finish());
+  expect(close).not.toHaveBeenCalled();
+  await act(async () => continued.finish());
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('does not pull an already hidden editor back upward to the keyboard edge', async () => {
+  const close = vi.fn();
+  let pull!: ReturnType<typeof useBlankDismiss>;
+  function Host() {
+    pull = useBlankDismiss({active: true, height: 700, exitHeight: 400, entrance: 'ready', onClose: close});
+    return null;
+  }
+  await render(<Host/>);
+  native.values[0]!.setValue(500);
+  const count = native.springs.length;
+  await act(async () => pull.dismiss());
+  expect(native.values[0]!.displayed).toBe(500);
+  expect(native.springs).toHaveLength(count);
+  expect(close).toHaveBeenCalledOnce();
+});
+
 it('hands blank-space dismissal to the composer morph without a second slide-out', async () => {
   const close = vi.fn();
   function Host() {useBlankDismiss({active: true, height: 700, onClose: close, managedExit: true}); return null;}

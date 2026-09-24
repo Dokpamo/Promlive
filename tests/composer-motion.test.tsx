@@ -82,9 +82,9 @@ async function readAt(id: string, offset: number) {
   });
 }
 function controlAnimations() {
-  const runs: {value: Animated.Value; target: number; duration?: number | undefined; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
+  const runs: {value: Animated.Value; target: number; duration?: number | undefined; physics?: {stiffness: number | undefined; damping: number | undefined; mass: number | undefined}; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
   vi.spyOn(Animated, 'spring').mockImplementation((value, config) => {
-    const run = {value: value as Animated.Value, target: config.toValue as number, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
+    const run = {value: value as Animated.Value, target: config.toValue as number, physics: {stiffness: config.stiffness, damping: config.damping, mass: config.mass}, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
     runs.push(run);
     return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
   });
@@ -168,7 +168,8 @@ it('preserves the text column and shares edits with the original bar', async () 
   expect(compact.selectionStart).toBe(2);
 });
 
-it('slides a separate screen up and down, leaving the bar untouched throughout both animations', async () => {
+it.each([0, 336])('uses the entrance spring to settle at the visible exit edge with keyboard height %s', async keyboardHeight => {
+  keyboard.height = keyboardHeight;
   accessibility.reduceMotion = false;
   await render();
   const runs = controlAnimations();
@@ -184,12 +185,14 @@ it('slides a separate screen up and down, leaving the bar untouched throughout b
   await press('입력창 접기');
   expect(element('expanded-composer-surface')).toBe(surface);
   expect(locks.current).toBe(0);
-  const exit = runs.find(run => run.target === 892)!;
-  expect(exit.duration).toBeGreaterThan(500);
+  const target = 892 - keyboardHeight;
+  const exit = runs.find(run => run.target === target)!;
+  expect(exit.physics).toBeDefined();
+  expect(exit.physics).toEqual(entry.physics);
   await act(async () => exit.value.setValue(500));
   expect(surface.style.transform).toContain('500px');
   expect(bar.style.cssText).toBe(geometry);
-  await act(async () => {exit.value.setValue(892); exit.finish?.({finished: true});});
+  await act(async () => {exit.value.setValue(target); exit.finish?.({finished: true});});
   expect(element('expanded-composer-surface')).toBeNull();
   expect(locks.current).toBe(0);
 });
@@ -288,8 +291,8 @@ it('lets a fresh scroll interrupt restoration while the full-screen editor is st
   await act(async () => {entry.value.setValue(0); entry.finish?.({finished: true});});
   await press('입력창 접기');
   await readAt('composer-scroll', 660);
-  const exit = runs.find(run => run.target === 892)!;
-  await act(async () => {exit.value.setValue(892); exit.finish?.({finished: true});});
+  const exit = runs.find(run => run.target === 556)!;
+  await act(async () => {exit.value.setValue(556); exit.finish?.({finished: true});});
   expect(scrollViews.get('composer-scroll')!.offset).toBe(660);
 });
 
