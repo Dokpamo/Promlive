@@ -18,9 +18,9 @@ import {SettingsIcon} from '../settings/SettingsIcon';
 import {SettingsTextEditorHost, SettingsTextField, useTextEditorCovered} from '../settings/SettingsTextField';
 import type {Persona, PersonaFields, PersonaPreferences} from './personaPreferences';
 
-interface Props {item?: Persona; folderId?: string | null; store: PersonaPreferences; onClose: () => void; onCreated: () => void}
+interface Props {item?: Persona; folderId?: string | null; store: PersonaPreferences; onClose: () => void; onDismissStart?: () => void; onCreated: () => void}
 
-export function PersonaEditorSheet({item, folderId = null, store, onClose, onCreated}: Props) {
+export function PersonaEditorSheet({item, folderId = null, store, onClose, onDismissStart, onCreated}: Props) {
   const [height, setHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,7 +33,7 @@ export function PersonaEditorSheet({item, folderId = null, store, onClose, onCre
   const writeAttempt = useRef(0);
   const mounted = useRef(false);
   const input = useRef<TextInput>(null);
-  useDrawerModalLock();
+  useDrawerModalLock(!closing);
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
   const update = async (patch: Partial<PersonaFields>) => {
     const attempt = ++writeAttempt.current;
@@ -57,6 +57,7 @@ export function PersonaEditorSheet({item, folderId = null, store, onClose, onCre
   return <SwipeBackModal sheet sheetHeight={height} active={!saving} onClose={onClose} onShow={() => focusWithKeyboard(input.current)} onDismissStart={() => {
     if (Platform.OS !== 'web') input.current?.setNativeProps({editable: false});
     setClosing(true);
+    onDismissStart?.();
   }} onBackRequest={() => {
     if (pending.current) return true;
     if (!keyboardVisible.current) return false;

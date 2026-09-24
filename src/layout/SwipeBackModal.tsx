@@ -47,7 +47,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
   onDismissStart?: () => void;
   onBackRequest?: () => boolean;
   onShow?: () => void;
-  children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>) => ReactNode;
+  /** Fixed editors release input at beginCustomDismiss, then call close after their own exit. */
+  children: (close: () => void, motionStyle: Animated.WithAnimatedObject<ViewStyle>, beginCustomDismiss: () => void) => ReactNode;
   sheet?: boolean;
   sheetHeight?: number;
   slideFrom?: 'bottom' | 'right';
@@ -125,25 +126,34 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
     };
   }, [progress, pull, sideways]);
 
+  const beginDismiss = useCallback(() => {
+    if (closing.current || finalized.current) return;
+    closing.current = true;
+    onDismissStartRef.current?.();
+    if (sheet || inline) {
+      // Release the parent at exit start, even when a fixed editor owns the animation.
+      parentPanels?.current.delete(panelId);
+      parentExitingPanels?.current.add(panelId);
+      if (Platform.OS !== 'web') gestureView.current?.setNativeProps({pointerEvents: 'none'});
+      setDismissing(true);
+    }
+  }, [inline, panelId, parentExitingPanels, parentPanels, sheet]);
+  const beginCustomDismiss = useCallback(() => {if (fixed) beginDismiss();}, [beginDismiss, fixed]);
+
   const settle = useCallback((back: boolean) => {
     if (finalized.current) return;
-    const startingClose = back && !closing.current;
     const attempt = ++generation.current;
     dragging.current = false;
     progress.stopAnimation();
     pull.stopAnimation();
     sideways.stopAnimation();
-    closing.current = back;
-    if (startingClose) onDismissStartRef.current?.();
-    if (sheet || inline) {
-      // The exit spring stays visible, but the next touch belongs to the parent.
-      if (back) {
-        parentPanels?.current.delete(panelId);
-        parentExitingPanels?.current.add(panelId);
+    if (back) beginDismiss();
+    else {
+      closing.current = false;
+      if (sheet || inline) {
+        if (Platform.OS !== 'web') gestureView.current?.setNativeProps({pointerEvents: 'auto'});
+        setDismissing(false);
       }
-      // Release native hit testing before waiting for React's outgoing-page update.
-      if (Platform.OS !== 'web') gestureView.current?.setNativeProps({pointerEvents: back ? 'none' : 'auto'});
-      setDismissing(back);
     }
     if (back) {
       // Fixed editor surfaces coordinate their own keyboard and exit animation.
@@ -173,8 +183,8 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
       Animated.spring(sideways, {...panelSpringForDistance(), toValue: 0, useNativeDriver: Platform.OS !== 'web'}),
     ]) : slide;
     animation.start(({finished}) => {if (finished) finish();});
-  }, [fixed, inline, parentExitingPanels, parentPanels, progress, pull, reduceMotion, sheet, panelId, sideways, travel]);
-  const close = useCallback(() => {if (!closing.current) settle(true);}, [settle]);
+  }, [beginDismiss, fixed, inline, progress, pull, reduceMotion, sheet, sideways, travel]);
+  const close = useCallback(() => {if (fixed || !closing.current) settle(true);}, [fixed, settle]);
   useEffect(() => {if (dismiss) close();}, [close, dismiss]);
   const requestClose = useCallback(() => {
     const topPanel = Array.from(panels.current.values()).at(-1);
@@ -348,7 +358,7 @@ export function SwipeBackModal({onClose, onDismissStart, onBackRequest, onShow, 
           borderBottomRightRadius: radius(corners.bottomRight),
           transform: [{translateX: Animated.multiply(progress, travel)}],
         }]}>
-          {children(close, fixed ? {} : sheetMotion)}
+          {children(close, fixed ? {} : sheetMotion, beginCustomDismiss)}
         </Animated.View>
       </View>
     </DragClickBoundary>

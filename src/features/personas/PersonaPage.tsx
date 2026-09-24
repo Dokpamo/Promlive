@@ -36,7 +36,8 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const insets = useSafeAreaInsets();
   const s = headerScale(width);
   const [search, setSearch] = useState('');
-  const [editor, setEditor] = useState<{item?: Persona} | null>(null);
+  const [editor, setEditor] = useState<{item?: Persona; revision: number; closing: boolean} | null>(null);
+  const editorRevision = useRef(0);
   const [folder, setFolder] = useState<string | null>(null);
   const [deletion, setDeletion] = useState<Deletion | null>(null);
   const [organize, setOrganize] = useState<Organization | null>(null);
@@ -51,7 +52,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
   const selection = useItemPresence(selected !== null, reduced);
   const allEntries: Entry[] = [...value.folders.map(item => ({kind: 'folder' as const, item})), ...value.items.map(item => ({kind: 'persona' as const, item}))];
   const selectedEntries = allEntries.filter(entry => selected?.has(entryKey(entry)));
-  const obscured = !!editor || !!folder || !!deletion || !!organize || !!menu || !!renaming;
+  const obscured = (!!editor && !editor.closing) || !!folder || !!deletion || !!organize || !!menu || !!renaming;
   const currentFolder = value.folders.find(item => item.id === folderId);
   const parentId = currentFolder?.parentId ?? null;
   const parentName = value.folders.find(item => item.id === parentId)?.name ?? '페르소나';
@@ -81,7 +82,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
     if (id === folderId) {setFolder(null); setSelected(null);}
     else onNavigateAncestor?.(id);
   };
-  const edit = (item?: Persona) => {Keyboard.dismiss(); setEditor(item ? {item} : {});};
+  const edit = (item?: Persona) => {Keyboard.dismiss(); setEditor({...(item ? {item} : {}), revision: ++editorRevision.current, closing: false});};
   const createFolder = (targets: Targets, parentId: string | null = folderId) => setOrganize({...targets, screen: 'create', parentId, name: nextPersonaFolderName(value.folders.filter(item => item.parentId === parentId))});
   const requestMove = (entries: Entry[]) => {
     if (!entries.length) return;
@@ -178,7 +179,9 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
       onMoved={() => setSelected(null)}/>}
     {organize?.screen === 'create' && store && <ItemRenameSheet scope="persona-folder" item={{title: organize.name}} heading="새 폴더" inputLabel="폴더 이름" maxLength={40}
       onClose={() => setOrganize(null)} onSave={async name => {await store.createFolder(name, organize.ids, organize.parentId, organize.folderIds); setSelected(null);}}/>}
-    {editor && store && <PersonaEditorSheet {...(editor.item ? {item: editor.item} : {})} folderId={folderId} store={store} onClose={() => setEditor(null)} onCreated={() => setSearch('')}/>}
+    {editor && store && <PersonaEditorSheet key={editor.revision} {...(editor.item ? {item: editor.item} : {})} folderId={folderId} store={store}
+      onDismissStart={() => setEditor(current => current?.revision === editor.revision ? {...current, closing: true} : current)}
+      onClose={() => setEditor(current => current?.revision === editor.revision ? null : current)} onCreated={() => setSearch('')}/>}
     {folder && <PersonaPage folderId={folder} onClose={() => setFolder(null)} onNavigateAncestor={navigateAncestor}/>}
   </>}</SwipeBackModal>;
 }

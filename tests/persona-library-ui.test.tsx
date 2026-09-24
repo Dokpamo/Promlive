@@ -6,6 +6,8 @@ import {PersonaPage} from '../src/features/personas/PersonaPage';
 import {PersonaProvider} from '../src/features/personas/PersonaContext';
 import {PersonaPreferences} from '../src/features/personas/personaPreferences';
 
+const editorExit = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
+
 vi.mock('react-native', async () => {
   const React = await import('react');
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
@@ -23,7 +25,7 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-safe-area-context', async () => ({SafeAreaView: (await import('react-native')).View, useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}));
 // Native modal motion, hit testing and the real editor are checked on the emulator.
 vi.mock('../src/layout/SwipeBackModal', () => ({
-  SwipeBackModal: ({children, onClose}: {children: (close: () => void) => ReactNode; onClose: () => void}) => children(onClose),
+  SwipeBackModal: ({children, onClose, active}: {children: (close: () => void) => ReactNode; onClose: () => void; active: boolean}) => <div data-testid="page-gesture" data-active={active}>{children(onClose)}</div>,
   SwipeBackBoundary: ({children}: {children: ReactNode}) => children,
 }));
 vi.mock('../src/layout/ScreenHeader', () => ({
@@ -43,7 +45,10 @@ vi.mock('../src/layout/ItemRenameSheet', () => ({ItemRenameSheet: ({item, headin
     void onSave(name).then(() => {if (mounted.current) onClose();}, cause => {if (mounted.current) setError(cause.message);});
   }}/>{error && <span role="alert">{error}</span>}</div>;
 }}));
-vi.mock('../src/features/personas/PersonaEditorSheet', () => ({PersonaEditorSheet: ({item, onClose}: {item?: {name: string}; onClose: () => void}) => <div data-testid="editor">{item?.name}<button aria-label="편집 닫기" onClick={onClose}/></div>}));
+vi.mock('../src/features/personas/PersonaEditorSheet', () => ({PersonaEditorSheet: ({item, onClose, onDismissStart}: {item?: {name: string}; onClose: () => void; onDismissStart: () => void}) => <div data-testid="editor">{item?.name}<button aria-label="편집 닫기" onClick={() => {
+  onDismissStart();
+  if (editorExit.defer) editorExit.finishes.push(onClose); else onClose();
+}}/></div>}));
 vi.mock('../src/features/settings/SettingsLayout', () => ({
   useSettingsScale: () => 0.6,
   SettingsSheet: ({children, footer, onClose, overlay, obscured, dismiss}: {children: (close: () => void) => ReactNode; footer?: (close: () => void) => ReactNode; onClose: () => void; overlay?: ReactNode; obscured?: boolean; dismiss?: boolean}) => {
@@ -56,7 +61,7 @@ vi.mock('../src/features/settings/SettingsIcon', () => ({SettingsIcon: () => nul
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; editorExit.defer = false; editorExit.finishes = []; document.body.replaceChildren();});
 const fields = {name: '여행자', description: '', image: null};
 async function setup() {
   const store = new PersonaPreferences({getSetting: async () => undefined, setSetting: async () => {}});
@@ -102,6 +107,20 @@ it('opens the same persona editor from the item menu as from a normal tap', asyn
   expect(document.querySelector('[data-testid="editor"]')!.textContent).toBe(tapped);
   expect(document.querySelector('[data-testid="folder-name-editor"]')).toBeNull();
   expect(store.snapshot().value).toBe(before);
+});
+
+it('restores page gestures as editing closes and ignores the old exit after opening another persona', async () => {
+  editorExit.defer = true;
+  await setup(); await press('여행자');
+  const gesture = document.querySelector('[data-testid="page-gesture"]')!;
+  expect(gesture.getAttribute('data-active')).toBe('false');
+  await press('편집 닫기');
+  expect(gesture.getAttribute('data-active')).toBe('true');
+  expect(document.querySelector('[data-testid="editor"]')).not.toBeNull();
+  await press('작가');
+  expect(gesture.getAttribute('data-active')).toBe('false');
+  await act(async () => editorExit.finishes[0]!());
+  expect(document.querySelector('[data-testid="editor"]')?.textContent).toBe('작가');
 });
 
 it('moves a persona through the popup and can move it back out of a folder', async () => {

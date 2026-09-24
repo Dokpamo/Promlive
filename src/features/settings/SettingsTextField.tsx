@@ -50,7 +50,7 @@ export function SettingsTextEditorHost({children, resumeInput}: {children: React
   const obscured = editor !== null && !editor.closing;
   return <TextEditor.Provider value={open}>
     <View style={{flex: 1}}>
-      <TextEditorCovered.Provider value={editor !== null}><View style={{flex: 1}} pointerEvents={obscured ? 'none' : 'auto'} aria-hidden={obscured} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}>{children}</View></TextEditorCovered.Provider>
+      <TextEditorCovered.Provider value={editor !== null}><View collapsable={false} style={{flex: 1}} pointerEvents={obscured ? 'none' : 'auto'} aria-hidden={obscured} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}>{children}</View></TextEditorCovered.Provider>
       {editor && <SettingsTextEditor key={editor.revision} field={editor} keepKeyboard={resumeInput !== undefined}
         onDismissStart={() => {
           if (revision.current !== editor.revision) return;
@@ -97,13 +97,13 @@ function SettingsTextEditor({field, keepKeyboard, onDismissStart, onClose}: {fie
     if (keyboardVisible.current) Keyboard.dismiss();
     else dismiss.current?.();
     return true;
-  }}>{close =>
-    <KeyboardMotionProvider><TextEditorBody field={field} keepKeyboard={keepKeyboard} input={input} dismiss={dismiss} keyboardVisible={keyboardVisible} closing={closing} close={close}/></KeyboardMotionProvider>
+  }}>{(close, _, beginCustomDismiss) =>
+    <KeyboardMotionProvider><TextEditorBody field={field} keepKeyboard={keepKeyboard} input={input} dismiss={dismiss} keyboardVisible={keyboardVisible} closing={closing} close={close} beginDismiss={beginCustomDismiss}/></KeyboardMotionProvider>
   }</SwipeBackModal>;
 }
 
-function TextEditorBody({field, keepKeyboard, input, dismiss, keyboardVisible, closing, close}: {
-  field: FieldOptions; keepKeyboard: boolean; input: RefObject<TextInput | null>; dismiss: RefObject<(() => void) | null>; keyboardVisible: RefObject<boolean>; closing: boolean; close: () => void;
+function TextEditorBody({field, keepKeyboard, input, dismiss, keyboardVisible, closing, close, beginDismiss}: {
+  field: FieldOptions; keepKeyboard: boolean; input: RefObject<TextInput | null>; dismiss: RefObject<(() => void) | null>; keyboardVisible: RefObject<boolean>; closing: boolean; close: () => void; beginDismiss: () => void;
 }) {
   const {settings: p} = useAppearance();
   const window = useWindowDimensions();
@@ -115,9 +115,10 @@ function TextEditorBody({field, keepKeyboard, input, dismiss, keyboardVisible, c
   const [keyboardStarted, setKeyboardStarted] = useState(false);
   const [exiting, setExiting] = useState(false);
   const exitStarted = useRef(false);
-  const pull = useBlankDismiss({active: !closing, height: sheet.height, onClose: close, entrance: keyboardStarted ? 'ready' : 'waiting', onDismissStart: () => {
+  const pull = useBlankDismiss({active: true, height: sheet.height, onClose: close, entrance: keyboardStarted ? 'ready' : 'waiting', onDismissStart: () => {
     exitStarted.current = true;
     setExiting(true);
+    beginDismiss();
     if (!keepKeyboard) Keyboard.dismiss();
   }});
   useLayoutEffect(() => {dismiss.current = pull.dismiss; return () => {dismiss.current = null;};}, [dismiss, pull.dismiss]);

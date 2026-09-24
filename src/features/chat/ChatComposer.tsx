@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {KeyboardDock} from '../../layout/KeyboardMotion';
+import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {PressSurface} from '../../layout/PressSurface';
 import {EdgeTint} from '../../layout/EdgeTint';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
@@ -37,10 +37,12 @@ export function ChatComposer(p: Props) {
   const {colors: c, isDark} = useAppearance();
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardFrame();
   const s = composerScale(p.width);
   const textScale = typographyScale(p.width);
   const line = r.lineHeight * textScale * window.fontScale;
   const [contentHeight, setContentHeight] = useState(line);
+  const [editing, setEditing] = useState(false);
   const [editor, setEditor] = useState<{selection: ComposerSelection; closing: boolean} | null>(null);
   const modal = editor !== null;
   const covered = modal && !editor.closing;
@@ -49,8 +51,9 @@ export function ChatComposer(p: Props) {
   const callbacks = useRef(p);
   callbacks.current = p;
   const reportHeight = useCallback((height: number) => setContentHeight(old => Math.abs(old - height) > 0.5 ? height : old), []);
-  const filled = p.value.length > 0;
-  const measured = filled ? Math.max(line, contentHeight) : line;
+  const hasText = p.value.length > 0;
+  const filled = hasText || editing;
+  const measured = hasText ? Math.max(line, contentHeight) : line;
   const inputHeight = Math.min(measured, r.maxLines * line);
   const height = filled ? inputHeight + (r.firstLineHeight - r.lineHeight) * s : r.compactHeight * s;
   const expandable = filled && Math.round(measured / line) >= 2;
@@ -63,8 +66,13 @@ export function ChatComposer(p: Props) {
   }).current;
   const frame = useComposerLayoutFrame(motion, {height, filled: filled ? 1 : 0});
   const fraction = useRef(new Animated.Value(1)).current.interpolate({inputRange: [0, 1], outputRange: [1, 1]});
-  useDrawerModalLock(modal);
-  useLayoutEffect(() => {callbacks.current.onExpandedChange?.(modal);}, [modal]);
+  useDrawerModalLock(covered);
+  useLayoutEffect(() => {callbacks.current.onExpandedChange?.(covered);}, [covered]);
+  const lastKeyboardHeight = useRef(keyboard.height);
+  useEffect(() => {
+    if (!modal && lastKeyboardHeight.current > 0 && keyboard.height === 0) setEditing(false);
+    lastKeyboardHeight.current = keyboard.height;
+  }, [keyboard.height, modal]);
   useLayoutEffect(() => {
     if (covered || !restore.current) return;
     if (restore.current.focus) input.current?.focus(restore.current.selection);
@@ -119,11 +127,13 @@ export function ChatComposer(p: Props) {
 
   return <DrawerGestureBoundary style={{position: 'absolute', inset: 0}}>
     <KeyboardDock fraction={fraction} bottomInset={p.bottom} freezeKeyboard={false} followCaret={!covered}>
-      <View pointerEvents={covered ? 'none' : 'box-none'} aria-hidden={covered} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} style={{flex: 1}}>
+      {/* Keep the focused input's native ancestors mounted when covering the dock. */}
+      <View collapsable={false} pointerEvents={covered ? 'none' : 'box-none'} aria-hidden={covered} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} style={{flex: 1}}>
         <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: frame.height + p.bottom + (r.bottom + 40) * s}}>
           <EdgeTint edge="bottom" testID="composer-tint" style={{flex: 1}}/>
         </View>
-        <View nativeID="promlive-composer-surface" testID="chat-composer" style={{position: 'absolute', left, width, bottom: p.bottom + r.bottom * s, height: frame.height,
+        <View testID="composer-controls-layer" pointerEvents="box-none" style={{position: 'absolute', left, width, bottom: p.bottom + r.bottom * s, height: frame.height, overflow: 'visible'}}>
+        <View nativeID="promlive-composer-surface" testID="chat-composer" style={{position: 'absolute', inset: 0, height: frame.height,
           borderRadius: shape(r.compactHeight / 2, 40), borderWidth: s, borderColor: c.border, backgroundColor: c.composer, overflow: 'hidden',
           boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)',
         }}>
@@ -135,7 +145,8 @@ export function ChatComposer(p: Props) {
                 bounces={false} overScrollMode="never" keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={false}
                 showsVerticalScrollIndicator={false} scrollEventThrottle={16} style={{flex: 1}} onScroll={event => {scroll.current.offset = event.nativeEvent.contentOffset.y;}}>
                 <View style={{height: measured}}>
-                  <ComposerInput focusRef={input} value={p.value} onChange={p.onChange} onFocus={() => {}} onHeight={reportHeight} fontSize={r.fontSize * textScale}
+                  <ComposerInput focusRef={input} value={p.value} onChange={value => {if (value.length) setEditing(true); p.onChange(value);}} onFocus={() => setEditing(true)}
+                    onBlur={() => {if (!modal) setEditing(false);}} onHeight={reportHeight} fontSize={r.fontSize * textScale}
                     lineHeight={r.lineHeight * textScale} height={measured} fillHeight scroll={false} ready={p.ready}/>
                 </View>
               </SheetScrollView>
@@ -146,20 +157,21 @@ export function ChatComposer(p: Props) {
             <Animated.View pointerEvents={expandable ? 'auto' : 'none'} aria-hidden={!expandable} accessibilityElementsHidden={!expandable} importantForAccessibility={expandable ? 'auto' : 'no-hide-descendants'}
               style={{position: 'absolute', bottom: actionBottom, right: Animated.add(13 * s, Animated.multiply(motion.send, button + 13 * s)), opacity: motion.expand,
                 transform: [{scale: motion.expand.interpolate({inputRange: [0, 1], outputRange: [0.6, 1]})}]}}>
-              <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={() => {restore.current = null; setEditor({selection: input.current?.getSelection() ?? {start: p.value.length, end: p.value.length}, closing: false});}}/>
-            </Animated.View>
-            <Animated.View testID="composer-send-entrance" pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'}
-              style={{position: 'absolute', right: 13 * s, bottom: actionBottom, opacity: motion.send,
-                transform: [{scale: motion.send.interpolate({inputRange: [0, 1], outputRange: [0.6, 1]})}]}}>
-              <Circle label={p.action.label} icon={cancelling ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={!p.action.enabled} onPress={cancelling ? p.onCancel : p.onSend}/>
+              <Circle label="입력창 크게 열기" icon="expand" size={button} iconSize={25 * s} onPress={() => {restore.current = null; setEditing(true); setEditor({selection: input.current?.getSelection() ?? {start: p.value.length, end: p.value.length}, closing: false});}}/>
             </Animated.View>
           </SheetGestureRoot>
+        </View>
+        <Animated.View testID="composer-send-entrance" pointerEvents={hasSend ? 'auto' : 'none'} aria-hidden={!hasSend} accessibilityElementsHidden={!hasSend} importantForAccessibility={hasSend ? 'auto' : 'no-hide-descendants'}
+          style={{position: 'absolute', zIndex: 1, right: 14 * s, bottom: actionBottom + s, opacity: motion.send,
+            transform: [{translateX: motion.send.interpolate({inputRange: [0, 1], outputRange: [button + 13 * s, 0]})}]}}>
+          <Circle label={p.action.label} icon={cancelling ? 'stop' : 'send'} size={button} iconSize={25 * s} bright disabled={!p.action.enabled} onPress={cancelling ? p.onCancel : p.onSend}/>
+        </Animated.View>
         </View>
       </View>
     </KeyboardDock>
     {editor && <ExpandedComposer value={p.value} onChange={p.onChange} onSend={p.onSend} onCancel={p.onCancel} action={p.action} ready={p.ready}
       width={p.width} textWidth={textWidth} initialHeight={measured} initialSelection={editor.selection}
-      onReturnFocus={(selection, focus) => {restore.current = {selection, focus}; setEditor(current => current && {...current, closing: true});}} onClose={() => setEditor(null)}/>}
+      onReturnFocus={(selection, focus) => {restore.current = {selection, focus}; setEditing(focus); setEditor(current => current && {...current, closing: true});}} onClose={() => setEditor(null)}/>}
   </DrawerGestureBoundary>;
 }
 

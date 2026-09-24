@@ -41,7 +41,7 @@ vi.mock('../src/features/chat/ComposerInput', () => ({ComposerInput: (p: Compose
   }, []);
   const height = measurement.height;
   useLayoutEffect(() => {p.onHeight(height);}, [height, p.onHeight]);
-  return <textarea ref={node} data-testid={p.testID ?? 'chat-input'} value={p.value} onChange={e => p.onChange(e.target.value)}/>;
+  return <textarea ref={node} data-testid={p.testID ?? 'chat-input'} value={p.value} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}/>;
 }}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
@@ -56,9 +56,9 @@ async function render(value = draft) {
 }
 async function press(label: string) {await act(async () => (document.querySelector(`[aria-label="${label}"]`) as HTMLElement).click());}
 function controlSprings() {
-  const runs: {value: Animated.Value; target: number; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
+  const runs: {value: Animated.Value; target: number; mass: number | undefined; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
   vi.spyOn(Animated, 'spring').mockImplementation((value, config) => {
-    const run = {value: value as Animated.Value, target: config.toValue as number, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
+    const run = {value: value as Animated.Value, target: config.toValue as number, mass: config.mass, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
     runs.push(run);
     return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
   });
@@ -77,7 +77,7 @@ it('keeps the original bar mounted and returns draft, selection and focus after 
   const original = element<HTMLTextAreaElement>('chat-input');
   const bar = element('chat-composer');
   const geometry = bar.style.cssText;
-  original.focus(); original.setSelectionRange(3, 7);
+  await act(async () => {original.focus(); original.setSelectionRange(3, 7);});
   const dismissKeyboard = vi.spyOn(Keyboard, 'dismiss');
   for (let count = 0; count < 3; count++) {
     await press('입력창 크게 열기');
@@ -152,8 +152,9 @@ it('slides a separate screen up and down, leaving the bar untouched throughout b
   await act(async () => {entry.value.setValue(0); entry.finish?.({finished: true});});
   await press('입력창 접기');
   expect(element('expanded-composer-surface')).toBe(surface);
-  expect(locks.current).toBe(1);
+  expect(locks.current).toBe(0);
   const exit = runs.find(run => run.target === 892)!;
+  expect(exit.mass!).toBeGreaterThan(entry.mass!);
   await act(async () => exit.value.setValue(500));
   expect(surface.style.transform).toContain('500px');
   expect(bar.style.cssText).toBe(geometry);
@@ -172,6 +173,19 @@ it('focuses the overlay immediately and waits for the keyboard to begin its entr
   expect(locks.current).toBe(1);
   await act(async () => opening.callbacks[0]!());
   expect(runs.some(run => run.target === 0)).toBe(true);
+});
+
+it('starts expansion immediately when the keyboard is already open, keeping focus in an editor', async () => {
+  keyboard.height = 336; accessibility.reduceMotion = false; opening.defer = true;
+  await render();
+  await act(async () => element('chat-input').focus());
+  const runs = controlSprings();
+  const hide = vi.spyOn(Keyboard, 'dismiss');
+  await press('입력창 크게 열기');
+  expect(document.activeElement).toBe(element('expanded-composer-input'));
+  expect(runs.some(run => run.target === 0)).toBe(true);
+  expect(opening.callbacks).toHaveLength(1);
+  expect(hide).not.toHaveBeenCalled();
 });
 
 it('ignores a late keyboard callback from a closed overlay', async () => {
@@ -199,17 +213,42 @@ it('gives new text its complete viewport before the surrounding bar finishes gro
   expect(runs.some(run => run.target > parseFloat(barHeight))).toBe(true);
 });
 
-it('grows the send button in place without revealing it through an expanding width', async () => {
+it('slides the send button in from the right above the clipped composer surface', async () => {
   accessibility.reduceMotion = false; measurement.height = 25;
   await render(''); const runs = controlSprings();
   const entrance = element('composer-send-entrance');
   const right = entrance.style.right;
-  expect(entrance.style.transform).toContain('scale(0.6)');
+  expect(entrance.style.transform).toContain('translateX(');
+  expect(entrance.style.transform).not.toContain('translateX(0px)');
+  expect(element('chat-composer').contains(entrance)).toBe(false);
+  expect(entrance.parentElement).toBe(element('composer-controls-layer'));
+  expect(getComputedStyle(entrance.parentElement!).overflow).not.toBe('hidden');
   await render('안녕');
   await act(async () => {for (const run of runs) run.value.setValue(run.target);});
   expect(entrance.style.right).toBe(right);
   expect(entrance.style.width).toBe('');
-  expect(entrance.style.transform).toContain('scale(1)');
+  expect(entrance.style.transform).toContain('translateX(0px)');
+});
+
+it('keeps an empty editing bar open until focus leaves it', async () => {
+  measurement.height = 25;
+  await render('안녕');
+  await act(async () => element('chat-input').focus());
+  const expandedHeight = element('chat-composer').style.height;
+  await render('');
+  expect(element('chat-composer').style.height).toBe(expandedHeight);
+  await act(async () => element('chat-input').blur());
+  expect(parseFloat(element('chat-composer').style.height)).toBeLessThan(parseFloat(expandedHeight));
+});
+
+it('collapses an empty bar when the keyboard closes even if native focus remains', async () => {
+  keyboard.height = 336; measurement.height = 25;
+  await render('안녕');
+  await act(async () => element('chat-input').focus());
+  await render('');
+  const expandedHeight = element('chat-composer').style.height;
+  keyboard.height = 0; await render('');
+  expect(parseFloat(element('chat-composer').style.height)).toBeLessThan(parseFloat(expandedHeight));
 });
 
 it('sends once from the full-screen button and returns to the mounted bar', async () => {

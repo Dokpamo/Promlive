@@ -2,7 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
 import {Animated, PanResponder, Platform} from 'react-native';
 import {useItemReducedMotion} from './itemListMotion';
 import {shouldDismissSheet} from './sheetMotion';
-import {panelSpringForDistance} from './panelAnimation';
+import {editorExitSpring, panelSpringForDistance} from './panelAnimation';
 
 /** Full-screen editors only follow a downward drag that starts outside text and controls. */
 export function useBlankDismiss(options: {
@@ -61,7 +61,7 @@ export function useBlankDismiss(options: {
     const finish = () => {if (attempt === generation.current && close) latest.current.onClose();};
     const target = close ? latest.current.height : 0;
     if (latest.current.reduced) {y.setValue(target); finish(); return;}
-    Animated.spring(y, {...panelSpringForDistance(), toValue: target, useNativeDriver: false})
+    Animated.spring(y, {...(close ? editorExitSpring() : panelSpringForDistance()), toValue: target, useNativeDriver: false})
       .start(({finished}) => {if (finished) finish();});
   }, [y]);
   const dismiss = useCallback(() => settle(true), [settle]);
@@ -92,7 +92,7 @@ export function useBlankDismiss(options: {
         cancelClick.current = false;
         return false;
       },
-      onStartShouldSetPanResponder: () => latest.current.active && latest.current.entrance !== 'waiting' && !state.current.blocked && Platform.OS !== 'web',
+      onStartShouldSetPanResponder: () => latest.current.active && !closing.current && latest.current.entrance !== 'waiting' && !state.current.blocked && Platform.OS !== 'web',
       onMoveShouldSetPanResponderCapture: (_, gesture) => {
         if (state.current.dragging || gesture.numberActiveTouches !== 1 || !canStart(gesture.dx, gesture.dy)) return false;
         state.current.captured = gesture.dy;

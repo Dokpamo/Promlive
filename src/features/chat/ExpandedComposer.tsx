@@ -32,7 +32,7 @@ export function ExpandedComposer(p: Props) {
   const s = composerScale(p.width), textScale = typographyScale(p.width), headerSize = headerScale(p.width);
   const sheet = expandedComposerFrame(window);
   const input = useRef<ComposerInputHandle>(null);
-  const [keyboardStarted, setKeyboardStarted] = useState(false);
+  const [keyboardStarted, setKeyboardStarted] = useState(keyboard.height > 0);
   const [exiting, setExiting] = useState(false);
   const exitStarted = useRef(false);
   const initialSelection = useRef(p.initialSelection);

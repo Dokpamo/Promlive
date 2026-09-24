@@ -4,7 +4,7 @@ import {View, type StyleProp, type ViewStyle} from 'react-native';
 export const DrawerGestureGuard = createContext<{current: boolean} | null>(null);
 export const DrawerModalLocks = createContext<{current: number} | null>(null);
 
-/** Keep navigation inactive for the modal's entire lifetime, including its exit animation. */
+/** Keep drawer navigation inactive while an overlay owns interaction. */
 export function useDrawerModalLock(enabled = true) {
   const locks = useContext(DrawerModalLocks);
   useLayoutEffect(() => {

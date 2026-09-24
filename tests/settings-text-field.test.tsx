@@ -26,10 +26,9 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
 // Retain the real field/editor and focus lifecycle; control only exit completion.
 vi.mock('../src/layout/SwipeBackModal', () => ({
   SwipeBackBoundary: ({children, style}: {children: ReactNode; style?: CSSProperties}) => <div style={style}>{children}</div>,
-  SwipeBackModal: ({children, onDismissStart, onClose}: {children: (close: () => void, motion: object) => ReactNode; onDismissStart: () => void; onClose: () => void}) => <div>{children(() => {
-    onDismissStart();
+  SwipeBackModal: ({children, onDismissStart, onClose}: {children: (close: () => void, motion: object, beginDismiss: () => void) => ReactNode; onDismissStart: () => void; onClose: () => void}) => <div>{children(() => {
     if (closing.defer) closing.finishes.push(onClose); else onClose();
-  }, {})}</div>,
+  }, {}, onDismissStart)}</div>,
 }));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;

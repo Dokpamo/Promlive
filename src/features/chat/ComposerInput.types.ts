@@ -18,6 +18,7 @@ export interface ComposerInputProps {
   onChange: (value: string) => void;
   onHeight: (height: number) => void;
   onFocus: () => void;
+  onBlur?: () => void;
   fontSize: number;
   lineHeight: number;
   height: number;

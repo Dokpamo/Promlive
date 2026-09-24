@@ -335,6 +335,27 @@ it('keeps native scrolling available when no sheet is handing off a touch', asyn
   expect(pan().onShouldBlockNativeResponder!(event, gesture())).toBe(false);
 });
 
+it('releases a fixed editor at the start of its custom exit while keeping that exit mounted', async () => {
+  const closed = vi.fn(), started = vi.fn();
+  let beginExit!: () => void, finishExit!: () => void;
+  await render(<SwipeBackModal onClose={vi.fn()}>{() =>
+    <SwipeBackModal fixed sheet sheetHeight={800} onClose={closed} onDismissStart={started}>{(close, _, begin) => {
+      beginExit = begin; finishExit = close; return null;
+    }}</SwipeBackModal>
+  }</SwipeBackModal>);
+  const parent = renderedPan('settings-back-swipe');
+  expect(parent.onStartShouldSetPanResponder!(event, gesture())).toBe(false);
+  await act(async () => {beginExit(); beginExit();});
+  expect(started).toHaveBeenCalledOnce();
+  expect(closed).not.toHaveBeenCalled();
+  expect(document.querySelector('[data-testid="settings-sheet-swipe"]')?.getAttribute('data-pointer-events')).toBe('none');
+  parent.onStartShouldSetPanResponderCapture!(event, gesture());
+  expect(parent.onMoveShouldSetPanResponderCapture!(event, gesture(20))).toBe(true);
+  await act(async () => {finishExit(); finishExit();});
+  expect(closed).toHaveBeenCalledOnce();
+  expect(started).toHaveBeenCalledOnce();
+});
+
 it('routes Android back to the open sheet, then to the page during the sheet exit', async () => {
   const closePage = vi.fn(), closeSheet = vi.fn();
   await render(<SwipeBackModal onClose={closePage}>{() =>
