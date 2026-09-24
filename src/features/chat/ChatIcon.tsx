@@ -1,7 +1,7 @@
 import {View} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 
-export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'check' | 'search' | 'chat' | 'new-chat' | 'stop' | 'settings' | 'user' | 'more';
+export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'check' | 'reset' | 'search' | 'chat' | 'new-chat' | 'stop' | 'settings' | 'user' | 'more';
 export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: number; color?: string}) {
   const {colors: c} = useAppearance();
   color ??= c.icon;
@@ -28,6 +28,10 @@ export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: n
     {name === 'check' && <>
       <View style={[line, {left: size * 2 / 24, top: size * 14 / 24, width: size * 9 / 24, transform: [{rotate: '45deg'}]}]}/>
       <View style={[line, {left: size * 7 / 24, top: size * 10 / 24, width: size * 16 / 24, transform: [{rotate: '-45deg'}]}]}/>
+    </>}
+    {name === 'reset' && <>
+      <View style={{position: 'absolute', inset: size * 0.13, borderWidth: stroke, borderRadius: size, borderColor: color, borderLeftColor: 'transparent', transform: [{rotate: '-25deg'}]}}/>
+      <View style={{position: 'absolute', left: size * 0.1, top: size * 0.08, width: size * 0.3, height: size * 0.3, borderLeftWidth: stroke, borderBottomWidth: stroke, borderColor: color}}/>
     </>}
     {name === 'search' && <><View style={{width: size * 0.68, height: size * 0.68, borderWidth: stroke, borderColor: color, borderRadius: size}}/><View style={[line, {width: size * 0.47, bottom: size * 0.14, right: 0, transform: [{rotate: '45deg'}]}]}/></>}
     {name === 'chat' && <View style={{width: size * 0.9, height: size * 0.75, borderWidth: stroke, borderColor: color, borderRadius: size * 0.2, borderBottomLeftRadius: 0, marginTop: size * 0.1}}/>}

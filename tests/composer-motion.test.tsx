@@ -81,10 +81,15 @@ async function readAt(id: string, offset: number) {
     view.props.onScroll?.(event);
   });
 }
-function controlSprings() {
-  const runs: {value: Animated.Value; target: number; mass: number | undefined; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
+function controlAnimations() {
+  const runs: {value: Animated.Value; target: number; duration?: number | undefined; finish: ((result: {finished: boolean}) => void) | undefined}[] = [];
   vi.spyOn(Animated, 'spring').mockImplementation((value, config) => {
-    const run = {value: value as Animated.Value, target: config.toValue as number, mass: config.mass, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
+    const run = {value: value as Animated.Value, target: config.toValue as number, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
+    runs.push(run);
+    return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
+  });
+  vi.spyOn(Animated, 'timing').mockImplementation((value, config) => {
+    const run = {value: value as Animated.Value, target: config.toValue as number, duration: config.duration, finish: undefined as ((result: {finished: boolean}) => void) | undefined};
     runs.push(run);
     return {start: callback => {run.finish = callback;}, stop: () => run.finish?.({finished: false}), reset: () => {}};
   });
@@ -166,7 +171,7 @@ it('preserves the text column and shares edits with the original bar', async () 
 it('slides a separate screen up and down, leaving the bar untouched throughout both animations', async () => {
   accessibility.reduceMotion = false;
   await render();
-  const runs = controlSprings();
+  const runs = controlAnimations();
   const bar = element('chat-composer'), geometry = bar.style.cssText;
   await press('입력창 크게 열기');
   const surface = element('expanded-composer-surface');
@@ -180,7 +185,7 @@ it('slides a separate screen up and down, leaving the bar untouched throughout b
   expect(element('expanded-composer-surface')).toBe(surface);
   expect(locks.current).toBe(0);
   const exit = runs.find(run => run.target === 892)!;
-  expect(exit.mass!).toBeGreaterThan(entry.mass!);
+  expect(exit.duration).toBeGreaterThan(500);
   await act(async () => exit.value.setValue(500));
   expect(surface.style.transform).toContain('500px');
   expect(bar.style.cssText).toBe(geometry);
@@ -191,7 +196,7 @@ it('slides a separate screen up and down, leaving the bar untouched throughout b
 
 it('focuses the overlay immediately and waits for the keyboard to begin its entrance', async () => {
   accessibility.reduceMotion = false; opening.defer = true;
-  await render(); const runs = controlSprings();
+  await render(); const runs = controlAnimations();
   await press('입력창 크게 열기');
   expect(document.activeElement).toBe(element('expanded-composer-input'));
   expect(element('expanded-composer-surface').style.transform).toContain('892px');
@@ -205,7 +210,7 @@ it('starts expansion immediately when the keyboard is already open, keeping focu
   keyboard.height = 336; accessibility.reduceMotion = false; opening.defer = true;
   await render();
   await act(async () => element('chat-input').focus());
-  const runs = controlSprings();
+  const runs = controlAnimations();
   const hide = vi.spyOn(Keyboard, 'dismiss');
   await press('입력창 크게 열기');
   expect(document.activeElement).toBe(element('expanded-composer-input'));
@@ -231,7 +236,7 @@ it('ignores a late keyboard callback from a closed overlay', async () => {
 it('gives new text its complete viewport before the surrounding bar finishes growing', async () => {
   accessibility.reduceMotion = false; measurement.height = 25;
   await render('첫 줄');
-  const runs = controlSprings();
+  const runs = controlAnimations();
   const barHeight = element('chat-composer').style.height;
   measurement.height = 50; await render('첫 줄\n둘째 줄');
   expect(element('composer-scroll-viewport').style.height).toBe('50px');
@@ -241,7 +246,7 @@ it('gives new text its complete viewport before the surrounding bar finishes gro
 
 it('shows and hides send immediately without an entrance transform or fade', async () => {
   accessibility.reduceMotion = false; measurement.height = 25;
-  await render(''); controlSprings();
+  await render(''); controlAnimations();
   expect(element('composer-send-control')).toBeNull();
   await render('안녕');
   const control = element('composer-send-control');
@@ -277,7 +282,7 @@ it('returns at the new reading position after scrolling the expanded editor', as
 it('lets a fresh scroll interrupt restoration while the full-screen editor is still closing', async () => {
   keyboard.height = 336; accessibility.reduceMotion = false;
   await render(); await readAt('composer-scroll', 420);
-  const runs = controlSprings();
+  const runs = controlAnimations();
   await press('입력창 크게 열기');
   const entry = runs.find(run => run.target === 0)!;
   await act(async () => {entry.value.setValue(0); entry.finish?.({finished: true});});

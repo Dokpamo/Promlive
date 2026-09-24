@@ -11,10 +11,12 @@ export function panelSpringForDistance(pointsPerUnit = 1) {
   return {...panelSpring, restDisplacementThreshold: 0.5 / scale, restSpeedThreshold: 8 / scale};
 }
 
-/** Give the full-screen editor's downward exit 30% more time, with the same curve. */
-export function editorExitSpring() {
-  const timeScale = 1.3;
-  return {...panelSpringForDistance(), mass: panelSpring.mass * timeScale ** 2, damping: panelSpring.damping * timeScale};
+/** Spread exit travel across the animation instead of rushing behind the keyboard. */
+export function editorExitTiming(remaining = 1) {
+  return {
+    duration: Math.max(180, 620 * Math.sqrt(Math.max(0, Math.min(1, remaining)))),
+    easing: (progress: number) => progress * progress * (3 - 2 * progress),
+  };
 }
 
 /** Native animations can be ahead of JS listeners. Read all stopped axes before grabbing. */

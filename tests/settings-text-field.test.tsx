@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import {act, useRef, useState, type ReactNode, type CSSProperties} from 'react';
+import {act, useEffect, useRef, useState, type ReactNode, type CSSProperties} from 'react';
 import {Keyboard, TextInput} from 'react-native';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {SettingsTextEditorHost, SettingsTextField, useTextEditorCovered} from '../src/features/settings/SettingsTextField';
+import {DrawerModalLocks} from '../src/features/chat/DrawerGestureBoundary';
 
 const keyboard = vi.hoisted(() => ({height: 0}));
 const closing = vi.hoisted(() => ({defer: false, finishes: [] as (() => void)[]}));
@@ -26,20 +27,29 @@ vi.mock('../src/features/appearance/AppAppearance', async () => {
 // Retain the real field/editor and focus lifecycle; control only exit completion.
 vi.mock('../src/layout/SwipeBackModal', () => ({
   SwipeBackBoundary: ({children, style}: {children: ReactNode; style?: CSSProperties}) => <div style={style}>{children}</div>,
-  SwipeBackModal: ({children, onDismissStart, onClose}: {children: (close: () => void, motion: object, beginDismiss: () => void) => ReactNode; onDismissStart: () => void; onClose: () => void}) => <div>{children(() => {
+  SwipeBackModal: ({children, fixed, onShow, onDismissStart, onClose}: {children: (close: () => void, motion: object, beginDismiss: () => void) => ReactNode; fixed?: boolean; onShow?: () => void; onDismissStart: () => void; onClose: () => void}) => {
+    useEffect(() => onShow?.(), []);
+    return <div>{children(() => {
+    if (!fixed) onDismissStart();
     if (closing.defer) closing.finishes.push(onClose); else onClose();
-  }, {}, onDismissStart)}</div>,
+  }, {}, onDismissStart)}</div>;
+  },
 }));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
 const changes = vi.fn();
+const locks = {current: 0};
 function Form() {
   const [key, setKey] = useState('test-secret-value');
   const [prompt, setPrompt] = useState('첫 줄\n둘째 줄\n셋째 줄\n넷째 줄');
-  return <SettingsTextEditorHost>
-    <SettingsTextField label="API 키" testID="key" secret value={key} onChange={value => {setKey(value); changes(value);}} placeholder="API 키를 입력해 주세요"/>
+  const [url, setUrl] = useState('https://custom.example/v1');
+  const [tokens, setTokens] = useState('10000');
+  return <DrawerModalLocks.Provider value={locks}><SettingsTextEditorHost>
+    <SettingsTextField label="API 키" testID="key" secret editor="mini" value={key} onChange={value => {setKey(value); changes(value);}} placeholder="API 키를 입력해 주세요"/>
+    <SettingsTextField label="API 주소" editor="mini" resetValue="https://api.x.ai/v1" value={url} onChange={value => {setUrl(value); changes(value);}} placeholder="https://api.x.ai/v1"/>
+    <SettingsTextField label="최대 생성 토큰" editor="mini" keyboard="number-pad" value={tokens} onChange={value => {setTokens(value); changes(value);}} placeholder="10000"/>
     <SettingsTextField label="프롬프트" testID="prompt" multiline value={prompt} onChange={setPrompt} placeholder="내용 입력"/>
-  </SettingsTextEditorHost>;
+  </SettingsTextEditorHost></DrawerModalLocks.Provider>;
 }
 async function render() {
   if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
@@ -67,7 +77,7 @@ it('keeps saved secrets out of the preview and reveals them only inside the focu
   expect(input.type).toBe('text');
   expect(input.value).toBe('test-secret-value');
   expect(document.activeElement).toBe(input);
-  const popup = document.querySelector('[data-testid="settings-text-editor"]')!;
+  const popup = document.querySelector('[data-testid="settings-mini-text-editor"]')!;
   expect(popup.querySelector('[role="heading"]')).toBeNull();
   expect(popup.textContent).not.toMatch(/API 키|보기|숨김/);
   expect(popup.querySelector('[aria-label="입력 완료"]')).not.toBeNull();
@@ -105,6 +115,41 @@ it('does not let an old dismissal close a newly opened field', async () => {
   await act(async () => closing.finishes[0]!());
   expect(document.querySelector('textarea')).toBe(editor);
   expect(document.activeElement).toBe(editor);
+});
+
+it('edits output limits in the short underlined sheet and releases gestures before its exit finishes', async () => {
+  closing.defer = true;
+  await render(); await press('최대 생성 토큰');
+  const input = document.querySelector('input')!;
+  expect([input.selectionStart, input.selectionEnd]).toEqual([0, 5]);
+  expect(document.querySelector('[data-testid="settings-text-editor"]')).toBeNull();
+  expect(document.querySelector('[data-testid="settings-mini-text-editor-underline"]')).not.toBeNull();
+  expect(document.querySelector('[aria-label="기본 주소로 되돌리기"]')).toBeNull();
+  await enter('12000');
+  expect(changes).toHaveBeenLastCalledWith('12000');
+  expect(locks.current).toBe(1);
+  await press('입력 완료');
+  expect(input.readOnly).toBe(true);
+  expect(locks.current).toBe(0);
+  await act(async () => closing.finishes[0]!());
+  await press('최대 생성 토큰');
+  expect(document.querySelector('input')?.value).toBe('12000');
+});
+
+it('restores the provider address immediately, leaves the editor open, and still permits editing', async () => {
+  await render(); await press('API 주소');
+  const popup = document.querySelector('[data-testid="settings-mini-text-editor"]')!;
+  const actions = [...popup.querySelectorAll('[role="button"]')].map(button => button.getAttribute('aria-label'));
+  expect(actions).toEqual(['입력창 닫기', '기본 주소로 되돌리기', '입력 완료']);
+  await press('기본 주소로 되돌리기');
+  expect(document.querySelector('input')?.value).toBe('https://api.x.ai/v1');
+  expect(changes).toHaveBeenLastCalledWith('https://api.x.ai/v1');
+  expect(document.activeElement).toBe(document.querySelector('input'));
+  expect(document.querySelector('[data-testid="settings-mini-text-editor"]')).toBe(popup);
+  await enter('https://another.example/v1');
+  await press('입력 완료');
+  await press('API 주소');
+  expect(document.querySelector('input')?.value).toBe('https://another.example/v1');
 });
 
 it('keeps the full-screen editor fixed while its text viewport follows the keyboard', async () => {

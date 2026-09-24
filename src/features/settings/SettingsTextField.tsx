@@ -14,8 +14,9 @@ import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {useBlankDismiss} from '../../layout/useBlankDismiss';
 import {DragClickBoundary} from '../../layout/DragClickBoundary';
 import {focusWithKeyboard} from '../../layout/focusWithKeyboard';
+import {SettingsMiniTextEditor} from './SettingsMiniTextEditor';
 
-interface FieldOptions {
+export interface FieldOptions {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -26,6 +27,8 @@ interface FieldOptions {
   maxLength?: number;
   autoCapitalize?: TextInputProps['autoCapitalize'];
   testID?: string;
+  editor?: 'full' | 'mini';
+  resetValue?: string;
 }
 interface EditorSession extends FieldOptions {revision: number; closing: boolean}
 const TextEditor = createContext<((field: FieldOptions) => void) | null>(null);
@@ -82,6 +85,12 @@ export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: s
 }
 
 function SettingsTextEditor({field, keepKeyboard, onDismissStart, onClose}: {field: FieldOptions; keepKeyboard: boolean; onDismissStart: () => void; onClose: () => void}) {
+  return field.editor === 'mini'
+    ? <SettingsMiniTextEditor field={field} onDismissStart={onDismissStart} onClose={onClose}/>
+    : <SettingsFullTextEditor field={field} keepKeyboard={keepKeyboard} onDismissStart={onDismissStart} onClose={onClose}/>;
+}
+
+function SettingsFullTextEditor({field, keepKeyboard, onDismissStart, onClose}: {field: FieldOptions; keepKeyboard: boolean; onDismissStart: () => void; onClose: () => void}) {
   const window = useWindowDimensions();
   const [closing, setClosing] = useState(false);
   const input = useRef<TextInput>(null);

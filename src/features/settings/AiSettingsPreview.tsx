@@ -42,8 +42,8 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
     const description = caption ?? aiChoiceCaptions[title];
     setSheet({kind: 'choices', title, value: selected, choices, choose, ...(description ? {caption: description} : {})});
   };
-  const connectionField = (label: string, key: StringSetting<AiConnectionPreview>, placeholder: string, detail?: string) => <AiField label={label} value={connection[key]} onChange={next => patch({[key]: next, ...(key === 'url' ? {catalogModel: null} : {})})} placeholder={placeholder} {...(detail ? {detail} : {})}/>;
-  const field = (label: string, key: StringSetting<AiModelPresetPreview>, placeholder: string, detail?: string, numeric = false) => <AiField label={label} value={preset[key]} onChange={next => patchPreset({[key]: next})} placeholder={placeholder} {...(detail ? {detail} : {})} {...(numeric ? {keyboard: 'decimal-pad' as const} : {})}/>;
+  const connectionField = (label: string, key: StringSetting<AiConnectionPreview>, placeholder: string, detail?: string) => <AiField label={label} value={connection[key]} onChange={next => patch({[key]: next, ...(key === 'url' ? {catalogModel: null} : {})})} placeholder={placeholder} {...(key === 'url' ? {editor: 'mini' as const, keyboard: 'url' as const, ...(route.url ? {resetValue: route.url} : {})} : {})} {...(detail ? {detail} : {})}/>;
+  const field = (label: string, key: StringSetting<AiModelPresetPreview>, placeholder: string, detail?: string, numeric = false) => <AiField label={label} value={preset[key]} onChange={next => patchPreset({[key]: next})} placeholder={placeholder} editor={key === 'maxTokens' ? 'mini' : 'full'} {...(detail ? {detail} : {})} {...(numeric ? {keyboard: key === 'maxTokens' ? 'number-pad' as const : 'decimal-pad' as const} : {})}/>;
   const thinkingOff = preset.thinking === 'disabled';
   const adaptiveThinking = service.id === 'anthropic' || model.adaptiveThinking;
   const hasOptions = capabilities.reasoning || capabilities.output || capabilities.tools || capabilities.advanced;
@@ -96,7 +96,7 @@ export function AiSettingsPreview({value, onChange, onClose, saveError = ''}: {
           setNotice('');
         })}/>}
       </SettingsGroup>
-      {(route.auth === 'apiKey' || route.auth === 'optionalKey') && <AiField key={`${service.id}-${route.id}`} label={route.auth === 'optionalKey' ? 'API 키 · 선택' : 'API 키'} secret value={connection.key} onChange={key => patch({key})} placeholder="API 키를 입력해 주세요"/>}
+      {(route.auth === 'apiKey' || route.auth === 'optionalKey') && <AiField key={`${service.id}-${route.id}`} label={route.auth === 'optionalKey' ? 'API 키 · 선택' : 'API 키'} secret editor="mini" value={connection.key} onChange={key => patch({key})} placeholder="API 키를 입력해 주세요"/>}
       {service.id === 'qwen' && route.projectRequired && connectionField('워크스페이스 ID', 'project', 'Model Studio 워크스페이스 ID', '중국 리전의 모델 목록을 조회할 때 사용해요.')}
       {route.auth === 'oauth' && <>
         {route.projectRequired && connectionField('Google Cloud 프로젝트 ID', 'project', '프로젝트 ID', 'Cloud 프로젝트의 API 권한으로 연결해요.')}

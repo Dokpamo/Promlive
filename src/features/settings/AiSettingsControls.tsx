@@ -20,11 +20,12 @@ export function AiSection({children}: {children: ReactNode}) {
   return <SettingsSubtitle section>{children}</SettingsSubtitle>;
 }
 
-export function AiField({label, value, onChange, placeholder, secret = false, keyboard = 'default', detail, multiline = false}: {
+export function AiField({label, value, onChange, placeholder, secret = false, keyboard = 'default', detail, multiline = false, editor = 'full', resetValue}: {
   label: string; value: string; onChange: (value: string) => void; placeholder: string;
   secret?: boolean; keyboard?: KeyboardTypeOptions; detail?: string; multiline?: boolean;
+  editor?: 'full' | 'mini'; resetValue?: string;
 }) {
-  return <SettingsTextField testID={`ai-field-${label}`} label={label} value={value} onChange={onChange} placeholder={placeholder} secret={secret} keyboard={keyboard} multiline={multiline} {...(detail ? {detail} : {})}/>;
+  return <SettingsTextField testID={`ai-field-${label}`} label={label} value={value} onChange={onChange} placeholder={placeholder} secret={secret} keyboard={keyboard} multiline={multiline} editor={editor} {...(resetValue !== undefined ? {resetValue} : {})} {...(detail ? {detail} : {})}/>;
 }
 
 export function AiToggle({label, detail, value, onChange}: {label: string; detail?: string; value: boolean; onChange: (value: boolean) => void}) {
