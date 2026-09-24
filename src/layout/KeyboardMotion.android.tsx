@@ -2,6 +2,7 @@ import {createContext, useContext, useState, type ReactNode} from 'react';
 import {Animated, requireNativeComponent, type NativeSyntheticEvent, type ViewProps} from 'react-native';
 
 interface KeyboardProps extends ViewProps {
+  trackDockOffset?: boolean;
   dockFraction?: number;
   bottomInset?: number;
   freezeKeyboard?: boolean;
@@ -9,6 +10,7 @@ interface KeyboardProps extends ViewProps {
   anchorEditor?: boolean;
   composerGeometry?: {compactHeight: number; expandedHeight: number; footer?: boolean} | undefined;
   onKeyboardFrame?: (event: NativeSyntheticEvent<{height: number}>) => void;
+  onKeyboardDockFrame?: (event: NativeSyntheticEvent<{translationY: number}>) => void;
 }
 const NativeKeyboardView = requireNativeComponent<KeyboardProps>('PromliveKeyboardView');
 const AnimatedKeyboardView = Animated.createAnimatedComponent(NativeKeyboardView);
@@ -25,5 +27,11 @@ export function KeyboardMotionProvider({children}: {children: ReactNode}) {
 export function useKeyboardFrame() {return useContext(KeyboardFrame);}
 
 export function KeyboardDock({children, fraction, bottomInset, freezeKeyboard, followCaret, anchorEditor = false, composerGeometry}: {children: ReactNode; fraction: Animated.AnimatedInterpolation<number>; bottomInset: number; freezeKeyboard: boolean; followCaret: boolean; anchorEditor?: boolean; composerGeometry?: KeyboardProps['composerGeometry']}) {
-  return <AnimatedKeyboardView testID="keyboard-dock" pointerEvents="box-none" dockFraction={composerGeometry ? 0 : fraction} bottomInset={bottomInset} freezeKeyboard={freezeKeyboard} followCaret={followCaret} anchorEditor={anchorEditor} composerGeometry={composerGeometry} style={{position: 'absolute', inset: 0}}>{children}</AnimatedKeyboardView>;
+  const [translationY, setTranslationY] = useState(0);
+  // Mirror the displayed native offset into Fabric's measured layout. The view
+  // manager retains UI-thread ownership of the actual keyboard animation.
+  return <AnimatedKeyboardView testID="keyboard-dock" pointerEvents="box-none" trackDockOffset
+    onKeyboardDockFrame={event => setTranslationY(event.nativeEvent.translationY)}
+    dockFraction={composerGeometry ? 0 : fraction} bottomInset={bottomInset} freezeKeyboard={freezeKeyboard} followCaret={followCaret} anchorEditor={anchorEditor} composerGeometry={composerGeometry}
+    style={{position: 'absolute', inset: 0, transform: [{translateY: translationY}]}}>{children}</AnimatedKeyboardView>;
 }

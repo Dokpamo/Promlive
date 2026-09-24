@@ -19,6 +19,7 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -37,6 +38,8 @@ import com.facebook.react.views.textinput.ReactEditText
 
 /** The dock follows the IME on the UI thread, without waiting for a JS layout. */
 class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactViewGroup(reactContext) {
+  var trackDockOffset = false
+    set(value) { field = value; lastDockOffset = Float.NaN; positionDock() }
   var dockFraction = 0f
     set(value) { field = value; positionDock() }
   var bottomInset = 0f
@@ -65,6 +68,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   private var imeHeight = 0
   private val caretIme: Int get() = if (Build.VERSION.SDK_INT >= 30) imeHeight else 0
   private var lastReported = -1
+  private var lastDockOffset = Float.NaN
   private val motion = KeyboardInsetMotion(publish = ::updateHeight)
   private val caret = EditorCaretVisibility(this)
   private val beforeDraw = ViewTreeObserver.OnDrawListener {
@@ -84,6 +88,17 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     val surface = if (geometry == null) null else findComposerSurface()
     val fraction = if (geometry != null && surface != null && surface.height > 0) geometry.fraction(surface.height) else dockFraction
     translationY = if (Build.VERSION.SDK_INT >= 30) -maxOf(0f, dockIme - bottomInset) * fraction else 0f
+    // Fabric measures its shadow tree, not this UI-thread translation. Mirror
+    // the displayed offset so Pressability keeps the correct release bounds.
+    if (trackDockOffset && isAttachedToWindow && id != NO_ID && translationY != lastDockOffset) {
+      lastDockOffset = translationY
+      val data = Arguments.createMap().apply {
+        putDouble("translationY", translationY / resources.displayMetrics.density.toDouble())
+      }
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+        KeyboardDockFrameEvent(UIManagerHelper.getSurfaceId(reactContext), id, data)
+      )
+    }
   }
 
   private fun findComposerSurface(): View? {
@@ -124,6 +139,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     super.onAttachedToWindow()
     viewTreeObserver.addOnDrawListener(beforeDraw)
     lastReported = -1
+    lastDockOffset = Float.NaN
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
       val height = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
       if (Build.VERSION.SDK_INT >= 30) {
@@ -172,9 +188,19 @@ private class KeyboardFrameEvent(surfaceId: Int, viewId: Int, private val data: 
   override fun getEventData() = data
 }
 
+private class KeyboardDockFrameEvent(surfaceId: Int, viewId: Int, private val data: WritableMap) : Event<KeyboardDockFrameEvent>(surfaceId, viewId) {
+  override fun getEventName() = "topKeyboardDockFrame"
+  override fun getEventData() = data
+}
+
 class KeyboardMotionViewManager : ReactViewManager() {
   override fun getName() = "PromliveKeyboardView"
   override fun createViewInstance(context: ThemedReactContext) = KeyboardMotionView(context)
+  // The transform prop mirrors native motion for Fabric measurements only.
+  // Applying a late JS frame to the view would make the IME animation jump back.
+  override fun setTransform(view: ReactViewGroup, transforms: ReadableArray?) = Unit
+  @ReactProp(name = "trackDockOffset", defaultBoolean = false)
+  fun setTrackDockOffset(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).trackDockOffset = value }
   @ReactProp(name = "dockFraction", defaultFloat = 0f)
   fun setDockFraction(view: ReactViewGroup, value: Float) { (view as KeyboardMotionView).dockFraction = value }
   @ReactProp(name = "bottomInset", defaultFloat = 0f)
@@ -196,6 +222,7 @@ class KeyboardMotionViewManager : ReactViewManager() {
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     (super.getExportedCustomDirectEventTypeConstants() ?: emptyMap()).toMutableMap().apply {
       put("topKeyboardFrame", mapOf("registrationName" to "onKeyboardFrame"))
+      put("topKeyboardDockFrame", mapOf("registrationName" to "onKeyboardDockFrame"))
     }
 }
 
