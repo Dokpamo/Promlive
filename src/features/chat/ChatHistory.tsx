@@ -45,6 +45,7 @@ export function ChatHistory({cards: allCards, cardActions, active, selectedCardI
   const cards = allCards.filter(item => !item.archived && `${item.title} ${item.description}`.toLocaleLowerCase().includes(query));
   const listTop = (r.searchTop + r.searchHeight + r.listGap) * s;
   const start = async () => {
+    if (!historyCard && cardActions.create) {await cardActions.create(); return;}
     await startChat(historyCard);
     close();
   };
@@ -58,7 +59,7 @@ export function ChatHistory({cards: allCards, cardActions, active, selectedCardI
         <View style={{flex: 1, minWidth: 0}}>
           <DrawerGestureBoundary><SidebarSearch scale={s} history={!!historyCard} historyProgress={historyProgress} value={historyCard ? historySearch : cardSearch} onChange={historyCard ? onHistorySearch : setCardSearch}/></DrawerGestureBoundary>
         </View>
-        <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : '새 채팅'} onPress={() => {void start().catch(report);}}/>
+        <CreateChatButton scale={s} label={historyCard ? `${historyCard.title}에서 새 채팅` : cardActions.create ? '카드 만들기' : '새 채팅'} onPress={() => {void start().catch(report);}}/>
       </View>
     </View>
     <View style={{flex: 1}} pointerEvents={historyCard ? 'none' : 'auto'} aria-hidden={!!historyCard} accessibilityElementsHidden={!!historyCard} importantForAccessibility={historyCard ? 'no-hide-descendants' : 'auto'}>
@@ -81,7 +82,7 @@ export function CardConversationHeader({card, scale: s, onClose, closeLabel = '�
   const top = inset - panelReference.groupPadding;
   const bottom = panelReference.rowHeight + panelReference.groupPadding - referenceHeader.height - top;
   return <View testID="card-history-header" style={{height: referenceHeader.height * s, flexShrink: 0, marginTop: top * s, marginBottom: bottom * s, paddingLeft: panelReference.rowInset * s, paddingRight: inset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
-    <CardThumbnail testID="card-history-image" cover={card.cover} size={r.cardImage * s}/>
+    <CardThumbnail testID="card-history-image" cover={card.cover} assetId={card.coverAssetId} size={r.cardImage * s}/>
     <Text testID="card-history-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: c.text, fontSize: panelReference.rowFont * s, lineHeight: panelReference.rowLine * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{card.title}</Text>
     <HeaderButton width={r.viewportWidth * s} testID="card-history-close" icon="close" label={closeLabel} onPress={onClose} variant="plain"/>
   </View>;

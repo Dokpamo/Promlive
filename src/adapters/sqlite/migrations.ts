@@ -36,6 +36,17 @@ export const migrations = [
     'CREATE TABLE library_card_locations (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, folder_id TEXT NOT NULL REFERENCES library_folders(id) ON DELETE CASCADE)',
     'CREATE TABLE library_chat_locations (conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE, folder_id TEXT NOT NULL REFERENCES library_folders(id) ON DELETE CASCADE)',
   ],
+  [
+    'CREATE TABLE authoring_projects (card_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, revision INTEGER NOT NULL, document TEXT NOT NULL)',
+    'CREATE TABLE card_versions (id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, document TEXT NOT NULL, created_at INTEGER NOT NULL)',
+    'CREATE TABLE card_assets (id TEXT PRIMARY KEY, uri TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL)',
+    'ALTER TABLE conversations ADD COLUMN card_snapshot TEXT',
+    'UPDATE conversations SET card_snapshot=(SELECT document FROM cards WHERE cards.id=conversations.card_id)',
+  ],
+  [
+    'ALTER TABLE card_assets ADD COLUMN name TEXT',
+    'CREATE TABLE conversation_scenes (conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE, document TEXT NOT NULL)',
+  ],
 ] as const;
 export const DATABASE_VERSION = migrations.length;
 export async function migrate(db: SqlDatabase, steps: readonly (readonly string[])[] = migrations) {

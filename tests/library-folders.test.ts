@@ -24,7 +24,8 @@ async function setup() {
 
 it('upgrades existing libraries without moving or rewriting cards, conversations, messages or drafts', async () => {
   const db = nodeDatabase(); opened.push(db); await migrate(db, migrations.slice(0, 5));
-  const repo = new Repository(db), card = await repo.insertCard(newCard()), chat = await repo.createConversation(card.id);
+  const repo = new Repository(db), card = await repo.insertCard(newCard()), chat = {id: 'legacy-folder-chat'};
+  await db.execute('INSERT INTO conversations(id,card_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', [chat.id, card.id, '기존 대화', 1, 1]);
   await repo.appendLocalUserMessage(chat.id, '기존 대화');
   await repo.saveBuffer({...card, description: '편집 중'}, card.revision);
   await migrate(db);

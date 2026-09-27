@@ -10,7 +10,7 @@ export function WorkspaceChat({workspace: w, width, header}: {workspace: Workspa
   const conversation = w.history.selected;
   const card = w.cards.find(item => item.id === conversation?.cardId);
   if (!conversation || !card) return <View style={{flex: 1}}>{header}</View>;
-  return <ChatScreen key={conversation.id} session={w.chats.get(conversation.id, card)} repo={w.runtime.repo} creation={w.runtime.creation}
+  return <ChatScreen key={conversation.id} session={w.chats.get(conversation.id, card)} repo={w.runtime.repo} sceneStore={w.runtime.repo} creation={w.runtime.creation}
     {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} width={width} header={header}
     report={w.notifications.report} inform={w.notifications.inform}/>;
 }

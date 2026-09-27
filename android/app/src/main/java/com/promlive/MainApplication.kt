@@ -21,6 +21,7 @@ class MainApplication : Application(), ReactApplication {
               add(SystemBarsPackage())
               add(KeyboardMotionPackage())
               add(StartupScreenPackage())
+              add(CardFilesPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

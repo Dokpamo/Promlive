@@ -23,6 +23,7 @@ import {useLibrarySelection, type LibraryEntry} from './useLibrarySelection';
 import {useFolderNavigation} from '../features/library/useFolderNavigation';
 
 interface ListActions {
+  edit?(id: string): Promise<void>;
   rename(id: string, title: string): Promise<void>;
   pin(id: string, pinned: boolean): Promise<void>;
   remove(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
@@ -186,6 +187,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
       ...(library && state.ready ? [{label: '폴더 이동', icon: 'folder' as const, action: () => state.requestMove(menuEntries, folderId)}] : []),
       ...(menu.entry.kind === 'item' ? [{label: menu.entry.pinnedAt == null ? '고정' : '고정 해제', icon: 'pin' as const, action: () => {if (menu.entry.kind === 'item') void actions.pin(menu.entry.item.id, menu.entry.pinnedAt == null).catch(report);}}] : []),
       {label: '이름 변경', icon: 'edit', action: () => setRename(menu.entry)},
+      ...(menu.entry.kind === 'item' && actions.edit ? [{label: '카드 편집', icon: 'edit' as const, action: () => {if (menu.entry.kind === 'item') void actions.edit?.(menu.entry.item.id).catch(report);}}] : []),
       {label: '삭제', icon: 'delete', danger: true, action: () => state.requestDelete(menuEntries)},
     ]}/>}
     {rename && <ItemRenameSheet item={rename} scope={rename.kind === 'folder' ? `${scope}-folder` : scope} {...(rename.kind === 'folder' ? {inputLabel: '폴더 이름', maxLength: 40} : {})}

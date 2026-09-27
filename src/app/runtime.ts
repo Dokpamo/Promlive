@@ -11,7 +11,9 @@ import {GenerationCoordinator} from '../features/chat/generation';
 import {CreationService} from '../features/chat/service';
 import type {AiProvider} from '../ports/ai';
 import type {StoryRepository} from '../ports/repository';
-export interface Runtime { repo: StoryRepository; creation: CreationService; provider: AiProvider; aiPreferences?: AiSettingsPreferences; extensions?: SummaryExtensions }
+import {SqliteAuthoringStore} from '../adapters/sqlite/authoringStore';
+import type {AuthoringStore} from '../features/authoring/store';
+export interface Runtime { repo: StoryRepository; creation: CreationService; provider: AiProvider; aiPreferences?: AiSettingsPreferences; extensions?: SummaryExtensions; authoring?: AuthoringStore }
 let boot: Promise<Runtime> | undefined;
 export function initialize(): Promise<Runtime> {
   boot ??= (async () => {
@@ -26,7 +28,7 @@ export function initialize(): Promise<Runtime> {
       const coordinator = new GenerationCoordinator(provider);
       const extensions = new SummaryExtensions(new SqliteExtensionStore(db), repo, coordinator);
       await extensions.load();
-      return {repo, provider, creation: new CreationService(repo, coordinator), aiPreferences, extensions};
+      return {repo, provider, creation: new CreationService(repo, coordinator), aiPreferences, extensions, authoring: new SqliteAuthoringStore(db)};
     } catch (error) { await db.close(); throw error; }
   })();
   return boot;

@@ -4,14 +4,16 @@ import type {Message} from './model';
 import {composerScale, referenceMessage as r, typographyScale} from './chatAppearance';
 import {referenceTypography} from '../../layout/metrics';
 import {useAppearance} from '../appearance/AppAppearance';
+import type {ChatDisplayMode} from './chatPresentation';
 
 /** Display modes change only presentation; all modes use the same message and status. */
-export const ChatMessage = memo(function ChatMessage({message, width}: {message: Message; width: number}) {
+export const ChatMessage = memo(function ChatMessage({message, width, displayMode}: {message: Message; width: number; displayMode?: ChatDisplayMode}) {
   const {colors: c, chatDisplay} = useAppearance();
   const s = composerScale(width);
   const textScale = typographyScale(width);
   const mine = message.role === 'user';
-  const bubble = chatDisplay === 'chat' || (chatDisplay === 'default' && mine);
+  const display = displayMode ?? chatDisplay;
+  const bubble = display === 'chat' || (display === 'default' && mine);
   const right = bubble && mine;
   const content = message.content || '···';
   const paragraphs = useMemo(() => mine ? [content] : content.split(/\r?\n[\t ]*\r?\n/), [content, mine]);

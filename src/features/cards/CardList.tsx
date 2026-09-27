@@ -12,5 +12,5 @@ export function CardList({cards, allCards, actions, selectedId, scale: s, search
   return <ManagedItemList scope="card" items={cards} allItems={allCards} actions={actions} library={actions.folders} search={search} selectedId={selectedId} scale={s}
     active={active} resetKey={search} empty={search ? '검색 결과가 없어요.' : '아직 카드가 없어요.'} onOpen={openCard} report={report}
     geometry={{rowHeight: r.rowHeight, lineHeight: r.lineHeight, fontSize: r.fontSize, padding: r.textInset - r.rowInset, inset: r.rowInset, radius: r.rowRadius, highlightInset: 0}}
-    leading={card => <View style={{marginRight: r.cardImageGap * s}}><CardThumbnail testID={`sidebar-card-image-${card.id}`} cover={card.cover} size={r.cardImage * s}/></View>}/>
+    leading={card => <View style={{marginRight: r.cardImageGap * s}}><CardThumbnail testID={`sidebar-card-image-${card.id}`} cover={card.cover} assetId={card.coverAssetId} size={r.cardImage * s}/></View>}/>
 }

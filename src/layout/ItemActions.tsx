@@ -90,7 +90,7 @@ export function AnchoredActionMenu({target, scale: s, scope, closeLabel, actions
       transformOrigin: [originX, originY, 0], transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
       <Pressable accessible={false} onPress={() => close()} style={StyleSheet.absoluteFill}/>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * menuPadding)}}>
-      {actions.map(item => <RowPressable key={item.icon} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={Math.max(0, radius - menuPadding)}
+      {actions.map(item => <RowPressable key={item.label} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => close(item.action)} radius={Math.max(0, radius - menuPadding)}
         contentStyle={{height: g.rowHeight * s, paddingHorizontal: Math.max(0, g.rowInset * s - menuPadding), flexDirection: 'row', gap: 18 * s, alignItems: 'center'}}>
         <SettingsIcon name={item.icon} size={32 * s} color={item.danger ? c.error : p.text}/>
         <Text style={{color: item.danger ? c.error : p.text, fontSize: g.rowFont * s, lineHeight: g.rowLine * s, includeFontPadding: false}}>{item.label}</Text>

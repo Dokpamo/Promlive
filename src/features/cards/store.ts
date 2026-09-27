@@ -5,6 +5,8 @@ export type CardMetadataPatch = Partial<Pick<Card, 'title' | 'pinnedAt' | 'favor
 
 export interface CardListActions {
   readonly folders?: FolderLibrary;
+  create?(): Promise<void>;
+  edit?(id: string): Promise<void>;
   rename(id: string, title: string): Promise<void>;
   pin(id: string, pinned: boolean): Promise<void>;
   remove(ids: readonly string[], folders?: FolderRemoval): Promise<void>;

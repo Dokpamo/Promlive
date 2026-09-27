@@ -29,6 +29,7 @@ export interface FieldOptions {
   testID?: string;
   editor?: 'full' | 'mini';
   resetValue?: string;
+  onEditingChange?: (editing: boolean) => void;
 }
 interface EditorSession extends FieldOptions {revision: number; closing: boolean}
 const TextEditor = createContext<((field: FieldOptions) => void) | null>(null);
@@ -85,6 +86,10 @@ export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: s
 }
 
 function SettingsTextEditor({field, keepKeyboard, onDismissStart, onClose}: {field: FieldOptions; keepKeyboard: boolean; onDismissStart: () => void; onClose: () => void}) {
+  useEffect(() => {
+    field.onEditingChange?.(true);
+    return () => field.onEditingChange?.(false);
+  }, [field.onEditingChange]);
   return field.editor === 'mini'
     ? <SettingsMiniTextEditor field={field} onDismissStart={onDismissStart} onClose={onClose}/>
     : <SettingsFullTextEditor field={field} keepKeyboard={keepKeyboard} onDismissStart={onDismissStart} onClose={onClose}/>;

@@ -32,6 +32,17 @@ describe('Grok wire format, tested without any external request', () => {
     const eof: TextStreamTransport = {async *stream() {yield 'data: {"choices":[{"delta":{"content":"부분"},"finish_reason":null}]}\n\n';}};
     await expect(new GenerationCoordinator(new GrokProvider({model: 'test', credentialReference: 'test', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, eof)).run(request, () => {})).rejects.toThrow('완료 신호');
   });
+  it('requests structured output for authoring without changing the chat request format', async () => {
+    const sent: TextStreamRequest[] = [];
+    const transport: TextStreamTransport = {async *stream(input) {sent.push(input); yield 'data: {"choices":[{"delta":{"content":"{}"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';}};
+    const coordinator = new GenerationCoordinator(new GrokProvider({model: 'test', credentialReference: 'host-owned', inputCharacterLimit: 12000, maxOutputTokens: 10000}, credentials, transport));
+    const schema = {type: 'object', additionalProperties: false, properties: {kind: {type: 'string'}}, required: ['kind']};
+    await coordinator.run({...request, id: 'studio', purpose: 'authoring', outputSchema: schema}, () => {});
+    await coordinator.run({...request, id: 'chat'}, () => {});
+    expect(JSON.parse(sent[0]!.body).response_format).toEqual({type: 'json_schema', json_schema: {name: 'promlive_authoring', strict: true, schema}});
+    expect(JSON.parse(sent[1]!.body).response_format).toBeUndefined();
+    expect(sent[0]!.body).not.toContain('test-only-credential');
+  });
   it('does not send a model that cannot enforce the token limit', async () => {
     let requests = 0;
     const transport: TextStreamTransport = {async *stream() {requests++; yield '';}};

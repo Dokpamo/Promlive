@@ -25,7 +25,8 @@ it('upgrades existing histories without changing titles, messages or drafts', as
   await migrate(db, migrations.slice(0, 2));
   const repo = new Repository(db);
   const card = await repo.insertCard(newCard());
-  const chat = await repo.createConversation(card.id, '기존 대화');
+  const chat = {id: 'legacy-chat'};
+  await db.execute('INSERT INTO conversations(id,card_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', [chat.id, card.id, '기존 대화', 1, 1]);
   await db.execute("INSERT INTO messages VALUES('old',?,1,'user','보존할 내용','completed',NULL,NULL,1)", [chat.id]);
   await repo.setSetting(`composer:${chat.id}`, '초안');
   await migrate(db);

@@ -8,6 +8,8 @@ import {conversationSchema, messageSchema, type Conversation, type Message} from
 import {SqliteChatSessionStore} from './chatSessionStore';
 import type {ChatSubmission, ComposerDraft} from '../../features/chat/sessionStore';
 import type {CardMetadataPatch} from '../../features/cards/store';
+import {projectSchema} from '../../features/authoring/model';
+import {initialScene, normalizeScene, sceneStateSchema, type SceneState} from '../../features/cards/experience';
 const bufferSchema = cardSchema.extend({title: z.string().max(120)});
 
 export class RevisionConflict extends Error { constructor() { super('원본 카드가 변경되었습니다. 최신 내용과 초안을 비교한 뒤 다시 적용해 주세요.'); this.name = 'RevisionConflict'; } }
@@ -20,7 +22,17 @@ export class Repository implements StoryRepository {
   acceptChatSubmission(submission: ChatSubmission) {return this.chatStore.acceptChatSubmission(submission);}
   async listCards() {
     const cards = (await this.db.execute('SELECT document FROM cards ORDER BY updated_at DESC,id')).rows.map(row => cardSchema.parse(JSON.parse(String(row.document))));
-    return cards.sort((a, b) => (b.pinnedAt ?? -1) - (a.pinnedAt ?? -1) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
+    const draftIds = cards.filter(card => card.studioDraft).map(card => card.id);
+    const drafts = new Map<string, ReturnType<typeof projectSchema.parse>>();
+    if (draftIds.length) {
+      const rows = (await this.db.execute(`SELECT document FROM authoring_projects WHERE card_id IN (${draftIds.map(() => '?').join(',')})`, draftIds)).rows;
+      for (const row of rows) {const project = projectSchema.parse(JSON.parse(String(row.document))); drafts.set(project.cardId, project);}
+    }
+    const visible = cards.map(card => {
+      const draft = drafts.get(card.id)?.draft;
+      return draft ? {...card, title: draft.title.trim() || '제목 없는 카드', description: draft.description, coverAssetId: draft.coverAssetId} : card;
+    });
+    return visible.sort((a, b) => (b.pinnedAt ?? -1) - (a.pinnedAt ?? -1) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
   }
   async getCard(id: string, tx: SqlSession = this.db) {
     const row = (await tx.execute('SELECT document FROM cards WHERE id = ?', [id])).rows[0];
@@ -57,11 +69,26 @@ export class Repository implements StoryRepository {
     if (patch.title !== undefined) patch = {...patch, title: z.string().trim().min(1, '이름을 입력해 주세요.').max(120).parse(patch.title)};
     return this.db.transaction(async tx => {
       const current = await this.getCard(id, tx);
-      const saved = await this.updateCard({...current, ...patch}, current.revision, tx, patch.favorite === undefined && patch.archived === undefined);
+      const titleChanged = patch.title !== undefined && patch.title !== current.title;
+      const next = {...current, ...patch, ...(titleChanged && current.publishedVersion ? {publishedVersion: newId('card_version')} : {})};
+      const saved = await this.updateCard(next, current.revision, tx, patch.favorite === undefined && patch.archived === undefined);
+      if (titleChanged && current.publishedVersion) await tx.execute('INSERT INTO card_versions(id,card_id,document,created_at) VALUES(?,?,?,?)', [saved.publishedVersion!, id, JSON.stringify(saved), Date.now()]);
       const row = (await tx.execute('SELECT document,base_revision FROM editor_buffers WHERE card_id=?', [id])).rows[0];
       if (row && row.base_revision === current.revision) {
         const buffer = bufferSchema.parse(JSON.parse(String(row.document)));
         await tx.execute('UPDATE editor_buffers SET document=?,base_revision=? WHERE card_id=?', [JSON.stringify({...buffer, ...patch}), saved.revision, id]);
+      }
+      const studio = (await tx.execute('SELECT document FROM authoring_projects WHERE card_id=?', [id])).rows[0];
+      if (studio) {
+        const project = projectSchema.parse(JSON.parse(String(studio.document)));
+        if (project.baseCardRevision === current.revision) {
+          const metadata = {...patch};
+          if (project.draft.title !== current.title) delete metadata.title;
+          const revision = project.revision + Number(metadata.title !== undefined && metadata.title !== project.draft.title);
+          await tx.execute('UPDATE authoring_projects SET document=?,revision=revision+1 WHERE card_id=?', [JSON.stringify({...project, revision,
+            publishedDraftRevision: project.publishedDraftRevision === project.revision ? revision : project.publishedDraftRevision,
+            baseCardRevision: saved.revision, draft: {...project.draft, ...metadata, revision: saved.revision, publishedVersion: saved.publishedVersion}}), id]);
+        }
       }
       return saved;
     });
@@ -94,11 +121,48 @@ export class Repository implements StoryRepository {
       return saved;
     });
   }
-  async createConversation(cardId: string, title = '새로운 대화') {
+  async createConversation(cardId: string, title = '새로운 대화', startId?: string) {
     const now = Date.now();
     const item: Conversation = {id: newId('chat'), cardId, title, createdAt: now, updatedAt: now};
-    await this.db.execute('INSERT INTO conversations(id,card_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', [item.id, item.cardId, title, now, now]);
+    await this.db.transaction(async tx => {
+      const card = await this.getCard(cardId, tx);
+      if (card.studioDraft) throw new Error('제작기에서 먼저 카드로 사용을 눌러 주세요.');
+      await tx.execute('INSERT INTO conversations(id,card_id,title,created_at,updated_at,card_snapshot) VALUES(?,?,?,?,?,?)', [item.id, item.cardId, title, now, now, JSON.stringify(card)]);
+      const scene = card.experience ? initialScene(card.experience, startId) : null;
+      if (scene) await tx.execute('INSERT INTO conversation_scenes(conversation_id,document) VALUES(?,?)', [item.id, JSON.stringify(scene)]);
+      const greeting = card.experience ? card.experience.starts.find(s => s.id === scene!.startId)?.greeting : card.body.kind === 'template' ? card.body.data.greeting : '';
+      if (card.publishedVersion && greeting?.trim()) await this.insertMessage({id: newId('msg'), conversationId: item.id, sequence: 1, role: 'assistant', content: greeting, status: 'completed', requestId: null, error: null, createdAt: now}, tx);
+    });
     return item;
+  }
+  async getConversationCard(id: string) {
+    const row = (await this.db.execute('SELECT card_snapshot FROM conversations WHERE id=?', [id])).rows[0];
+    return row?.card_snapshot ? cardSchema.parse(JSON.parse(String(row.card_snapshot))) : null;
+  }
+  async getSceneState(id: string) {
+    const card = await this.getConversationCard(id);
+    if (!card?.experience) return null;
+    const row = (await this.db.execute('SELECT document FROM conversation_scenes WHERE conversation_id=?', [id])).rows[0];
+    return normalizeScene(card.experience, row ? sceneStateSchema.parse(JSON.parse(String(row.document))) : null);
+  }
+  async setSceneState(id: string, input: SceneState) {
+    const state = sceneStateSchema.parse(input);
+    await this.db.transaction(async tx => {
+      const row = (await tx.execute('SELECT card_snapshot FROM conversations WHERE id=?', [id])).rows[0];
+      if (!row?.card_snapshot) throw new Error('대화를 찾을 수 없어요.');
+      const card = cardSchema.parse(JSON.parse(String(row.card_snapshot)));
+      if (!card.experience) throw new Error('이 카드에는 장면 설정이 없어요.');
+      const normalized = normalizeScene(card.experience, state);
+      await tx.execute('INSERT INTO conversation_scenes(conversation_id,document) VALUES(?,?) ON CONFLICT(conversation_id) DO UPDATE SET document=excluded.document', [id, JSON.stringify(normalized)]);
+    });
+  }
+  async useCardVersion(conversationId: string, versionId: string) {
+    await this.db.transaction(async tx => {
+      const row = (await tx.execute('SELECT card_id,document FROM card_versions WHERE id=?', [versionId])).rows[0];
+      if (!row) throw new Error('사용할 카드 버전을 찾을 수 없어요.');
+      const result = await tx.execute('UPDATE conversations SET card_snapshot=? WHERE id=? AND card_id=?', [String(row.document), conversationId, String(row.card_id)]);
+      if (result.changes !== 1) throw new Error('이 카드의 대화가 아니에요.');
+    });
   }
   async conversations(cardId?: string) {
     const result = await this.db.execute(`

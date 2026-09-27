@@ -4,11 +4,12 @@ import type {ChatSessionStore} from './sessionStore';
 import type {DraftWriter, CardLibraryStore} from '../cards/store';
 
 export interface ConversationStore {
-  createConversation(cardId: string, title?: string): Promise<Conversation>;
+  createConversation(cardId: string, title?: string, startId?: string): Promise<Conversation>;
   conversations(cardId?: string): Promise<Conversation[]>;
   renameConversation(id: string, title: string): Promise<void>;
   pinConversation(id: string, pinned: boolean): Promise<void>;
   deleteConversations(ids: readonly string[], folders?: FolderRemoval): Promise<void>;
+  useCardVersion?(conversationId: string, versionId: string): Promise<void>;
 }
 
 export interface MessageReader {
@@ -26,4 +27,7 @@ export interface CreationStore extends MessageReader, DraftWriter,
   Pick<MessageStore, 'beginExchange' | 'saveMessage'>,
   Pick<ConversationStore, 'deleteConversations' | 'conversations'>,
   Pick<CardLibraryStore, 'deleteCards'>,
-  Pick<ChatSessionStore, 'acceptChatSubmission'> {}
+  Pick<ChatSessionStore, 'acceptChatSubmission'> {
+  getConversationCard?(id: string): Promise<import('../cards/model').Card | null>;
+  getSceneState?(id: string): Promise<import('../cards/experience').SceneState | null>;
+}

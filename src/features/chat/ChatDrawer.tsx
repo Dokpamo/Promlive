@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {AccessibilityInfo, Animated, BackHandler, PanResponder, Platform, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, Animated, BackHandler, Keyboard, PanResponder, Platform, Pressable, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ConversationList} from './ConversationList';
 import type {Conversation} from './model';
@@ -22,16 +22,19 @@ import {panelGroupScale, panelReference} from '../../layout/panelGeometry';
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
 
-export function ChatDrawer({cardItems, cardActions, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true}: {
+export function ChatDrawer({cardItems, cardActions, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true, studioOpen = false, studioId, pocketContent}: {
   cardItems: readonly Card[];
   cardActions: CardListActions;
   historyList: ConversationList;
   startChat: (card?: Card) => Promise<void>;
   openConversation: (conversation: Conversation) => Promise<void>;
   report: (error: unknown) => void;
-  children: (open: () => void) => ReactNode;
+  children: (open: () => void, navigation: {back: () => boolean; openPocket: () => void}) => ReactNode;
+  pocketContent?: (close: () => void) => ReactNode;
   openSettings: () => void;
   active?: boolean;
+  studioOpen?: boolean;
+  studioId?: string | undefined;
   /** The creator can opt a card out when card authoring is connected. */
   pocketEnabled?: boolean;
 }) {
@@ -58,7 +61,8 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
   const [historyCardId, setHistoryCardId] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
   const historyCard = cardItems.find(card => card.id === historyCardId);
-  const activeCard = cardItems.find(card => card.id === historyList.selected?.cardId);
+  const selectedCardId = studioOpen ? studioId : historyList.selected?.cardId;
+  const activeCard = cardItems.find(card => card.id === selectedCardId);
   const blocked = useRef(false);
   const modalLocks = useRef(0);
   const cancelClick = useRef(false);
@@ -70,6 +74,18 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
   const historyListTouched = useRef(false);
   const historyScroll = useRef<SheetScrollState>({offset: 0, canScroll: false});
   const capturedHistoryDrag = useRef({x: 0, y: 0});
+  useEffect(() => {
+    if (studioOpen) {cards.settle(false); history.settle(false);}
+    pocket.reset();
+  }, [studioOpen, studioId, cards.settle, history.settle, pocket.reset]);
+  const selectedRoomId = historyList.selected?.id;
+  const previousRoomId = useRef(selectedRoomId);
+
+  // A room can also be opened from the studio, outside this drawer's buttons.
+  useEffect(() => {
+    if (selectedRoomId && selectedRoomId !== previousRoomId.current) {cards.settle(false); pocket.reset();}
+    previousRoomId.current = selectedRoomId;
+  }, [selectedRoomId, cards.settle, pocket.reset]);
 
   useEffect(() => {
     let mounted = true;
@@ -86,8 +102,21 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
 
   const closeCards = useCallback(() => {if (!modalLocks.current) cards.settle(false);}, [cards.settle]);
   const openCards = useCallback(() => {if (!modalLocks.current) {pocket.reset(); cards.settle(true);}}, [cards.settle, pocket.reset]);
+  const openPocket = useCallback(() => {if (pocketEnabled && !modalLocks.current) {Keyboard.dismiss(); cards.reset(); pocket.settle(true);}}, [pocketEnabled, cards.reset, pocket.settle]);
   const backToCards = useCallback(() => {if (!modalLocks.current) history.settle(false);}, [history.settle]);
+  const openEditor = cardActions.edit;
+  const editCard = openEditor ? async (id: string) => {
+    // Returning to the same studio does not change its route ID. Close the
+    // list explicitly and keep the current session, draft and generation alive.
+    if (studioOpen && studioId === id) {
+      history.settle(false); pocket.reset(); cards.settle(false);
+      return;
+    }
+    await openEditor(id);
+  } : undefined;
+  const listActions = editCard ? {...cardActions, edit: editCard} : cardActions;
   const openCard = (card: Card) => {
+    if (card.studioDraft && editCard) {void editCard(card.id).catch(report); return;}
     if (card.id !== historyCardId) setHistorySearch('');
     setHistoryCardId(card.id); history.settle(true);
   };
@@ -154,6 +183,7 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
     onPanResponderGrant: () => {
       if (modalLocks.current) return;
       if (gesturePanel.current) {
+        Keyboard.dismiss();
         cancelClick.current = true;
         if (gesturePanel.current === 'history') {
           historyPullRef.current.begin(capturedHistoryDrag.current.x, capturedHistoryDrag.current.y);
@@ -205,7 +235,7 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
     <DragClickBoundary cancelClick={cancelClick}>
     <View testID="chat-drawer" style={[styles.root, {backgroundColor: c.drawer}]} {...pan.panHandlers} onAccessibilityEscape={back}>
       <View style={[StyleSheet.absoluteFill, {width: drawerWidth, display: cards.visible ? 'flex' : 'none'}]} pointerEvents={cards.visible ? 'auto' : 'none'} aria-hidden={!cards.visible} accessibilityElementsHidden={!cards.visible} importantForAccessibility={cards.visible ? 'auto' : 'no-hide-descendants'}>
-        <ChatHistory cards={cardItems} cardActions={cardActions} active={active && cards.visible} selectedCardId={historyList.selected?.cardId} startChat={startChat} report={report} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
+        <ChatHistory cards={cardItems} cardActions={listActions} active={active && cards.visible} selectedCardId={selectedCardId} startChat={startChat} report={report} width={drawerWidth} historyCard={history.visible ? historyCard : undefined} historyProgress={history.progress} historySearch={historySearch} onHistorySearch={setHistorySearch} openCard={openCard} close={closeCards} openSettings={openSettings}/>
         {historyCard && history.visible && <>
           <Pressable testID="card-history-backdrop" accessibilityRole="button" accessibilityLabel="채팅 기록 바깥 눌러 닫기" onPress={backToCards} style={{position: 'absolute', top: historyTop, bottom: historyBottom, left: 0, right: 0}}/>
           <Animated.View testID="card-history-panel" onLayout={history.onLayout} style={{
@@ -245,8 +275,8 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
             transform: [{translateX: Animated.multiply(pocket.progress, -width)}],
           }]}>
             {/* Share the background and outside clip; control shadows cross the page join. */}
-            <View testID="chat-page" pointerEvents={pocket.visible ? 'none' : 'auto'} aria-hidden={pocket.visible} accessibilityElementsHidden={pocket.visible} importantForAccessibility={pocket.visible ? 'no-hide-descendants' : 'auto'} style={[styles.page, {left: 0, width}]}>{children(openCards)}</View>
-            {pocketEnabled && pocket.visible && <View testID="pocket-page" accessible accessibilityLabel={`${activeCard?.title ?? '현재 카드'} 포켓`} accessibilityHint="오른쪽으로 밀면 채팅으로 돌아갑니다." onAccessibilityEscape={() => pocket.settle(false)} style={[styles.page, {left: width, width}]}/>}
+            <View testID="chat-page" pointerEvents={pocket.visible ? 'none' : 'auto'} aria-hidden={pocket.visible} accessibilityElementsHidden={pocket.visible} importantForAccessibility={pocket.visible ? 'no-hide-descendants' : 'auto'} style={[styles.page, {left: 0, width}]}>{children(openCards, {back, openPocket})}</View>
+            {pocketEnabled && pocket.visible && <View testID="pocket-page" accessible={!pocketContent} accessibilityLabel={`${activeCard?.title ?? '현재 카드'} 포켓`} accessibilityHint="오른쪽으로 밀면 채팅으로 돌아갑니다." onAccessibilityEscape={() => pocket.settle(false)} style={[styles.page, {left: width, width}]}>{pocketContent?.(() => pocket.settle(false))}</View>}
           </Animated.View>
         </View>
         <Animated.View testID="chat-preview-scrim" pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, {backgroundColor: c.drawer, opacity: cards.progress.interpolate({inputRange: [0, 1], outputRange: [0, previewScrimOpacity], extrapolate: 'clamp'})}]}/>

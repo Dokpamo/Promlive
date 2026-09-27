@@ -1,7 +1,8 @@
 import {cardContext, type Card} from '../cards/model';
 import type {Message} from './model';
-export function buildContext(card: Card, history: Message[], input: string, limit: number) {
-  const context = cardContext(card);
+import type {SceneState} from '../cards/experience';
+export function buildContext(card: Card, history: Message[], input: string, limit: number, scene?: SceneState | null) {
+  const context = cardContext(card, scene);
   let remaining = limit - context.length - input.length - 500;
   if (remaining < 0) throw new Error('카드 설정과 입력이 너무 깁니다. 내용을 줄여 주세요.');
   const completed = history.filter(m => m.status === 'completed');
@@ -11,7 +12,8 @@ export function buildContext(card: Card, history: Message[], input: string, limi
     if (!item || item.content.length > remaining) break;
     remaining -= item.content.length; selected.unshift(item);
   }
-  // Never begin a provider conversation with an orphaned assistant response.
-  while (selected[0]?.role === 'assistant') selected.shift();
+  // A card's authored opening is an intentional first assistant message. Only
+  // discard generated replies whose matching user message fell out of the window.
+  while (selected[0]?.role === 'assistant' && !(selected[0].sequence === 1 && selected[0].requestId === null)) selected.shift();
   return {context, messages: selected.map(m => ({role: m.role, content: m.content})), omitted: history.length - selected.length};
 }

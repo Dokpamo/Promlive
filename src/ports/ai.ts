@@ -1,10 +1,11 @@
 import type {z} from 'zod';
 import type {sourceSchema} from '../features/cards/model';
 export type Source = z.infer<typeof sourceSchema>;
-export type AiPurpose = 'chat' | 'writing' | 'research' | 'creator';
+export type AiPurpose = 'chat' | 'writing' | 'research' | 'creator' | 'authoring';
 export interface AiRequest {
   id: string; purpose: AiPurpose; instruction: string; context: string;
   messages: {role: 'user' | 'assistant'; content: string}[];
+  outputSchema?: Record<string, unknown>;
 }
 export type AiEvent = {type: 'delta'; text: string} | {type: 'source'; source: Source} | {type: 'done'};
 export interface AiProvider {

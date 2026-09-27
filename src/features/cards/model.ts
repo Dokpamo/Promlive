@@ -1,4 +1,6 @@
 import {z} from 'zod';
+import {experienceSchema, experienceContext, type SceneState} from './experience';
+import {pocketSchema} from './pocket';
 
 const text = z.string().max(30000);
 export const worldSchema = z.object({
@@ -13,8 +15,13 @@ export const cardSchema = z.object({
   id: z.string().min(1).max(100), formatVersion: z.literal(1), revision: z.number().int().nonnegative(),
   title: z.string().min(1).max(120), description: z.string().max(500),
   genre: z.string().max(40), cover: z.enum(['moon', 'forest', 'sunset', 'code']),
+  tags: z.array(z.string().min(1).max(40)).max(30).optional(),
+  pocket: pocketSchema.optional(),
   favorite: z.boolean(), archived: z.boolean(), example: z.boolean(),
   pinnedAt: z.number().int().nonnegative().nullable().optional(),
+  coverAssetId: z.string().max(120).optional(),
+  experience: experienceSchema.optional(),
+  studioDraft: z.boolean().optional(), publishedVersion: z.string().max(120).optional(),
   createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), body: bodySchema,
 });
 export type Card = z.infer<typeof cardSchema>;
@@ -35,8 +42,9 @@ export function newCard(kind: CardBody['kind'] = 'template'): Card {
   return {id: newId('card'), formatVersion: 1, revision: 0, title: '제목 없는 이야기', description: '', genre: '오리지널', cover: kind === 'code' ? 'code' : 'moon', favorite: false, archived: false, example: false, createdAt: now, updatedAt: now,
     body: kind === 'template' ? {kind, templateId: 'world-character', templateVersion: 1, data: {...emptyWorld}} : {kind, runtime: 'html-worker', runtimeVersion: 1, source: {html: '<main><small>MY LITTLE WORLD</small><h1>이야기의 시작</h1><p id="answer">한 문장으로 세계를 열어 보세요.</p><button id="create">다음 장면 만들기</button></main>', css: 'body { background: #f3efe7; color: #433b35; font-family: system-ui; padding: 32px; } main { max-width: 520px; margin: auto; } small { letter-spacing: 3px; color: #82718e; } h1 { font-size: 30px; } p { line-height: 1.9; white-space: pre-wrap; } button { background: #76618b; color: white; border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer; }', javascript: "creator.on('click', '#create', async () => {\n  creator.text('#answer', '다음 장면을 기다리는 중…');\n  try {\n    const text = await creator.generate('밤의 도서관에서 시작하는 장면을 세 문장으로 써 줘.');\n    creator.text('#answer', text);\n  } catch (error) {\n    creator.text('#answer', error.message);\n  }\n});"}}};
 }
-export function cardContext(card: Card) {
+export function cardContext(card: Card, scene?: SceneState | null) {
   if (card.body.kind === 'code') return `제목: ${card.title}\n소개: ${card.description}`;
+  if (card.experience) return experienceContext(card, scene);
   const d = card.body.data;
   return `제목: ${card.title}\n소개: ${card.description}\n세계관: ${d.world}\n시대와 장소: ${d.era}\n규칙: ${d.rules}\n등장인물: ${d.characterName}\n역할: ${d.role}\n성격과 말투: ${d.personality}\n관계: ${d.relationship}\n시작 장면: ${d.greeting}\n대화 지침: ${d.tone}`;
 }

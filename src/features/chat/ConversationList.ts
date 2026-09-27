@@ -48,16 +48,16 @@ export class ConversationList {
     return true;
   }
 
-  roomFor(cardId: string, forceNew = false): Promise<Conversation> {
+  roomFor(cardId: string, forceNew = false, startId?: string): Promise<Conversation> {
     if (this.removingCards.has(cardId)) return Promise.reject(new Error('삭제 중인 카드입니다.'));
-    const key = `${cardId}:${forceNew}`;
+    const key = `${cardId}:${forceNew}:${startId ?? ''}`;
     const pending = this.opening.get(key);
     if (pending) return pending;
     const task = (async () => {
       const items = forceNew ? [] : await this.store.conversations(cardId);
       // Pinning affects list order, not the most recently used conversation.
       const recent = items.filter(item => !this.deleted.has(item.id)).reduce<Conversation | undefined>((latest, item) => !latest || item.updatedAt > latest.updatedAt ? item : latest, undefined);
-      return recent ?? await this.store.createConversation(cardId);
+      return recent ?? await this.store.createConversation(cardId, undefined, startId);
     })().finally(() => {this.opening.delete(key);});
     this.opening.set(key, task);
     return task;

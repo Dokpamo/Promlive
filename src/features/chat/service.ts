@@ -83,6 +83,7 @@ export class CreationService {
   }
   private async sendMessage(card: Card, conversationId: string, input: string, requestId: string, onAccepted?: () => void, draftRevision?: number) {
     if (!input.trim()) return;
+    card = await this.repo.getConversationCard?.(conversationId) ?? card;
     if (!this.coordinator.provider.connected) {
       if (draftRevision === undefined) throw new AiUnavailableError();
       await this.repo.acceptChatSubmission({id: requestId, conversationId, text: input, draftRevision, generate: false});
@@ -92,7 +93,8 @@ export class CreationService {
     // Context reads are independent from the screen's 40-row page.
     const history = await this.repo.messages(conversationId, Number.MAX_SAFE_INTEGER, 200);
     if (this.deleting.has(conversationId) || this.deletingCards.has(card.id)) return;
-    const context = buildContext(card, history, input, this.coordinator.provider.inputCharacterLimit);
+    const scene = await this.repo.getSceneState?.(conversationId);
+    const context = buildContext(card, history, input, this.coordinator.provider.inputCharacterLimit, scene);
     const receipt = draftRevision === undefined ? {...await this.repo.beginExchange(conversationId, requestId, input.trim()), replayed: false} : await this.repo.acceptChatSubmission({id: requestId, conversationId, text: input, draftRevision, generate: true});
     onAccepted?.();
     const assistant = receipt.assistant;

@@ -7,6 +7,8 @@ import type {CardListActions, CardMetadataPatch} from '../features/cards/store';
 import type {Conversation} from '../features/chat/model';
 import {ChatSessions} from '../features/chat/ChatSession';
 import {ConversationList} from '../features/chat/ConversationList';
+import {AuthoringSession} from '../features/authoring/AuthoringSession';
+import {AuthoringAssistant} from '../features/authoring/AuthoringAssistant';
 export type Page = 'library' | 'editor' | 'chat' | 'settings';
 export type LibraryFilter = 'all' | 'favorites' | 'archived';
 
@@ -27,8 +29,10 @@ export class Workspace {
   readonly chats: ChatSessions;
   readonly cardFolders: FolderLibrary;
   readonly cardActions: CardListActions;
+  studio: AuthoringSession | null = null;
   private createCardActions(): CardListActions {return {
     folders: this.cardFolders,
+    ...(this.runtime.authoring ? {create: () => this.createStudio(), edit: (id: string) => this.openStudio(id)} : {}),
     rename: (id, title) => this.changeCardMetadata(id, {title}),
     pin: (id, pinned) => this.changeCardMetadata(id, {pinnedAt: pinned ? Date.now() : null}),
     remove: (ids, folders) => {
@@ -65,6 +69,51 @@ export class Workspace {
   snapshot = () => this.version;
   private emit() {this.version++; this.listeners.forEach(listener => listener());}
   async ready() {await this.refresh();}
+  async createStudio() {
+    const card = await this.runtime.repo.insertCard({...newCard(), studioDraft: true});
+    await this.refreshCards(); await this.openStudio(card.id);
+  }
+  async importStudio(text: string) {
+    const store = this.runtime.authoring;
+    if (!store) throw new Error('카드 저장소를 불러오지 못했어요.');
+    const card = await store.importBundle(text);
+    await this.refreshCards(); await this.openStudio(card.id);
+    this.notifications.inform('카드를 가져왔어요.');
+  }
+  async openStudio(id: string) {
+    const store = this.runtime.authoring;
+    if (!store) throw new Error('카드 제작기를 불러오지 못했어요.');
+    const attempt = ++this.navigation;
+    if (this.studio) {await this.studio.close(); this.studio = null;}
+    await this.cardEditor.settle();
+    const card = await this.runtime.repo.getCard(id);
+    if (attempt !== this.navigation) return;
+    if (card.body.kind === 'code') {await this.openAt(id, attempt); return;}
+    if (this.cardEditor.state) this.cardEditor.close(this.cardEditor.state.card.id);
+    const studio = new AuthoringSession(id, store, new AuthoringAssistant(this.runtime.creation.coordinator));
+    await studio.load();
+    if (attempt !== this.navigation) {await studio.close(); return;}
+    this.studio = studio; this.page = 'editor'; this.emit();
+  }
+  async closeStudio() {
+    const studio = this.studio;
+    if (studio) await studio.close();
+    if (this.studio === studio) {this.studio = null; this.page = 'chat'; this.emit();}
+    await this.refreshCards();
+  }
+  private async releaseStudio() {
+    const studio = this.studio;
+    if (!studio) return;
+    await studio.close();
+    if (this.studio === studio) this.studio = null;
+  }
+  async studioPublished() {await this.refreshCards();}
+  async useStudioVersion(card: Card) {
+    const room = this.history.selected;
+    if (!room || room.cardId !== card.id || !card.publishedVersion || !this.runtime.repo.useCardVersion) throw new Error('먼저 이 카드로 대화를 시작해 주세요.');
+    await this.runtime.repo.useCardVersion(room.id, card.publishedVersion);
+    this.notifications.inform('다음 응답부터 수정한 설정을 사용해요. 기존 대화는 유지했어요.');
+  }
   private generalCard(): Promise<Card> {
     if (this.removingCards.has('promlive-general-chat')) return Promise.reject(new Error('삭제 중인 카드입니다.'));
     const existing = this.cards.find(card => card.id === 'promlive-general-chat');
@@ -108,7 +157,7 @@ export class Workspace {
   async duplicate(card: Card) {
     const attempt = ++this.navigation;
     const copy = newCard(card.body.kind);
-    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, pinnedAt: null, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
+    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, pinnedAt: null, publishedVersion: undefined, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
     await this.refreshCards(); await this.openAt(saved.id, attempt);
     this.notifications.inform('별도의 카드로 복제했어요.');
   }
@@ -131,16 +180,21 @@ export class Workspace {
   }
   private async changeCardMetadata(id: string, patch: CardMetadataPatch) {
     if (this.removingCards.has(id)) throw new Error('삭제 중인 카드입니다.');
+    const studio = this.studio?.cardId === id ? this.studio : null;
+    if (studio) {studio.cancel(); await studio.flush();}
     await this.cardEditor.settle();
     const saved = await this.runtime.repo.updateMetadata(id, patch);
     this.cardEditor.updateMetadata(saved, patch);
+    if (studio && this.studio === studio) await studio.load();
     await this.refreshCards();
   }
   private async removeCards(ids: readonly string[], folders?: FolderRemoval) {
     if (!ids.length && !folders?.folderIds.length) return;
     const attempt = ++this.navigation;
+    const removesStudio = !!this.studio && ids.includes(this.studio.cardId);
     ids.forEach(id => this.removingCards.add(id));
     try {
+      if (this.studio && ids.includes(this.studio.cardId)) {await this.studio.close(); this.studio = null;}
       if (ids.includes('promlive-general-chat')) await this.generalOpening;
       await this.history.removeCards(ids, () => this.cardEditor.withRemoval(ids, async () => {
         for (const room of this.history.items) if (ids.includes(room.cardId)) this.runtime.extensions?.cancel(room.id);
@@ -149,27 +203,30 @@ export class Workspace {
         this.refreshVersion++;
         this.cards = this.cards.filter(card => !ids.includes(card.id));
         if (ids.includes('promlive-general-chat')) this.generalOpening = undefined;
-        if (attempt === this.navigation && this.page === 'editor' && ids.includes(this.cardEditor.state?.card.id ?? '')) this.page = 'library';
+        if (attempt === this.navigation && this.page === 'editor' && (removesStudio || ids.includes(this.cardEditor.state?.card.id ?? ''))) this.page = 'chat';
         this.emit();
         return removed;
       }));
       await this.refresh();
     } finally {ids.forEach(id => this.removingCards.delete(id));}
   }
-  async startChat(card: Card, forceNew = false) {await this.startChatAt(card, forceNew, ++this.navigation);}
-  private async startChatAt(card: Card, forceNew: boolean, attempt: number) {
+  async startChat(card: Card, forceNew = false, startId?: string) {await this.startChatAt(card, forceNew, ++this.navigation, startId);}
+  private async startChatAt(card: Card, forceNew: boolean, attempt: number, startId?: string) {
+    if (attempt !== this.navigation) return;
     if (this.removingCards.has(card.id)) throw new Error('삭제 중인 카드입니다.');
+    await this.releaseStudio();
     const editor = this.cardEditor.state;
     if (editor?.card.id === card.id && editor.dirty) await this.cardEditor.save();
     else await this.cardEditor.flush();
     if (attempt !== this.navigation) return;
-    const conversation = await this.history.roomFor(card.id, forceNew);
+    const conversation = await this.history.roomFor(card.id, forceNew, startId);
     if (attempt !== this.navigation) {await this.history.refresh(); return;}
     if (this.history.select(conversation)) {this.page = 'chat'; this.emit();}
     await this.refresh();
   }
   async openConversation(conversation: Conversation) {
     const attempt = ++this.navigation;
+    await this.releaseStudio();
     await this.cardEditor.flush();
     if (attempt === this.navigation && this.history.select(conversation)) {this.page = 'chat'; this.emit();}
   }
