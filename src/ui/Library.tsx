@@ -42,10 +42,16 @@ export function Library({width, scale, searchOpen, query, onQueryChange, onClose
       style={styles.list} columnWrapperStyle={{gap}} contentContainerStyle={{gap}}
       showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled"
       initialNumToRender={12}
-      renderItem={({item}) => <View testID={`ui-bot-card-${item.id}`} accessible accessibilityRole="image"
+      renderItem={({item}) => <View testID={`ui-bot-card-${item.id}`} accessible
         accessibilityLabel={`${item.title}, ${item.character}, 제작자 ${item.creator}, 미리보기`}
-        style={{width: cardWidth, aspectRatio: 3 / 4, overflow: 'hidden', backgroundColor: '#F1F2F4'}}>
-        <PreviewCover tile={item.tile} width={cardWidth}/>
+        style={{width: cardWidth, backgroundColor: colors.background}}>
+        <View testID={`ui-bot-cover-${item.id}`} style={styles.cover}>
+          <PreviewCover tile={item.tile} width={cardWidth}/>
+        </View>
+        <View style={styles.caption}>
+          <Text numberOfLines={2} ellipsizeMode="tail" style={styles.cardTitle}>{item.title}</Text>
+          <Text numberOfLines={2} ellipsizeMode="tail" style={styles.cardCreator}>{item.creator}</Text>
+        </View>
       </View>}
       ListEmptyComponent={<View testID="ui-library-no-results" style={styles.empty}>
         <Text style={styles.emptyTitle}>검색 결과가 없어요</Text>
@@ -65,6 +71,10 @@ function PreviewCover({tile, width}: {tile: number; width: number}) {
 
 const styles = StyleSheet.create({
   list: {flex: 1, backgroundColor: colors.background},
+  cover: {width: '100%', aspectRatio: 3 / 4, overflow: 'hidden', backgroundColor: '#F1F2F4'},
+  caption: {paddingTop: 7, paddingHorizontal: 7, paddingBottom: 12},
+  cardTitle: {fontSize: 14, lineHeight: 19, fontWeight: '600', color: colors.foreground, includeFontPadding: false},
+  cardCreator: {marginTop: 3, fontSize: 12, lineHeight: 17, color: '#6B6B70', includeFontPadding: false},
   searchRow: {flexDirection: 'row', alignItems: 'center', paddingLeft: 18, paddingRight: 8, paddingTop: 4, paddingBottom: 16, gap: 4},
   searchField: {flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 44, borderRadius: 14, paddingLeft: 12, backgroundColor: '#F1F2F5'},
   searchInput: {flex: 1, minWidth: 0, paddingHorizontal: 8, paddingVertical: 10, fontSize: 16, color: colors.foreground},
