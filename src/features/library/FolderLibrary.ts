@@ -8,6 +8,7 @@ export type FolderChange =
   | {kind: 'create'; folder: LibraryFolder; ids: readonly string[]; folderIds: readonly string[]}
   | {kind: 'rename'; id: string; name: string};
 export interface FolderStore {
+  ensureCardCategories?(): Promise<void>;
   read(scope: LibraryScope): Promise<FolderTree>;
   change(scope: LibraryScope, change: FolderChange): Promise<FolderTree>;
 }

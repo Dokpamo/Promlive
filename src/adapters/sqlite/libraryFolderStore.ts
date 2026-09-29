@@ -4,6 +4,15 @@ import type {FolderStore, LibraryScope, FolderChange, FolderRemoval} from '../..
 
 export class SqliteLibraryFolderStore implements FolderStore {
   constructor(private readonly db: SqlDatabase) {}
+  /** Seed editable categories once; a user's rename or deletion survives restart. */
+  ensureCardCategories = () => this.db.transaction(async tx => {
+    const key = 'library:categories:v1';
+    if ((await tx.execute('SELECT key FROM settings WHERE key=?', [key])).rows.length) return;
+    for (const [id, name] of [['library-category-recent', '요즘 한 거'], ['library-category-idle', '방치중']]) {
+      await tx.execute("INSERT INTO library_folders(id,kind,card_id,name,parent_id) SELECT ?,'card',NULL,?,NULL WHERE NOT EXISTS (SELECT 1 FROM library_folders WHERE kind='card' AND parent_id IS NULL AND name=?)", [id!, name!, name!]);
+    }
+    await tx.execute('INSERT INTO settings(key,value) VALUES(?,?)', [key, '1']);
+  });
   read = (scope: LibraryScope) => this.db.transaction(tx => this.readIn(tx, scope));
   private async readIn(tx: SqlSession, scope: LibraryScope): Promise<FolderTree> {
     if (scope.kind === 'history' && !(await tx.execute('SELECT id FROM cards WHERE id=?', [scope.cardId])).rows.length) throw new Error('카드를 찾을 수 없어요.');

@@ -1,10 +1,10 @@
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceHeader, referenceTypography} from '../../layout/metrics';
+import {headerScale, referenceHeader, referencePageTitle, referenceTypography} from '../../layout/metrics';
 import {SettingsIcon} from './SettingsIcon';
 import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent, type SheetDrag} from '../../layout/SwipeBackModal';
@@ -12,6 +12,8 @@ import type {SheetScrollState} from '../../layout/sheetMotion';
 import {SheetScrollView} from '../../layout/SheetScrollView';
 import {panelReference} from '../../layout/panelGeometry';
 import {SettingsTextEditorHost} from './SettingsTextField';
+import {useCollectionChrome} from '../../app/NavigationChrome';
+import {useScrollChromeTarget} from '../../layout/scrollChrome';
 
 export {panelReference} from '../../layout/panelGeometry';
 
@@ -23,36 +25,58 @@ export function useSettingsRadius(kind: 'panel' | 'control' = 'panel') {
   return (kind === 'panel' ? panelReference.radius : panelReference.controlRadius) * useSettingsScale();
 }
 
-export function SettingsPage({children, onBack, title, titleInHeader = false, home = false, obscured = false}: {
+export function SettingsPage({children, onBack, title, titleInHeader = false, home = false, obscured = false, embedded = false, active = true}: {
   children: ReactNode;
   onBack: () => void;
   title?: string;
   titleInHeader?: boolean;
   home?: boolean;
   obscured?: boolean;
+  embedded?: boolean;
+  active?: boolean;
 }) {
   const {settings: p} = useAppearance();
   const {width} = useWindowDimensions();
   const s = headerScale(width);
   const insets = useSafeAreaInsets();
+  const navigationChrome = useCollectionChrome();
+  const chrome = embedded ? navigationChrome : null;
+  const scroll = useRef<ScrollView>(null);
+  useScrollChromeTarget(chrome, active && !obscured, offset => scroll.current?.scrollTo({y: offset, animated: false}));
+  const resetChrome = chrome?.reset;
+  const setTopInset = chrome?.setTopInset;
+  useLayoutEffect(() => {if (active) setTopInset?.(insets.top + referenceHeader.barHeight * s);}, [active, insets.top, s, setTopInset]);
+  useEffect(() => {if (active) resetChrome?.();}, [active, obscured, resetChrome]);
+  const headerVisible = chrome?.visible ?? true;
   return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
-    <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: panelReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + (home ? panelReference.profileTop : panelReference.top) * s, paddingBottom: insets.bottom + 36 * s}}>
+    <ScrollView ref={scroll} testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never"
+      onScroll={event => {if (active && !obscured) chrome?.onScroll(event);}} scrollEventThrottle={16}
+      onScrollBeginDrag={event => {if (active && !obscured) chrome?.onScrollBeginDrag(event);}}
+      onScrollEndDrag={event => {if (active && !obscured) chrome?.onScrollEndDrag(event);}}
+      onMomentumScrollBegin={event => {if (active && !obscured) chrome?.onMomentumScrollBegin(event);}}
+      onMomentumScrollEnd={event => {if (active && !obscured) chrome?.onMomentumScrollEnd(event);}}
+      contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: panelReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + (home ? panelReference.profileTop : panelReference.top) * s, paddingBottom: (chrome?.bottomInset ?? insets.bottom) + 36 * s}}>
       <SwipeBackScrollContent>
         {title && !titleInHeader && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
         {children}
       </SwipeBackScrollContent>
     </ScrollView>
-    <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}>
+    <Animated.View pointerEvents={headerVisible ? 'box-none' : 'none'} aria-hidden={!headerVisible} accessibilityElementsHidden={!headerVisible} importantForAccessibility={headerVisible ? 'auto' : 'no-hide-descendants'}
+      style={{position: 'absolute', top: insets.top, left: 0, right: 0, transform: [{translateY: chrome?.progress.interpolate({inputRange: [0, 1], outputRange: [-insets.top - referenceHeader.barHeight * s, 0]}) ?? 0}]}}>
+      <View pointerEvents="box-none" style={embedded ? {width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center'} : undefined}>
       <ScreenHeader width={width} topInset={insets.top} surfaceColor={p.background} testID={home ? 'settings-header' : 'settings-detail-header'}>
-        <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>
-        {titleInHeader && title && <>
+        {embedded ? <View pointerEvents="none" style={{flex: 1, height: referenceHeader.barHeight * s, justifyContent: 'center', marginLeft: (panelReference.inset - referenceHeader.inset) * s}}>
+          <Text testID="settings-header-title" accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referencePageTitle.fontSize * s, lineHeight: referencePageTitle.lineHeight * s, fontWeight: referencePageTitle.fontWeight, textAlign: 'left', includeFontPadding: false}}>{title}</Text>
+        </View> : <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>}
+        {!embedded && titleInHeader && title && <>
           <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
             <Text testID="settings-header-title" accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceHeader.titleFont * s, lineHeight: referenceTypography.titleLineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
           </View>
           <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
         </>}
       </ScreenHeader>
-    </View>
+      </View>
+    </Animated.View>
   </SafeAreaView></View></SettingsTextEditorHost>;
 }
 

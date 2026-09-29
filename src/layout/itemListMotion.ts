@@ -57,9 +57,9 @@ export function itemListLayout<T extends ListItem>(items: readonly T[], rowHeigh
 }
 
 /** FLIP the visual position while FlatList keeps stable keys and row measurements. */
-export function useItemRowOffset(top: number, resetKey: string, reduced: boolean) {
+export function useItemRowOffset(top: number, resetKey: string, reduced: boolean, initialTop = top) {
   const offset = useRef(new Animated.Value(0)).current;
-  const previous = useRef({top, resetKey});
+  const previous = useRef({top: initialTop, resetKey});
   useLayoutEffect(() => {
     const before = previous.current;
     previous.current = {top, resetKey};

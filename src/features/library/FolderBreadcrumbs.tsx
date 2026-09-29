@@ -5,6 +5,7 @@ import {SwipeBackBoundary} from '../../layout/SwipeBackModal';
 import {useAppearance} from '../appearance/AppAppearance';
 import {SettingsIcon} from '../settings/SettingsIcon';
 import type {LibraryFolder} from './folderTree';
+import {PagingBoundary} from '../../layout/PagingBoundary';
 
 /** Keep the current folder visible while allowing horizontal travel through its ancestors. */
 export function FolderBreadcrumbs({path, scale: s, onNavigate, labelPrefix = '', testID = 'persona-folder-path', disabled = false, rootName = '페르소나'}: {
@@ -14,8 +15,8 @@ export function FolderBreadcrumbs({path, scale: s, onNavigate, labelPrefix = '',
   const {colors: c} = useAppearance();
   const scroll = useRef<ScrollView>(null);
   const crumbs = [{id: null, name: rootName}, ...path];
-  return <SwipeBackBoundary>
-    <ScrollView ref={scroll} horizontal testID={testID} showsHorizontalScrollIndicator={false}
+  return <PagingBoundary>{scrollEvents => <SwipeBackBoundary>
+    <ScrollView {...scrollEvents} ref={scroll} horizontal nestedScrollEnabled testID={testID} showsHorizontalScrollIndicator={false}
       onContentSizeChange={() => scroll.current?.scrollToEnd({animated: false})}
       contentContainerStyle={{alignItems: 'center', minHeight: 64 * s}}>
       {crumbs.map((item, index) => <View key={item.id ?? 'root'} style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -26,5 +27,5 @@ export function FolderBreadcrumbs({path, scale: s, onNavigate, labelPrefix = '',
         </RowPressable>
       </View>)}
     </ScrollView>
-  </SwipeBackBoundary>;
+  </SwipeBackBoundary>}</PagingBoundary>;
 }

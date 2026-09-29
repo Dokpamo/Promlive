@@ -31,9 +31,11 @@ const sheetCaptions: Partial<Record<Sheet, string>> = {
 const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
 
 /** Appearance, user profile and AI preferences persist locally. */
-export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, extensions}: {
+export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, extensions, embedded = false, active = true}: {
   onClose: () => void; ai: AiSettingsPreviewState; onAiChange: Dispatch<SetStateAction<AiSettingsPreviewState>>; aiReady: boolean; aiError: string;
   extensions?: SummaryExtensions;
+  embedded?: boolean;
+  active?: boolean;
 }) {
   const {settings: p, mode, setMode, chatDisplay, setChatDisplay} = useAppearance();
   const s = useSettingsScale();
@@ -51,8 +53,8 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
     {sheet === 'language' && ['한국어', 'English', '日本語'].map(value => <SettingsChoice key={value} label={value} selected={language === value} onPress={() => choose(setLanguage, value, dismiss)}/>)}
   </>}</SettingsSheet>;
 
-  return <SwipeBackModal onClose={onClose}>{close => <>
-    <SettingsPage home onBack={close} obscured={page !== null || sheet !== null}>
+  const content = (close: () => void) => <>
+    <SettingsPage home onBack={close} embedded={embedded} active={active} {...(embedded ? {title: '설정', titleInHeader: true} : {})} obscured={page !== null || sheet !== null}>
       <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{alignSelf: 'center', maxWidth: '100%', marginBottom: r.profileBottom * s}} contentStyle={{alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, paddingVertical: r.profilePadding * s}}>
         <UserAvatar testID="settings-user-avatar" image={profile.image} size={r.profileSize * s}/>
         <Text numberOfLines={1} style={{color: p.text, textAlign: 'center', fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{profile.name}</Text>
@@ -80,7 +82,8 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
     </SettingsPage>{renderSheet()}</>}</SwipeBackModal>}
 
     {page === null && renderSheet()}
-  </>}</SwipeBackModal>;
+  </>;
+  return embedded ? content(onClose) : <SwipeBackModal onClose={onClose}>{content}</SwipeBackModal>;
 }
 
 function SettingsField({label, value, onChange, placeholder, multiline = false, maxLength = 100}: {label: string; value: string; onChange: (value: string) => void; placeholder: string; multiline?: boolean; maxLength?: number}) {

@@ -6,19 +6,20 @@ import {headerScale, referenceHeader as r, referenceTypography} from '../../layo
 import {useAppearance} from '../appearance/AppAppearance';
 import {HeaderButton, HeaderCapsule, ScreenHeader} from '../../layout/ScreenHeader';
 
-export function ChatHeader({width, title, conversationId, openHistory, openSettings}: {
+export function ChatHeader({width, title, conversationId, openHistory, openSettings, onBack}: {
   width: number;
   title: string;
   conversationId: string;
   openHistory: () => void;
   openSettings: () => void;
+  onBack?: () => void;
 }) {
   const {colors: c} = useAppearance();
   const s = headerScale(width);
   const titleScale = typographyScale(width);
   const insets = useSafeAreaInsets();
   return <ScreenHeader width={width} topInset={insets.top} testID="chat-header">
-    <HeaderButton width={width} testID="chat-header-back" icon="back" label="카드 목록 열기" onPress={openHistory}/>
+    <HeaderButton width={width} testID="chat-header-back" icon="back" label={onBack ? '채팅 목록으로 돌아가기' : '카드 목록 열기'} onPress={onBack ?? openHistory}/>
     <HeaderCapsule width={width} testID="chat-header-title" style={{flex: 1, minWidth: 0, justifyContent: 'center'}}>
       <View accessible={false} style={{position: 'absolute', left: r.avatarInset * s, top: r.avatarInset * s, width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: chatAvatarColor(conversationId), alignItems: 'center', justifyContent: 'center'}}>
         <ChatIcon name="chat" size={r.icon * s} color="#FFFFFF"/>

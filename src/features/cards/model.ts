@@ -14,6 +14,7 @@ export const bodySchema = z.discriminatedUnion('kind', [
 export const cardSchema = z.object({
   id: z.string().min(1).max(100), formatVersion: z.literal(1), revision: z.number().int().nonnegative(),
   title: z.string().min(1).max(120), description: z.string().max(500),
+  creator: z.string().trim().max(100).optional(),
   genre: z.string().max(40), cover: z.enum(['moon', 'forest', 'sunset', 'code']),
   tags: z.array(z.string().min(1).max(40)).max(30).optional(),
   pocket: pocketSchema.optional(),
@@ -22,6 +23,7 @@ export const cardSchema = z.object({
   coverAssetId: z.string().max(120).optional(),
   experience: experienceSchema.optional(),
   studioDraft: z.boolean().optional(), publishedVersion: z.string().max(120).optional(),
+  origin: z.enum(['created', 'imported']).optional(),
   createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(), body: bodySchema,
 });
 export type Card = z.infer<typeof cardSchema>;
@@ -39,7 +41,7 @@ export const emptyWorld: World = {world: '', era: '', rules: '', characterName: 
 export function newId(prefix = 'id') { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`; }
 export function newCard(kind: CardBody['kind'] = 'template'): Card {
   const now = Date.now();
-  return {id: newId('card'), formatVersion: 1, revision: 0, title: '제목 없는 이야기', description: '', genre: '오리지널', cover: kind === 'code' ? 'code' : 'moon', favorite: false, archived: false, example: false, createdAt: now, updatedAt: now,
+  return {id: newId('card'), formatVersion: 1, revision: 0, title: '제목 없는 이야기', description: '', genre: '오리지널', cover: kind === 'code' ? 'code' : 'moon', favorite: false, archived: false, example: false, origin: 'created', createdAt: now, updatedAt: now,
     body: kind === 'template' ? {kind, templateId: 'world-character', templateVersion: 1, data: {...emptyWorld}} : {kind, runtime: 'html-worker', runtimeVersion: 1, source: {html: '<main><small>MY LITTLE WORLD</small><h1>이야기의 시작</h1><p id="answer">한 문장으로 세계를 열어 보세요.</p><button id="create">다음 장면 만들기</button></main>', css: 'body { background: #f3efe7; color: #433b35; font-family: system-ui; padding: 32px; } main { max-width: 520px; margin: auto; } small { letter-spacing: 3px; color: #82718e; } h1 { font-size: 30px; } p { line-height: 1.9; white-space: pre-wrap; } button { background: #76618b; color: white; border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer; }', javascript: "creator.on('click', '#create', async () => {\n  creator.text('#answer', '다음 장면을 기다리는 중…');\n  try {\n    const text = await creator.generate('밤의 도서관에서 시작하는 장면을 세 문장으로 써 줘.');\n    creator.text('#answer', text);\n  } catch (error) {\n    creator.text('#answer', error.message);\n  }\n});"}}};
 }
 export function cardContext(card: Card, scene?: SceneState | null) {

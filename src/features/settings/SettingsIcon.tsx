@@ -1,12 +1,17 @@
 import {Text, View} from 'react-native';
 
-export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy' | 'folder';
+export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy' | 'folder' | 'export';
 
 export function SettingsIcon({name, color, size = 22}: {name: SettingsIconName; color: string; size?: number}) {
   const s = size / 24;
   const line = {position: 'absolute' as const, backgroundColor: color, height: 1.7 * s, borderRadius: 2 * s};
   const outline = {position: 'absolute' as const, borderWidth: 1.7 * s, borderColor: color};
   return <View pointerEvents="none" accessible={false} style={{width: size, height: size}}>
+    {name === 'export' && <>
+      <View style={[outline, {left: 3 * s, top: 11 * s, width: 18 * s, height: 11 * s, borderTopWidth: 0, borderRadius: 3 * s}]}/>
+      <View style={[line, {left: 11 * s, top: 2 * s, width: 1.7 * s, height: 14 * s}]}/>
+      <View style={[outline, {left: 8 * s, top: 3 * s, width: 8 * s, height: 8 * s, borderRightWidth: 0, borderBottomWidth: 0, transform: [{rotate: '45deg'}]}]}/>
+    </>}
     {name === 'folder' && <>
       <View style={[outline, {left: 2 * s, top: 3 * s, width: 9 * s, height: 5 * s, borderBottomWidth: 0, borderTopLeftRadius: 2 * s, borderTopRightRadius: 2 * s}]}/>
       <View style={[outline, {left: 2 * s, top: 7 * s, width: 20 * s, height: 14 * s, borderRadius: 2 * s}]}/>

@@ -9,6 +9,7 @@ import {ChatSessions} from '../features/chat/ChatSession';
 import {ConversationList} from '../features/chat/ConversationList';
 import {AuthoringSession} from '../features/authoring/AuthoringSession';
 import {AuthoringAssistant} from '../features/authoring/AuthoringAssistant';
+import {restoreUserProfile, userProfileKey} from '../features/profile/userProfile';
 export type Page = 'library' | 'editor' | 'chat' | 'settings';
 export type LibraryFilter = 'all' | 'favorites' | 'archived';
 
@@ -68,17 +69,23 @@ export class Workspace {
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   snapshot = () => this.version;
   private emit() {this.version++; this.listeners.forEach(listener => listener());}
-  async ready() {await this.refresh();}
+  async ready() {await this.runtime.repo.folderStore.ensureCardCategories?.(); await this.refresh();}
   async createStudio() {
-    const card = await this.runtime.repo.insertCard({...newCard(), studioDraft: true});
+    const creator = restoreUserProfile(await this.runtime.repo.getSetting(userProfileKey)).name;
+    const card = await this.runtime.repo.insertCard({...newCard(), creator, studioDraft: true});
     await this.refreshCards(); await this.openStudio(card.id);
   }
-  async importStudio(text: string) {
+  async importLibrary(text: string) {
     const store = this.runtime.authoring;
     if (!store) throw new Error('카드 저장소를 불러오지 못했어요.');
     const card = await store.importBundle(text);
-    await this.refreshCards(); await this.openStudio(card.id);
+    await this.refreshCards();
     this.notifications.inform('카드를 가져왔어요.');
+    return card;
+  }
+  async importStudio(text: string) {
+    const card = await this.importLibrary(text);
+    await this.openStudio(card.id);
   }
   async openStudio(id: string) {
     const store = this.runtime.authoring;
@@ -95,10 +102,10 @@ export class Workspace {
     if (attempt !== this.navigation) {await studio.close(); return;}
     this.studio = studio; this.page = 'editor'; this.emit();
   }
-  async closeStudio() {
+  async closeStudio(destination: Page = 'chat') {
     const studio = this.studio;
     if (studio) await studio.close();
-    if (this.studio === studio) {this.studio = null; this.page = 'chat'; this.emit();}
+    if (this.studio === studio) {this.studio = null; this.page = destination; this.emit();}
     await this.refreshCards();
   }
   private async releaseStudio() {
@@ -144,7 +151,8 @@ export class Workspace {
   setSearch(value: string) {this.search = value; this.emit();}
   async create(kind: Card['body']['kind']) {
     const attempt = ++this.navigation;
-    const card = await this.runtime.repo.insertCard(newCard(kind));
+    const creator = restoreUserProfile(await this.runtime.repo.getSetting(userProfileKey)).name;
+    const card = await this.runtime.repo.insertCard({...newCard(kind), creator});
     await this.refreshCards();
     await this.openAt(card.id, attempt);
   }
@@ -157,7 +165,7 @@ export class Workspace {
   async duplicate(card: Card) {
     const attempt = ++this.navigation;
     const copy = newCard(card.body.kind);
-    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, pinnedAt: null, publishedVersion: undefined, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
+    const saved = await this.runtime.repo.insertCard({...card, id: copy.id, title: `${card.title.slice(0, 112)} 사본`, revision: 0, example: false, origin: 'created', pinnedAt: null, publishedVersion: undefined, createdAt: copy.createdAt, updatedAt: copy.updatedAt});
     await this.refreshCards(); await this.openAt(saved.id, attempt);
     this.notifications.inform('별도의 카드로 복제했어요.');
   }

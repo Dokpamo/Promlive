@@ -9,6 +9,9 @@ export const referenceTypography = {
   logoWeight: '400',
 } as const;
 
+/** Large, left-aligned headings for the four main tabs (26dp at 412dp width). */
+export const referencePageTitle = {fontSize: 39, lineHeight: 52, fontWeight: '700'} as const;
+
 /** Shared header proportions from photo_6161248182776566795_y.jpg (618px wide). */
 export const referenceHeader = {
   viewportWidth: 618,

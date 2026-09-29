@@ -69,7 +69,7 @@ export class SqliteAuthoringStore implements AuthoringStore {
     return this.db.transaction(async tx => {
       const remap = new Map(bundle.assets.map(a => [a.id, newId('asset')]));
       for (const asset of bundle.assets) await tx.execute('INSERT INTO card_assets(id,uri,width,height,name) VALUES(?,?,?,?,?)', [remap.get(asset.id)!, asset.uri, asset.width, asset.height, asset.name ?? null]);
-      const card = cardSchema.parse({...newCard(), ...bundle.card, publishedVersion: newId('card_version'), studioDraft: false,
+      const card = cardSchema.parse({...newCard(), ...bundle.card, origin: 'imported', publishedVersion: newId('card_version'), studioDraft: false,
         coverAssetId: bundle.card.coverAssetId ? remap.get(bundle.card.coverAssetId) : undefined,
         experience: bundle.card.experience ? {...bundle.card.experience, resources: bundle.card.experience.resources.map(r => ({...r, assetIds: r.assetIds.map(id => remap.get(id)!)}))} : undefined});
       await tx.execute('INSERT INTO cards(id,title,kind,revision,updated_at,favorite,archived,document) VALUES(?,?,?,0,?,0,0,?)', [card.id, card.title, card.body.kind, card.updatedAt, JSON.stringify(card)]);

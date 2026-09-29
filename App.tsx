@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Keyboard, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {KeyboardMotionProvider} from './src/layout/KeyboardMotion';
@@ -7,6 +7,8 @@ import {initialize} from './src/app/runtime';
 import {Workspace} from './src/app/workspace';
 import {WorkspaceChat} from './src/app/WorkspaceChat';
 import {NotificationToast} from './src/app/NotificationToast';
+import {MainNavigation, type MainTab} from './src/app/MainNavigation';
+import {CardsCollection, ChatsCollection} from './src/app/CollectionScreens';
 import {ChatDrawer} from './src/features/chat/ChatDrawer';
 import {ChatHeader} from './src/features/chat/ChatHeader';
 import {chatDisplaySettingKey, storedChatDisplay, type ChatDisplayMode} from './src/features/chat/chatPresentation';
@@ -24,6 +26,7 @@ import {CardAssetsProvider} from './src/features/cards/CardAssets';
 import {CardCreateChoice} from './src/features/cards/CardCreateChoice';
 import {StartChoice} from './src/features/cards/SceneControls';
 import type {Card} from './src/features/cards/model';
+import type {Conversation} from './src/features/chat/model';
 import {CardStudioScreen} from './src/features/authoring/CardStudioScreen';
 import {StudioPocket} from './src/features/authoring/StudioPocket';
 import type {StudioPreview} from './src/features/authoring/StudioPreview';
@@ -38,12 +41,12 @@ export default function App() {
   const [error, setError] = useState('');
   const [theme, setTheme] = useState<ThemeMode>(initialStartupTheme);
   const [chatDisplay, setChatDisplay] = useState<ChatDisplayMode>('default');
-  useStartupScreen(!!error, theme);
+  useStartupScreen(!!workspace || !!error, theme);
   useEffect(() => {
     let active = true;
     void initialize().then(async runtime => {
       const next = new Workspace(runtime);
-      await next.readyChat();
+      await next.ready();
       const [savedTheme, savedChatDisplay] = await Promise.all([runtime.repo.getSetting(themeSettingKey), runtime.repo.getSetting(chatDisplaySettingKey)]);
       if (active) {
         const restoredTheme = storedTheme(savedTheme);
@@ -86,35 +89,50 @@ function ChatApp({workspace: w}: {workspace: Workspace}) {
   const aiPreferences = useMemo(() => w.runtime.aiPreferences ?? new AiSettingsPreferences(w.runtime.repo, credentialStore), [w.runtime]);
   const ai = useSyncExternalStore(aiPreferences.subscribe, aiPreferences.snapshot);
   useEffect(() => {void aiPreferences.load();}, [aiPreferences]);
+  const [tab, setTab] = useState<MainTab>('library');
   const [createOpen, setCreateOpen] = useState(false);
   const [startingCard, setStartingCard] = useState<Card | null>(null);
   const studioOpen = w.page === 'editor' && !!w.studio;
   const [studioPreview, setStudioPreview] = useState<StudioPreview | null>(null);
   const startCard = async (card?: Card) => {
-    if (!card) {await w.newGeneralChat(); return;}
-    if ((card.experience?.starts.length ?? 0) > 1) setStartingCard(card); else await w.startChat(card, true);
+    if (card && (card.experience?.starts.length ?? 0) > 1) {setStartingCard(card); return;}
+    if (card) await w.startChat(card, true); else await w.newGeneralChat();
+    setTab('chats');
   };
+  const openConversation = async (room: Conversation) => {await w.openConversation(room); setTab('chats');};
+  const exitRoom = useCallback(() => {Keyboard.dismiss(); void w.go('library').catch(w.notifications.report);}, [w]);
+  const closeStudio = useCallback(() => w.closeStudio('library'), [w]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {Keyboard.dismiss(); setSettingsOpen(true);};
   const {width} = useWindowDimensions();
   const {settings: p} = useAppearance();
-  const settings = settingsOpen && <AiCatalogContext.Provider value={catalogCache}><SettingsPreview ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} onClose={() => setSettingsOpen(false)}/></AiCatalogContext.Provider>;
-  return <UserProfileProvider store={profile}><PersonaProvider store={personas}><CardAssetsProvider store={w.runtime.authoring}><ChatDrawer cardItems={w.cards} cardActions={{...w.cardActions, create: async () => setCreateOpen(true)}} historyList={w.history} startChat={startCard} openConversation={item => w.openConversation(item)} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen && !createOpen && !startingCard && (w.page !== 'editor' || studioOpen)} studioOpen={studioOpen} studioId={studioOpen ? w.studio?.cardId : undefined}
+  const renderSettings = (embedded = false, active = true) => <SettingsPreview embedded={embedded} active={active} ai={ai.value} onAiChange={aiPreferences.update} aiReady={ai.ready} aiError={ai.error} {...(w.runtime.extensions ? {extensions: w.runtime.extensions} : {})} onClose={() => setSettingsOpen(false)}/>;
+  const settings = settingsOpen && renderSettings();
+  const roomOpen = w.page === 'chat';
+  const rootOpen = !roomOpen && w.page !== 'editor';
+  return <UserProfileProvider store={profile}><PersonaProvider store={personas}><CardAssetsProvider store={w.runtime.authoring}><AiCatalogContext.Provider value={catalogCache}>
+    <View style={{flex: 1, display: rootOpen ? 'flex' : 'none'}} pointerEvents={rootOpen ? 'auto' : 'none'} accessibilityElementsHidden={!rootOpen} importantForAccessibility={rootOpen ? 'auto' : 'no-hide-descendants'}>
+      <MainNavigation tab={tab} onChange={setTab} active={rootOpen}>
+        {(page, active) => page === 'settings' ? renderSettings(true, active) : page === 'chats'
+          ? <ChatsCollection workspace={w} active={active} startChat={startCard} openConversation={openConversation}/>
+          : <CardsCollection workspace={w} kind={page === 'create' ? 'create' : 'library'} active={active} startChat={startCard}/>}
+      </MainNavigation>
+    </View>
+    {(roomOpen || studioOpen) && <ChatDrawer cardItems={w.cards} cardActions={{...w.cardActions, create: async () => setCreateOpen(true)}} historyList={w.history} startChat={startCard} openConversation={openConversation} report={w.notifications.report} openSettings={openSettings} active={!settingsOpen && !createOpen && !startingCard} studioOpen={studioOpen} studioId={studioOpen ? w.studio?.cardId : undefined} {...(!studioOpen ? {onExit: exitRoom} : {})}
     pocketContent={close => studioOpen && w.studio ? studioPreview ? <ConversationPocket key={studioPreview.session.conversationId} store={studioPreview.store} roomId={studioPreview.session.conversationId} close={close}/> : <StudioPocket session={w.studio} close={close}/> : w.history.selected ? <ConversationPocket key={w.history.selected.id} store={w.runtime.repo} roomId={w.history.selected.id} close={close}/> : <PocketSurface card={null} close={close}/>}>
     {(openHistory, navigation) => <View style={{flex: 1}}>
-    {studioOpen && w.studio ? <CardStudioScreen key={w.studio.cardId} session={w.studio} onClose={() => w.closeStudio()} onPublished={() => w.studioPublished()}
-      startChat={async (card, startId) => {await w.closeStudio(); await w.startChat(card, true, startId);}} openSettings={openSettings} settings={settings} openCards={openHistory} openPocket={navigation.openPocket} navigationBack={navigation.back} onPreviewChange={setStudioPreview}
-      useVersion={w.history.selected?.cardId === w.studio.cardId ? card => w.useStudioVersion(card) : undefined}/> : <WorkspaceChat key={w.history.selected?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.history.selected?.title ?? '새로운 대화'} conversationId={w.history.selected?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings}/>}/>}
-
-    <NotificationToast notifications={w.notifications} width={width}/>
-  </View>}</ChatDrawer>
-    {w.page === 'editor' && !w.studio && <SwipeBackModal onClose={() => void w.go('chat').catch(w.notifications.report)}>{close => <SafeAreaView style={{flex: 1, backgroundColor: p.background}}>
+    {studioOpen && w.studio ? <CardStudioScreen key={w.studio.cardId} session={w.studio} onClose={closeStudio} onPublished={() => w.studioPublished()}
+      startChat={async (card, startId) => {await closeStudio(); await w.startChat(card, true, startId); setTab('chats');}} openSettings={openSettings} settings={settings} openPocket={navigation.openPocket} navigationBack={navigation.back} onPreviewChange={setStudioPreview}
+      useVersion={w.history.selected?.cardId === w.studio.cardId ? card => w.useStudioVersion(card) : undefined}/> : <WorkspaceChat key={w.history.selected?.id ?? 'new'} workspace={w} width={width} header={<ChatHeader width={width} title={w.history.selected?.title ?? '새로운 대화'} conversationId={w.history.selected?.id ?? 'new'} openHistory={openHistory} openSettings={openSettings} onBack={exitRoom}/>}/>}
+  </View>}</ChatDrawer>}
+    {w.page === 'editor' && !w.studio && <SwipeBackModal onClose={exitRoom}>{close => <SafeAreaView style={{flex: 1, backgroundColor: p.background}}>
       <ScreenHeader width={width}><HeaderButton width={width} icon="back" label="카드 편집 닫기" onPress={close}/></ScreenHeader>
-      <EditorScreen session={w.cardEditor} creation={w.runtime.creation} width={width} startChat={card => w.startChat(card)} duplicate={card => w.duplicate(card)} archive={card => w.archive(card)} openSettings={async () => openSettings()} report={w.notifications.report}/>
+      <EditorScreen session={w.cardEditor} creation={w.runtime.creation} width={width} startChat={startCard} duplicate={card => w.duplicate(card)} archive={card => w.archive(card)} openSettings={async () => openSettings()} report={w.notifications.report}/>
       {settings}
     </SafeAreaView>}</SwipeBackModal>}
     {w.page !== 'editor' && settings}
     {createOpen && <CardCreateChoice onClose={() => setCreateOpen(false)} create={() => w.createStudio()} importCard={text => w.importStudio(text)} report={w.notifications.report}/>}
-    {startingCard && <StartChoice card={startingCard} onClose={() => setStartingCard(null)} onChoose={id => {void w.startChat(startingCard, true, id).catch(w.notifications.report);}}/>}
-  </CardAssetsProvider></PersonaProvider></UserProfileProvider>;
+    {startingCard && <StartChoice card={startingCard} onClose={() => setStartingCard(null)} onChoose={id => {void w.startChat(startingCard, true, id).then(() => setTab('chats')).catch(w.notifications.report);}}/>}
+    <NotificationToast notifications={w.notifications} width={width}/>
+  </AiCatalogContext.Provider></CardAssetsProvider></PersonaProvider></UserProfileProvider>;
 }

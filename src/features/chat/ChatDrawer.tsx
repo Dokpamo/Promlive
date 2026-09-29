@@ -22,7 +22,7 @@ import {panelGroupScale, panelReference} from '../../layout/panelGeometry';
 const openScale = 0.90;
 const previewScrimOpacity = 0.61;
 
-export function ChatDrawer({cardItems, cardActions, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true, studioOpen = false, studioId, pocketContent}: {
+export function ChatDrawer({cardItems, cardActions, historyList, startChat, openConversation, report, children, openSettings, active = true, pocketEnabled = true, studioOpen = false, studioId, pocketContent, onExit}: {
   cardItems: readonly Card[];
   cardActions: CardListActions;
   historyList: ConversationList;
@@ -32,6 +32,7 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
   children: (open: () => void, navigation: {back: () => boolean; openPocket: () => void}) => ReactNode;
   pocketContent?: (close: () => void) => ReactNode;
   openSettings: () => void;
+  onExit?: () => void;
   active?: boolean;
   studioOpen?: boolean;
   studioId?: string | undefined;
@@ -126,8 +127,9 @@ export function ChatDrawer({cardItems, cardActions, historyList, startChat, open
     if (p.cards.visible && p.history.visible) {historyPullRef.current.settle(false); return true;}
     if (p.cards.visible) {p.cards.settle(false); return true;}
     if (p.pocket.visible) {p.pocket.settle(false); return true;}
+    if (onExit) {onExit(); return true;}
     return false;
-  }, []);
+  }, [onExit]);
 
   useEffect(() => {
     if (!active) return;

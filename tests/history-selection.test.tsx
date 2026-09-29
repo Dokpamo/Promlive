@@ -12,18 +12,20 @@ import {CreationService} from '../src/features/chat/service';
 import {GenerationCoordinator} from '../src/features/chat/generation';
 import type {Repository} from '../src/adapters/sqlite/repository';
 import type {ItemLayout, ListItem} from '../src/layout/itemListMotion';
+import {CardsCollection} from '../src/app/CollectionScreens';
+import {MainNavigation, type MainTab} from '../src/app/MainNavigation';
 
 vi.mock('react-native', async () => {
   const React = await import('react');
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
-  const View = React.forwardRef(({children, testID, onLayout}: {children?: ReactNode; testID?: string; onLayout?: (event: unknown) => void}, ref) => {
+  const View = React.forwardRef(({children, testID, onLayout, 'aria-hidden': hidden}: {children?: ReactNode; testID?: string; onLayout?: (event: unknown) => void; 'aria-hidden'?: boolean}, ref) => {
     React.useImperativeHandle(ref, () => ({measureInWindow: (done: (...values: number[]) => void) => done(0, 200, 320, 48)}));
     const layout = React.useRef(onLayout); layout.current = onLayout;
     React.useEffect(() => {layout.current?.({nativeEvent: {layout: {width: 320, height: 650}}});}, []);
-    return <div data-testid={testID}>{children}</div>;
+    return <div data-testid={testID} aria-hidden={hidden}>{children}</div>;
   });
   const animate = (value: {setValue: (next: number) => void}, config: {toValue: number}) => ({start: (done?: (result: {finished: boolean}) => void) => {value.setValue(config.toValue); done?.({finished: true});}, stop() {}});
-  return {...native, View, Text: ({children}: {children: ReactNode}) => <span>{children}</span>,
+  return {...native, View, Text: ({children, testID}: {children: ReactNode; testID?: string}) => <span data-testid={testID}>{children}</span>,
     AccessibilityInfo: {isReduceMotionEnabled: async () => false, addEventListener: () => ({remove() {}})},
     Animated: {...native.Animated, View, timing: animate, spring: animate},
     FlatList: ({data, renderItem, ListFooterComponent, ListHeaderComponent}: {ListHeaderComponent?: ReactNode; data: ItemLayout<ListItem>[]; renderItem: (args: {item: ItemLayout<ListItem>; index: number}) => ReactNode; ListFooterComponent: ReactNode}) => <div data-testid="history-rows">{ListHeaderComponent}{data.map((item, index) => <div key={item.key}>{renderItem({item, index})}</div>)}{ListFooterComponent}</div>,
@@ -232,6 +234,55 @@ it('opens the compact editor for a card and applies the confirmed name to that c
 });
 
 async function hold(label: string) {await act(async () => {button(label).dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));});}
+function LibraryPageHost({workspace}: {workspace: Workspace}) {
+  useSyncExternalStore(workspace.subscribe, workspace.snapshot);
+  const [tab, setTab] = useState<MainTab>('library');
+  return <MainNavigation tab={tab} onChange={setTab}>{(page, active) => page === 'library'
+    ? <CardsCollection workspace={workspace} kind="library" active={active} startChat={async () => {close();}}/>
+    : null}</MainNavigation>;
+}
+it('selects library covers directly, replaces navigation, counts checks and restores navigation when selection ends', async () => {
+  const {workspace, cards} = await cardHost();
+  await act(async () => root!.render(<LibraryPageHost workspace={workspace}/>));
+  const byId = (id: string) => document.querySelector(`[data-testid="${id}"]`);
+  const originalHeader = byId('collection-header'), originalTabs = byId('main-tab-bar');
+  expect(byId('collection-header')).not.toBeNull();
+  expect(byId('main-tab-bar')).not.toBeNull();
+  await hold('첫 카드 카드 열기');
+  expect(byId('card-actions-overlay')).toBeNull();
+  expect(button('첫 카드').getAttribute('aria-checked')).toBe('true');
+  expect(byId('card-selection-count')?.textContent).toBe('1');
+  expect(byId('collection-header')?.getAttribute('aria-hidden')).toBe('true');
+  expect(byId('main-tab-bar')?.getAttribute('aria-hidden')).toBe('true');
+  expect(close).not.toHaveBeenCalled();
+  await press('둘째 카드');
+  expect(byId('card-selection-count')?.textContent).toBe('2');
+  await press('첫 카드');
+  expect(byId('card-selection-count')?.textContent).toBe('1');
+  await press('선택한 항목 더보기');
+  for (const label of ['고정', '이름 변경', '내보내기']) expect(button(label), label).not.toBeNull();
+  await press('카드 메뉴 닫기');
+  await press('1개 선택, 전체 선택');
+  expect(byId('card-selection-count')?.textContent).toBe('3');
+  await press('선택한 항목 더보기');
+  expect(button('이름 변경')).toBeNull();
+  await press('고정');
+  expect(workspace.cards.every(card => card.pinnedAt != null)).toBe(true);
+  await press('3개 선택, 전체 선택 해제');
+  expect(byId('card-selection-header')).toBeNull();
+  expect(byId('main-tab-bar')).toBe(originalTabs);
+  expect(byId('collection-header')).toBe(originalHeader);
+  expect(byId('main-tab-bar')?.getAttribute('aria-hidden')).toBe('false');
+  expect(byId('collection-header')?.getAttribute('aria-hidden')).toBe('false');
+  await hold('첫 카드 카드 열기'); await press('선택한 항목 삭제');
+  expect(workspace.cards).toHaveLength(3);
+  await press('삭제 취소');
+  expect(byId('card-selection-header')).toBeNull();
+  expect(workspace.cards.map(card => card.id).sort()).toEqual(cards.map(card => card.id).sort());
+  await hold('첫 카드 카드 열기'); await press('선택 취소');
+  expect(byId('card-selection-footer')).toBeNull();
+  expect(byId('main-tab-bar')).not.toBeNull();
+});
 async function input(label: string, value: string) {
   await act(async () => {
     const field = document.querySelector(`input[aria-label="${label}"]`)!;
@@ -255,6 +306,10 @@ it('shows icon actions without visible labels or a selection count, clears on bl
 });
 it('creates the first card folder directly, keeps nested cards searchable and opens the same card from its folder', async () => {
   const {workspace, cards} = await cardHost();
+  // Users can remove the initial library categories and return to an empty folder tree.
+  await act(async () => {
+    await workspace.cardActions.remove([], {scope: workspace.cardFolders.scope, folderIds: workspace.cardFolders.snapshot().value.folders.map(folder => folder.id)});
+  });
   await holdCard('첫 카드'); await press('선택'); await press('선택한 항목 폴더 이동');
   expect((document.querySelector('input[aria-label="폴더 이름"]') as HTMLInputElement).value).toBe('새폴더 1');
   await press('새 폴더 완료');
