@@ -23,8 +23,8 @@ export function StudioStructure({session, project, scale: s, report}: {session: 
   };
   const resource = editing?.kind === 'resource' ? experience.resources.find(r => r.id === editing.id) : undefined;
   const start = editing?.kind === 'start' ? experience.starts.find(r => r.id === editing.id) : undefined;
-  const row = (name: string, detail: string, action: () => void, selected = false) => <PressSurface accessibilityRole="button" accessibilityLabel={name} onPress={action} radius={30 * s} highlightColor={p.selected}
-    contentStyle={{flex: 0, backgroundColor: selected ? p.selected : p.surface, paddingHorizontal: 24 * s, paddingVertical: 20 * s, gap: 7 * s}}>
+  const row = (name: string, detail: string, action: () => void, selected = false) => <PressSurface accessibilityRole="button" accessibilityLabel={name} onPress={action} radius={12 * s} highlightColor={p.selected}
+    contentStyle={{flex: 0, backgroundColor: selected ? p.selected : p.sheet, paddingHorizontal: 24 * s, paddingVertical: 20 * s, gap: 7 * s}}>
     <Text style={{color: p.text, fontSize: 27 * s, lineHeight: 36 * s}}>{name}</Text><Text numberOfLines={2} style={{color: p.secondary, fontSize: 21 * s, lineHeight: 30 * s}}>{detail}</Text>
   </PressSurface>;
   return <>

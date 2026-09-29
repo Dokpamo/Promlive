@@ -11,12 +11,12 @@ import type {AuthoringSession} from './AuthoringSession';
 export function StudioConversation({session, project, scale: s, report, openSettings, openPocket, saving}: {session: AuthoringSession; project: AuthoringProject; scale: number; report: (error: unknown) => void; openSettings: () => void; openPocket?: (() => void) | undefined; saving: boolean}) {
   const {settings: p} = useAppearance();
   return <View style={{gap: 22 * s}}>
-    {!session.assistant.connected && <View style={{gap: 14 * s, padding: 24 * s, borderRadius: 32 * s, backgroundColor: p.surface}}>
+    {!session.assistant.connected && <View style={{gap: 14 * s, padding: 24 * s, borderRadius: 16 * s, backgroundColor: p.surface}}>
       <Text style={{color: p.text, fontSize: 25 * s, lineHeight: 36 * s}}>AI를 연결하면 대화로 만들 수 있어요. 직접 편집은 연결 없이도 가능해요.</Text>
       <View style={{alignSelf: 'flex-start'}}><StudioAction label="AI 연결 설정" scale={s} onPress={openSettings}/></View>
     </View>}
     {!project.messages.length && <View style={{gap: 24 * s, paddingVertical: 28 * s}}>
-      <Text accessibilityRole="header" style={{color: p.text, fontSize: 38 * s, lineHeight: 50 * s}}>어떤 이야기를 만들까요?</Text>
+      <Text accessibilityRole="header" style={{color: p.text, fontSize: 38 * s, lineHeight: 50 * s, fontWeight: '700'}}>어떤 이야기를 만들까요?</Text>
       <Text style={{color: p.secondary, fontSize: 25 * s, lineHeight: 38 * s}}>한 사람과의 대화부터 여러 장소와 인물이 있는 세계까지, 원하는 모습을 이야기해 주세요.</Text>
       <StudioAction label="밤의 도서관을 지키는 사서를 만들어 줘" scale={s} onPress={() => session.setPrompt('밤의 도서관을 지키는 조용한 사서를 만들어 줘. 처음 방문한 사용자와 천천히 가까워지는 이야기로.')}/>
       <View style={{alignSelf: 'flex-start'}}><StudioAction label="직접 만들기" scale={s} onPress={() => session.setView('edit')}/></View>

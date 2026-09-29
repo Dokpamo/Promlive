@@ -17,14 +17,14 @@ export function PocketSurface({card, scene, pocket, close, edit, children, notic
   const {colors: c, settings: p} = useAppearance();
   const layout = pocket ?? (card ? card.pocket ?? defaultPocket(card) : null);
   const fields = card && layout ? pocketValues(card, layout, scene) : [];
-  // ChatDrawer paints the shared canvas; a page background would cover the
+  // ChatNavigation paints the shared canvas; a page background would cover the
   // neighboring composer's shadow while dragging across the page boundary.
   return <View testID="card-pocket" style={{flex: 1}}>
     <ScrollView testID="pocket-scroll" showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="never" contentContainerStyle={{paddingHorizontal: 28 * s, paddingTop: insets.top + (referenceHeader.barHeight + 42) * s, paddingBottom: insets.bottom + 40 * s, gap: 24 * s, maxWidth: 800, width: '100%', alignSelf: 'center'}}>
       {children}
       {!!notice && <Text accessibilityLiveRegion="polite" style={{color: c.muted, fontSize: 23 * s, lineHeight: 34 * s}}>{notice}</Text>}
       <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16 * s}}>
-        {fields.map(field => <View key={field.id} testID={`pocket-field-${field.id}`} style={{width: layout?.template === 'tiles' ? '47%' : '100%', flexGrow: layout?.template === 'tiles' ? 1 : 0, borderRadius: 32 * s, paddingHorizontal: 26 * s, paddingVertical: 28 * s, backgroundColor: p.surface, gap: 12 * s}}>
+        {fields.map(field => <View key={field.id} testID={`pocket-field-${field.id}`} style={{width: layout?.template === 'tiles' ? '47%' : '100%', flexGrow: layout?.template === 'tiles' ? 1 : 0, borderRadius: 16 * s, paddingHorizontal: 26 * s, paddingVertical: 28 * s, backgroundColor: p.surface, gap: 12 * s}}>
           <Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>{field.label}</Text>
           <Text style={{color: p.text, fontSize: 30 * s, lineHeight: 42 * s}}>{field.value}</Text>
         </View>)}

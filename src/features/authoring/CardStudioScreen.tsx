@@ -26,7 +26,7 @@ interface Props {
   onPublished: () => Promise<void>; startChat: (card: Card, startId?: string) => Promise<void>;
   useVersion?: ((card: Card) => Promise<void>) | undefined;
   openSettings: () => void; settings?: ReactNode;
-  openCards?: () => void; openPocket?: (() => void) | undefined; navigationBack?: () => boolean;
+  openPocket?: (() => void) | undefined; navigationBack?: () => boolean;
   onPreviewChange?: (preview: StudioPreview | null) => void;
 }
 
@@ -53,7 +53,7 @@ export function CardStudioScreen(props: Props) {
   return <KeyboardMotionProvider><SettingsTextEditorHost><StudioContent {...props} close={requestClose} closeError={error}/></SettingsTextEditorHost></KeyboardMotionProvider>;
 }
 
-function StudioContent({session, onPublished, startChat, useVersion, openSettings, settings, close, closeError, openCards, openPocket, onPreviewChange}: Props & {close: () => void; closeError: string}) {
+function StudioContent({session, onPublished, startChat, useVersion, openSettings, settings, close, closeError, openPocket, onPreviewChange}: Props & {close: () => void; closeError: string}) {
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   const {colors: c, settings: p} = useAppearance();
   const {width} = useWindowDimensions();
@@ -132,9 +132,9 @@ function StudioContent({session, onPublished, startChat, useVersion, openSetting
     </ScrollView>
     <View pointerEvents={expanded ? 'none' : 'box-none'} accessibilityElementsHidden={expanded} style={{position: 'absolute', left: 0, right: 0, top: insets.top}}>
       <ScreenHeader width={width} topInset={insets.top}>
-        <HeaderButton testID="studio-close" width={width} icon="back" label={ai ? openCards ? '카드 목록 열기' : '제작 닫기' : 'AI와 만들기'} onPress={ai ? openCards ?? close : () => chooseView('ai')}/>
-        <View style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
-          <Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: 28 * s, lineHeight: 36 * s}}>{ai ? '카드 제작' : '구성 편집'}</Text>
+        <HeaderButton testID="studio-close" width={width} icon={ai ? 'close' : 'back'} label={ai ? '제작 닫기' : 'AI와 만들기'} onPress={ai ? close : () => chooseView('ai')}/>
+        <View style={{flex: 1, marginLeft: 12 * s, height: referenceHeader.height * s, justifyContent: 'center'}}>
+          <Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: 32 * s, lineHeight: 40 * s, fontWeight: '700'}}>{ai ? '카드 제작' : '구성 편집'}</Text>
           <Text testID="studio-save-status" style={{color: c.muted, fontSize: 17 * s}}>{state.error && state.saving ? '저장 확인 필요' : state.publishing ? '완성하는 중…' : state.saving ? '저장 중…' : currentPublished ? '완성됨' : '초안 자동 저장'}</Text>
         </View>
         <HeaderCapsule width={width} style={{flexDirection: 'row'}}>

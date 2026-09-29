@@ -67,7 +67,7 @@
 | 상태창 구성·장면 값 연결 | `src/features/cards/pocket.ts` |
 | 제작 중 포켓 편집 | `src/features/authoring/StudioPocket.tsx` |
 | 공통 포켓 화면·대화 상태 조회 | `src/features/cards/CardPocketScreen.tsx` |
-| 카드 목록·제작 화면·포켓 좌우 이동 | `src/features/chat/ChatDrawer.tsx` |
+| 제작 목록으로 복귀·포켓 좌우 이동 | `src/features/chat/ChatNavigation.tsx` |
 | 파일 선택·저장·공유 어댑터 | `src/adapters/files/cardFiles.*` |
 
 DB 8번 마이그레이션은 에셋 파일명과 대화별 장면 상태를 추가한다. 기존 카드와 대화는 유지한다.

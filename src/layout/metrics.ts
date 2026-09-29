@@ -9,25 +9,25 @@ export const referenceTypography = {
   logoWeight: '400',
 } as const;
 
-/** Large, left-aligned headings for the four main tabs (26dp at 412dp width). */
-export const referencePageTitle = {fontSize: 39, lineHeight: 52, fontWeight: '700'} as const;
+/** Compact reference title for navigation pages. */
+export const referencePageTitle = {fontSize: 36, lineHeight: 46, fontWeight: '700'} as const;
 
-/** Shared header proportions from photo_6161248182776566795_y.jpg (618px wide). */
+/** Flat header proportions measured in the 618px reference screenshots. */
 export const referenceHeader = {
   viewportWidth: 618,
-  inset: 28,
+  inset: 17,
   top: 0,
   barHeight: 96,
-  height: 76,
-  gap: 20,
-  actions: 158,
-  actionGap: 6,
-  highlight: 70,
+  height: 66,
+  gap: 8,
+  actions: 132,
+  actionGap: 0,
+  highlight: 60,
   avatar: 68,
   avatarInset: 4,
   titleInset: 82,
-  titleFont: referenceTypography.titleFontSize,
-  icon: 32,
+  titleFont: 32,
+  icon: 36,
 } as const;
 
 export function headerScale(width: number) {

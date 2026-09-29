@@ -2,7 +2,6 @@ import {useRef} from 'react';
 import {Animated, Platform, Pressable, Text, TextInput, View} from 'react-native';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon, type ChatIconName} from '../features/chat/ChatIcon';
-import {referenceSidebar as r} from '../features/chat/chatAppearance';
 import {PressSurface} from './PressSurface';
 import {rowPressedScale} from './RowPressable';
 import {usePressFeedback} from './usePressFeedback';
@@ -12,15 +11,15 @@ export function ListSearch({scale: s, value, onChange, label, testID = 'sidebar-
   scale: number; value: string; onChange: (value: string) => void; label: string; testID?: string;
   transition?: {progress: Animated.AnimatedInterpolation<number>; from: string; to: string};
 }) {
-  const {colors: c, settings: p, isDark} = useAppearance();
+  const {colors: c, settings: p} = useAppearance();
   const input = useRef<TextInput>(null);
   const {progress, onPressIn, onPressOut} = usePressFeedback();
-  const size = r.searchHeight * s;
+  const size = 64 * s;
   const travel = 144 * s;
   const mouseFeedback = Platform.OS === 'web' ? {onMouseDown: onPressIn, onMouseUp: onPressOut, onMouseLeave: onPressOut} : {};
   return <Pressable testID={testID} accessible={false} onPress={() => input.current?.focus()} onPressIn={onPressIn} onPressOut={onPressOut} style={{height: size}}>
-    <Animated.View testID="sidebar-search-surface" style={{height: size, borderRadius: size / 2, backgroundColor: c.search, borderWidth: isDark ? s : 0, borderColor: c.border, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 27 * s, gap: 14 * s, transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]})}]}}>
-      <Animated.View testID="sidebar-search-tint" pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, backgroundColor: p.selected, opacity: progress}}/>
+    <Animated.View testID="sidebar-search-surface" style={{height: size, borderRadius: 16 * s, backgroundColor: c.search, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 27 * s, gap: 14 * s, transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [1, rowPressedScale]})}]}}>
+      <Animated.View testID="sidebar-search-tint" pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: 16 * s, backgroundColor: p.selected, opacity: progress}}/>
       <ChatIcon name="search" size={29 * s} color={c.text}/>
       <View style={{flex: 1, minWidth: 0, height: size, overflow: 'hidden'}}>
         <TextInput ref={input} testID={`${testID}-input`} accessibilityLabel={label} value={value} onChangeText={onChange} selectionColor="#3096EB" underlineColorAndroid="transparent" returnKeyType="search" onTouchStart={onPressIn} onTouchEnd={onPressOut} onTouchCancel={onPressOut} onBlur={onPressOut} {...mouseFeedback} style={{width: '100%', padding: 0, color: c.text, height: size, fontSize: 27 * s, includeFontPadding: false}}/>
@@ -38,12 +37,11 @@ export function ListSearch({scale: s, value, onChange, label, testID = 'sidebar-
 }
 
 export function ListCreateButton({scale: s, label, onPress, testID = 'sidebar-create', icon = 'new-chat'}: {scale: number; label: string; onPress: () => void; testID?: string; icon?: ChatIconName}) {
-  const {colors: c, settings: p, isDark} = useAppearance();
-  const size = r.searchHeight * s;
+  const {colors: c, settings: p} = useAppearance();
+  const size = 64 * s;
   return <PressSurface compact testID={testID} surfaceTestID="sidebar-create-surface" highlightTestID="sidebar-create-tint" accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-    radius={size / 2} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
-    contentStyle={{backgroundColor: c.header, boxShadow: isDark ? undefined : '0px 6px 24px rgba(0, 0, 0, 0.035)', alignItems: 'center', justifyContent: 'center'}}>
+    radius={12 * s} highlightColor={p.selected} style={{width: size, height: size, flexShrink: 0}}
+    contentStyle={{ alignItems: 'center', justifyContent: 'center'}}>
     <ChatIcon name={icon} size={35 * s} color={c.text}/>
-    <View pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: size / 2, borderWidth: s, borderColor: c.headerBorder}}/>
   </PressSurface>;
 }

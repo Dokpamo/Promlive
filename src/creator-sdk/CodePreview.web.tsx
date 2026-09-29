@@ -5,9 +5,10 @@ import type {GenerationCoordinator} from '../features/chat/generation';
 import {CreatorHost} from './protocol';
 import {sandboxDocument} from './document';
 import {View, Text} from 'react-native';
-import {colors, styles} from '../layout/theme';
+import {useTheme} from '../layout/theme';
 export function CodePreview({card, coordinator, allowed}: {card: Card; coordinator: GenerationCoordinator; allowed: boolean}) {
   const iframe = useRef<HTMLIFrameElement>(null); const [error, setError] = useState('');
+  const {colors, styles} = useTheme();
   const [instance] = useState(() => newId('sandbox'));
   const [host] = useState(() => new CreatorHost(instance, coordinator, allowed, cardContext(card)));
   useEffect(() => {

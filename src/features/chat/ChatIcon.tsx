@@ -1,13 +1,17 @@
 import {View} from 'react-native';
 import {useAppearance} from '../appearance/AppAppearance';
 
-export type ChatIconName = 'back' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'check' | 'reset' | 'search' | 'chat' | 'new-chat' | 'stop' | 'settings' | 'user' | 'more';
+export type ChatIconName = 'back' | 'edit' | 'plus' | 'send' | 'voice' | 'expand' | 'close' | 'check' | 'reset' | 'search' | 'chat' | 'new-chat' | 'stop' | 'settings' | 'user' | 'more';
 export function ChatIcon({name, size = 24, color}: {name: ChatIconName; size?: number; color?: string}) {
   const {colors: c} = useAppearance();
   color ??= c.icon;
   const stroke = Math.max(1.5, size / 12);
   const line = {position: 'absolute' as const, height: stroke, borderRadius: stroke, backgroundColor: color};
   return <View pointerEvents="none" style={{width: size, height: size}}>
+    {name === 'edit' && <>
+      <View style={{position: 'absolute', left: size * .05, bottom: size * .05, width: size * .78, height: size * .78, borderWidth: stroke, borderColor: color, borderRadius: size * .12, borderTopColor: 'transparent'}}/>
+      <View style={{position: 'absolute', left: size * .5, top: size * .02, width: size * .2, height: size * .7, borderWidth: stroke, borderColor: color, borderRadius: size * .04, transform: [{rotate: '45deg'}]}}/>
+    </>}
     {name === 'more' && [1, 14, 27].map(y => <View key={y} style={{position: 'absolute', left: size * 14 / 32, top: size * y / 32, width: size * 4 / 32, height: size * 4 / 32, borderRadius: size, backgroundColor: color}}/>)}
     {name === 'back' && <>
       <View style={[line, {width: size * 25 / 32, left: size * 4 / 32, top: (size - stroke) / 2}]}/>

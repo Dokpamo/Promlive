@@ -1,26 +1,32 @@
 import {useState, type ReactNode} from 'react';
 import {Pressable, Text, View, TextInput, StyleSheet, type StyleProp, type ViewStyle, type TextInputProps} from 'react-native';
-import {colors, styles} from './theme';
+import {colors, useTheme} from './theme';
 
-export function Icon({name, size = 19, color = colors.muted}: {name: string; size?: number; color?: string}) {
+export function Icon({name, size = 19, color}: {name: string; size?: number; color?: string}) {
+  const {colors} = useTheme();
+  color ??= colors.muted;
   const glyphs: Record<string, string> = {library: '▤', plus: '+', chat: '◌', star: '✧', starFill: '✦', archive: '▣', settings: '⚙', arrow: '↗', back: '‹', close: '×', check: '✓', search: '⌕', code: '‹›', world: '◎', people: '♧', spark: '✧', send: '↑', stop: '■', dots: '···', leaf: '❧', copy: '⧉'};
   return <Text accessible={false} style={{fontSize: size, color, lineHeight: size + 6, fontWeight: '400', textAlign: 'center'}}>{glyphs[name] ?? name}</Text>;
 }
 export function Button({children, onPress, icon, variant = 'primary', disabled = false, small = false, style, testID}: {children: ReactNode; onPress: () => void; icon?: string; variant?: 'primary' | 'secondary' | 'ghost'; disabled?: boolean; small?: boolean; style?: StyleProp<ViewStyle>; testID?: string}) {
+  const {colors} = useTheme();
   const [hover, setHover] = useState(false);
   const primary = variant === 'primary';
-  return <Pressable accessibilityRole="button" accessibilityState={{disabled}} onPress={onPress} disabled={disabled} onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)} {...(testID ? {testID} : {})} style={({pressed}) => [{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: small ? 12 : 17, paddingVertical: small ? 8 : 12, minHeight: small ? 36 : 44, borderRadius: 8, backgroundColor: primary ? colors.accent : variant === 'secondary' ? '#FFF' : 'transparent', borderWidth: variant === 'secondary' ? 1 : 0, borderColor: colors.line, opacity: disabled ? 0.45 : pressed ? 0.65 : hover ? 0.85 : 1}, style]}>
+  return <Pressable accessibilityRole="button" accessibilityState={{disabled}} onPress={onPress} disabled={disabled} onHoverIn={() => setHover(true)} onHoverOut={() => setHover(false)} {...(testID ? {testID} : {})} style={({pressed}) => [{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: small ? 12 : 17, paddingVertical: small ? 8 : 12, minHeight: small ? 36 : 44, borderRadius: 8, backgroundColor: primary ? colors.accent : variant === 'secondary' ? colors.side : 'transparent', borderWidth: 0, borderColor: colors.line, opacity: disabled ? 0.45 : pressed ? 0.65 : hover ? 0.85 : 1}, style]}>
     {icon && <Icon name={icon} size={16} color={primary ? '#FFF' : colors.ink}/>}
     <Text style={{fontSize: small ? 12 : 13, fontWeight: '600', color: primary ? '#FFF' : colors.ink}}>{children}</Text>
   </Pressable>;
 }
 export function Field({label, hint, multiline = false, style, ...props}: TextInputProps & {label: string; hint?: string}) {
+  const {colors, styles} = useTheme();
   return <View style={{gap: 8}}><Text style={{fontSize: 13, fontWeight: '600', color: colors.ink}}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor={colors.faint} multiline={multiline} {...props} style={[styles.field, multiline && {minHeight: 112}, style]}/>{hint && <Text style={styles.small}>{hint}</Text>}</View>;
 }
 export function Pill({children, active = false, onPress}: {children: ReactNode; active?: boolean; onPress?: () => void}) {
-  return <Pressable accessibilityRole={onPress ? 'button' : 'text'} accessibilityState={{selected: active}} onPress={onPress} style={{paddingHorizontal: 13, paddingVertical: 8, borderRadius: 7, backgroundColor: active ? colors.ink : '#F0EEE8'}}><Text style={{fontSize: 12, color: active ? '#FFF' : colors.muted, fontWeight: active ? '600' : '400'}}>{children}</Text></Pressable>;
+  const {colors} = useTheme();
+  return <Pressable accessibilityRole={onPress ? 'button' : 'text'} accessibilityState={{selected: active}} onPress={onPress} style={{paddingHorizontal: 13, paddingVertical: 8, borderRadius: 7, backgroundColor: active ? colors.ink : colors.side}}><Text style={{fontSize: 12, color: active ? '#FFF' : colors.muted, fontWeight: active ? '600' : '400'}}>{children}</Text></Pressable>;
 }
 export function Empty({icon = 'world', title, children, action}: {icon?: string; title: string; children: ReactNode; action?: ReactNode}) {
+  const {colors, styles} = useTheme();
   return <View style={{alignItems: 'center', justifyContent: 'center', padding: 32, gap: 14}}><View style={{padding: 18, borderRadius: 24, backgroundColor: colors.accentSoft}}><Icon name={icon} size={30} color={colors.accent}/></View><Text style={styles.subheading}>{title}</Text><Text style={[styles.small, {textAlign: 'center', maxWidth: 320}]}>{children}</Text>{action}</View>;
 }
 export function Cover({kind, large = false, showLabel = true}: {kind: 'moon' | 'forest' | 'sunset' | 'code'; large?: boolean; showLabel?: boolean}) {

@@ -10,13 +10,13 @@ export function storedTheme(value: string | undefined): ThemeMode {
   return value === 'light' || value === 'dark' ? value : 'system';
 }
 
-/** Settings uses the card list's palette instead of a separate accent color. */
+/** One palette for every navigation, editing and conversation surface. */
 function settingsPalette(c: ChatColors) {
   return {
-    background: c.drawer, surface: c.search, sheet: c.search,
+    background: c.background, surface: c.search, sheet: c.background,
     control: c.search, selected: c.historySelected,
     text: c.text, secondary: c.muted, faint: c.placeholder, divider: c.divider,
-    accent: c.text, primary: c.send, onPrimary: c.sendIcon,
+    accent: c.send, primary: c.send, onPrimary: c.sendIcon,
     avatarBackground: c.historySelected, avatarForeground: c.muted,
   };
 }

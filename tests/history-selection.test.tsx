@@ -12,7 +12,7 @@ import {CreationService} from '../src/features/chat/service';
 import {GenerationCoordinator} from '../src/features/chat/generation';
 import type {Repository} from '../src/adapters/sqlite/repository';
 import type {ItemLayout, ListItem} from '../src/layout/itemListMotion';
-import {CardsCollection} from '../src/app/CollectionScreens';
+import {CardsCollection, ChatsCollection} from '../src/app/CollectionScreens';
 import {MainNavigation, type MainTab} from '../src/app/MainNavigation';
 
 vi.mock('react-native', async () => {
@@ -61,7 +61,7 @@ function Host({workspace, card}: {workspace: Workspace; card: Card}) {
   </DrawerModalLocks.Provider>;
 }
 afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; if (repo) await repo.db.close(); document.body.replaceChildren(); close.mockClear();});
-function button(label: string) {return document.querySelector(`[aria-label="${label}"]`) as HTMLButtonElement;}
+function button(label: string) {return [...document.querySelectorAll(`[aria-label="${label}"]`)].find(element => !element.closest('[aria-hidden="true"]')) as HTMLButtonElement ?? null;}
 async function press(label: string) {await act(async () => button(label).click());}
 async function search(value: string) {
   await act(async () => {
@@ -175,6 +175,52 @@ async function cardHost() {
 async function holdCard(title: string) {
   await act(async () => {button(`${title} 카드의 채팅 기록`).dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));});
 }
+function InboxHost({workspace}: {workspace: Workspace}) {
+  useSyncExternalStore(workspace.subscribe, workspace.snapshot);
+  return <DrawerModalLocks.Provider value={locks}><ChatsCollection workspace={workspace} active startChat={async () => {}}
+    openConversation={room => workspace.openConversation(room)}/></DrawerModalLocks.Provider>;
+}
+it('shows actual conversations immediately, opens the chosen room and filters by card or message text', async () => {
+  const {workspace, cards} = await cardHost();
+  const second = await repo.createConversation(cards[0]!.id, '숨겨진 열쇠');
+  await workspace.history.folderLibrary(cards[0]!.id)!.createFolder('보관한 대화', [second.id]);
+  await act(async () => {await workspace.refresh(); root!.render(<InboxHost workspace={workspace}/>);});
+  // All includes conversations stored inside card folders, not only one group row per card.
+  for (const card of cards) expect(button(`${card.title}, ${card.title} 대화 채팅 열기`)).not.toBeNull();
+  expect(button('첫 카드, 숨겨진 열쇠 채팅 열기')).not.toBeNull();
+  await press('첫 카드, 숨겨진 열쇠 채팅 열기');
+  expect(workspace.history.selected?.id).toBe(second.id);
+  expect(workspace.history.items).toHaveLength(4);
+  await input('채팅 검색', '열쇠');
+  expect(button('첫 카드, 숨겨진 열쇠 채팅 열기')).not.toBeNull();
+  expect(button('둘째 카드, 둘째 카드 대화 채팅 열기')).toBeNull();
+  await input('채팅 검색', '둘째 카드');
+  expect(button('둘째 카드, 둘째 카드 대화 채팅 열기')).not.toBeNull();
+  await input('채팅 검색', '');
+  await press('첫 카드 채팅 2개 보기');
+  expect(button('첫 카드, 첫 카드 대화 채팅 열기')).not.toBeNull();
+  expect(button('둘째 카드, 둘째 카드 대화 채팅 열기')).toBeNull();
+  await press('보관한 대화 폴더');
+  expect(button('첫 카드, 숨겨진 열쇠 채팅 열기')).not.toBeNull();
+  await press('전체 채팅 보기');
+  expect(button('둘째 카드, 둘째 카드 대화 채팅 열기')).not.toBeNull();
+  expect(button('첫 카드, 숨겨진 열쇠 채팅 열기')).not.toBeNull();
+});
+it('keeps selection and confirmed deletion available in the all-card inbox without deleting sibling rooms', async () => {
+  const {workspace, cards} = await cardHost();
+  await act(async () => root!.render(<InboxHost workspace={workspace}/>));
+  await hold('첫 카드, 첫 카드 대화 채팅 열기'); await press('선택');
+  expect(button('첫 카드 대화').getAttribute('aria-checked')).toBe('true');
+  expect(document.querySelector('[data-testid="history-intro"]')?.getAttribute('aria-hidden')).toBe('true');
+  await press('둘째 카드 대화'); await press('선택한 항목 삭제');
+  expect(workspace.history.items).toHaveLength(3);
+  await press('삭제 취소');
+  expect(workspace.history.items).toHaveLength(3);
+  expect(document.querySelector('[aria-checked]')).toBeNull();
+  await hold('첫 카드, 첫 카드 대화 채팅 열기'); await press('삭제'); await press('삭제 확인');
+  expect((await repo.conversations()).map(room => room.cardId).sort()).toEqual(cards.slice(1).map(card => card.id).sort());
+  expect(workspace.cards).toHaveLength(3);
+});
 it('uses the same actions for cards, retains hidden selections and deletes only selected card histories', async () => {
   const {cards, workspace} = await cardHost();
   await holdCard('첫 카드');
@@ -234,33 +280,69 @@ it('opens the compact editor for a card and applies the confirmed name to that c
 });
 
 async function hold(label: string) {await act(async () => {button(label).dispatchEvent(new MouseEvent('contextmenu', {bubbles: true}));});}
-function LibraryPageHost({workspace}: {workspace: Workspace}) {
+function CollectionPageHost({workspace, kind}: {workspace: Workspace; kind: 'library' | 'create'}) {
   useSyncExternalStore(workspace.subscribe, workspace.snapshot);
-  const [tab, setTab] = useState<MainTab>('library');
-  return <MainNavigation tab={tab} onChange={setTab}>{(page, active) => page === 'library'
-    ? <CardsCollection workspace={workspace} kind="library" active={active} startChat={async () => {close();}}/>
+  const [tab, setTab] = useState<MainTab>(kind);
+  return <MainNavigation tab={tab} onChange={setTab}>{(page, active) => page === kind
+    ? <CardsCollection workspace={workspace} kind={kind} active={active} startChat={async () => {close();}}/>
     : null}</MainNavigation>;
 }
-it('selects library covers directly, replaces navigation, counts checks and restores navigation when selection ends', async () => {
+it('filters creations with category tabs while keeping nested cards in All and hiding folder rows', async () => {
   const {workspace, cards} = await cardHost();
-  await act(async () => root!.render(<LibraryPageHost workspace={workspace}/>));
+  const recent = workspace.cardFolders.snapshot().value.folders.find(folder => folder.name === '요즘 한 거')!;
+  await act(async () => {
+    await workspace.cardFolders.move([cards[0]!.id], recent.id);
+    await workspace.cardFolders.createFolder('하위 작업', [cards[1]!.id], recent.id);
+    root!.render(<CardsCollection workspace={workspace} kind="create" active startChat={async () => {close();}}/>);
+  });
+  for (const card of cards) expect(button(`${card.title} 편집`)).not.toBeNull();
+  expect(button('요즘 한 거 폴더')).toBeNull();
+  expect(button('하위 작업 폴더')).toBeNull();
+  expect(document.querySelector('[data-testid="card-folder-path"]')).toBeNull();
+  await press('요즘 한 거 분류');
+  expect(button('첫 카드 편집')).not.toBeNull();
+  expect(button('둘째 카드 편집')).not.toBeNull();
+  expect(button('유지 카드 편집')).toBeNull();
+  await press('요즘 한 거 › 하위 작업 분류');
+  expect(button('첫 카드 편집')).toBeNull();
+  expect(button('둘째 카드 편집')).not.toBeNull();
+  await hold('둘째 카드 편집');
+  expect(button('둘째 카드').getAttribute('aria-checked')).toBe('true');
+  expect(button('선택한 항목 폴더 이동')).not.toBeNull();
+  await press('선택 취소');
+  await press('새 분류 만들기'); await input('분류 이름', '새 제작물'); await press('새 분류 완료');
+  const category = workspace.cardFolders.snapshot().value.folders.find(folder => folder.name === '새 제작물')!;
+  expect(category).toBeTruthy();
+  expect(button('둘째 카드 편집')).toBeNull();
+  await act(async () => {await workspace.cardFolders.move([cards[1]!.id], category.id);});
+  expect(button('둘째 카드 편집')).not.toBeNull();
+  await press('전체 분류');
+  for (const card of cards) expect(button(`${card.title} 편집`)).not.toBeNull();
+});
+it.each(['library', 'create'] as const)('selects %s cards directly, replaces navigation, counts checks and restores navigation when selection ends', async kind => {
+  const {workspace, cards} = await cardHost();
+  const openStudio = vi.spyOn(workspace, 'openStudio').mockResolvedValue();
+  const openLabel = (title: string) => `${title} ${kind === 'create' ? '편집' : '카드 열기'}`;
+  await act(async () => root!.render(<CollectionPageHost workspace={workspace} kind={kind}/>));
   const byId = (id: string) => document.querySelector(`[data-testid="${id}"]`);
   const originalHeader = byId('collection-header'), originalTabs = byId('main-tab-bar');
   expect(byId('collection-header')).not.toBeNull();
   expect(byId('main-tab-bar')).not.toBeNull();
-  await hold('첫 카드 카드 열기');
+  await hold(openLabel('첫 카드'));
   expect(byId('card-actions-overlay')).toBeNull();
   expect(button('첫 카드').getAttribute('aria-checked')).toBe('true');
   expect(byId('card-selection-count')?.textContent).toBe('1');
   expect(byId('collection-header')?.getAttribute('aria-hidden')).toBe('true');
   expect(byId('main-tab-bar')?.getAttribute('aria-hidden')).toBe('true');
+  if (kind === 'create') expect(byId('card-intro')?.getAttribute('aria-hidden')).toBe('true');
   expect(close).not.toHaveBeenCalled();
+  expect(openStudio).not.toHaveBeenCalled();
   await press('둘째 카드');
   expect(byId('card-selection-count')?.textContent).toBe('2');
   await press('첫 카드');
   expect(byId('card-selection-count')?.textContent).toBe('1');
   await press('선택한 항목 더보기');
-  for (const label of ['고정', '이름 변경', '내보내기']) expect(button(label), label).not.toBeNull();
+  for (const label of ['고정', '이름 변경', ...(kind === 'library' ? ['내보내기'] : [])]) expect(button(label), label).not.toBeNull();
   await press('카드 메뉴 닫기');
   await press('1개 선택, 전체 선택');
   expect(byId('card-selection-count')?.textContent).toBe('3');
@@ -274,14 +356,19 @@ it('selects library covers directly, replaces navigation, counts checks and rest
   expect(byId('collection-header')).toBe(originalHeader);
   expect(byId('main-tab-bar')?.getAttribute('aria-hidden')).toBe('false');
   expect(byId('collection-header')?.getAttribute('aria-hidden')).toBe('false');
-  await hold('첫 카드 카드 열기'); await press('선택한 항목 삭제');
+  if (kind === 'create') expect(byId('card-intro')?.getAttribute('aria-hidden')).toBe('false');
+  await hold(openLabel('첫 카드')); await press('선택한 항목 삭제');
   expect(workspace.cards).toHaveLength(3);
   await press('삭제 취소');
   expect(byId('card-selection-header')).toBeNull();
   expect(workspace.cards.map(card => card.id).sort()).toEqual(cards.map(card => card.id).sort());
-  await hold('첫 카드 카드 열기'); await press('선택 취소');
+  await hold(openLabel('첫 카드')); await press('선택 취소');
   expect(byId('card-selection-footer')).toBeNull();
   expect(byId('main-tab-bar')).not.toBeNull();
+  if (kind === 'create') {
+    await press(openLabel('첫 카드'));
+    expect(openStudio).toHaveBeenCalledWith(cards[0]!.id);
+  }
 });
 async function input(label: string, value: string) {
   await act(async () => {

@@ -5,12 +5,14 @@ import {drawerProgress, shouldOpenDrawer} from './drawerMotion';
 import {panelSpringForDistance, stopAndRead} from '../../layout/panelAnimation';
 
 /** Shared spring and touch tracking for adjacent panels. */
-export function usePanelMotion(reduceMotion: boolean, travel: number) {
+export function usePanelMotion(reduceMotion: boolean, travel: number, onSettled?: (open: boolean) => void) {
   const progress = useRef(new Animated.Value(0)).current;
   const position = useRef(0);
   const target = useRef(false);
   const [visible, setVisible] = useState(false);
   const motion = useRef({generation: 0, dragging: false, origin: 0, delta: 0, lastMoveAt: 0});
+  const settled = useRef(onSettled);
+  settled.current = onSettled;
 
   useEffect(() => {
     const listener = progress.addListener(({value}) => {if (!motion.current.dragging) position.current = value;});
@@ -40,6 +42,7 @@ export function usePanelMotion(reduceMotion: boolean, travel: number) {
       position.current = open ? 1 : 0;
       progress.setValue(position.current);
       setVisible(open);
+      settled.current?.(open);
       return;
     }
     Animated.spring(progress, {
@@ -49,6 +52,7 @@ export function usePanelMotion(reduceMotion: boolean, travel: number) {
       if (!finished || generation !== m.generation) return;
       position.current = open ? 1 : 0;
       setVisible(open);
+      settled.current?.(open);
     });
   }, [progress, reduceMotion, travel]);
 

@@ -1,10 +1,8 @@
-import {useEffect, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
-import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
-import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceHeader, referencePageTitle, referenceTypography} from '../../layout/metrics';
+import {headerScale, referenceTypography} from '../../layout/metrics';
 import {SettingsIcon} from './SettingsIcon';
 import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackBoundary, SwipeBackModal, SwipeBackScrollContent, type SheetDrag} from '../../layout/SwipeBackModal';
@@ -13,9 +11,12 @@ import {SheetScrollView} from '../../layout/SheetScrollView';
 import {panelReference} from '../../layout/panelGeometry';
 import {SettingsTextEditorHost} from './SettingsTextField';
 import {useCollectionChrome} from '../../app/NavigationChrome';
-import {useScrollChromeTarget} from '../../layout/scrollChrome';
+import {SettingsMenuRow} from './SettingsMenuRow';
+import {IconButton, TopBar, ui, useDesign} from '../../design/foundation';
+import {MainTabHeader} from '../../app/MainTabHeader';
 
 export {panelReference} from '../../layout/panelGeometry';
+export {SettingsMenuRow, SettingsMenuRow as SettingsRow};
 
 export function useSettingsScale() {
   return headerScale(useWindowDimensions().width);
@@ -25,7 +26,7 @@ export function useSettingsRadius(kind: 'panel' | 'control' = 'panel') {
   return (kind === 'panel' ? panelReference.radius : panelReference.controlRadius) * useSettingsScale();
 }
 
-export function SettingsPage({children, onBack, title, titleInHeader = false, home = false, obscured = false, embedded = false, active = true}: {
+export function SettingsPage({children, onBack, title, titleInHeader = true, home = false, obscured = false, embedded = false, active = true, headerRight}: {
   children: ReactNode;
   onBack: () => void;
   title?: string;
@@ -34,68 +35,40 @@ export function SettingsPage({children, onBack, title, titleInHeader = false, ho
   obscured?: boolean;
   embedded?: boolean;
   active?: boolean;
+  headerRight?: ReactNode;
 }) {
-  const {settings: p} = useAppearance();
-  const {width} = useWindowDimensions();
-  const s = headerScale(width);
+  const {s, color} = useDesign();
   const insets = useSafeAreaInsets();
-  const navigationChrome = useCollectionChrome();
-  const chrome = embedded ? navigationChrome : null;
-  const scroll = useRef<ScrollView>(null);
-  useScrollChromeTarget(chrome, active && !obscured, offset => scroll.current?.scrollTo({y: offset, animated: false}));
-  const resetChrome = chrome?.reset;
-  const setTopInset = chrome?.setTopInset;
-  useLayoutEffect(() => {if (active) setTopInset?.(insets.top + referenceHeader.barHeight * s);}, [active, insets.top, s, setTopInset]);
-  useEffect(() => {if (active) resetChrome?.();}, [active, obscured, resetChrome]);
-  const headerVisible = chrome?.visible ?? true;
-  return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}><SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: p.background}}>
-    <ScrollView ref={scroll} testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never"
-      onScroll={event => {if (active && !obscured) chrome?.onScroll(event);}} scrollEventThrottle={16}
-      onScrollBeginDrag={event => {if (active && !obscured) chrome?.onScrollBeginDrag(event);}}
-      onScrollEndDrag={event => {if (active && !obscured) chrome?.onScrollEndDrag(event);}}
-      onMomentumScrollBegin={event => {if (active && !obscured) chrome?.onMomentumScrollBegin(event);}}
-      onMomentumScrollEnd={event => {if (active && !obscured) chrome?.onMomentumScrollEnd(event);}}
-      contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: panelReference.inset * s, paddingTop: insets.top + referenceHeader.barHeight * s + (home ? panelReference.profileTop : panelReference.top) * s, paddingBottom: (chrome?.bottomInset ?? insets.bottom) + 36 * s}}>
-      <SwipeBackScrollContent>
-        {title && !titleInHeader && <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, marginHorizontal: 6 * s, marginBottom: 24 * s, includeFontPadding: false}}>{title}</Text>}
-        {children}
-      </SwipeBackScrollContent>
-    </ScrollView>
-    <Animated.View pointerEvents={headerVisible ? 'box-none' : 'none'} aria-hidden={!headerVisible} accessibilityElementsHidden={!headerVisible} importantForAccessibility={headerVisible ? 'auto' : 'no-hide-descendants'}
-      style={{position: 'absolute', top: insets.top, left: 0, right: 0, transform: [{translateY: chrome?.progress.interpolate({inputRange: [0, 1], outputRange: [-insets.top - referenceHeader.barHeight * s, 0]}) ?? 0}]}}>
-      <View pointerEvents="box-none" style={embedded ? {width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center'} : undefined}>
-      <ScreenHeader width={width} topInset={insets.top} surfaceColor={p.background} testID={home ? 'settings-header' : 'settings-detail-header'}>
-        {embedded ? <View pointerEvents="none" style={{flex: 1, height: referenceHeader.barHeight * s, justifyContent: 'center', marginLeft: (panelReference.inset - referenceHeader.inset) * s}}>
-          <Text testID="settings-header-title" accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referencePageTitle.fontSize * s, lineHeight: referencePageTitle.lineHeight * s, fontWeight: referencePageTitle.fontWeight, textAlign: 'left', includeFontPadding: false}}>{title}</Text>
-        </View> : <HeaderButton width={width} testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>}
-        {!embedded && titleInHeader && title && <>
-          <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>
-            <Text testID="settings-header-title" accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceHeader.titleFont * s, lineHeight: referenceTypography.titleLineHeight * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
-          </View>
-          <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
-        </>}
-      </ScreenHeader>
+  const chrome = useCollectionChrome();
+  return <SettingsTextEditorHost><View style={{flex: 1}} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}>
+    <SafeAreaView testID={home ? 'settings-preview' : 'settings-detail'} edges={['left', 'right']} style={{flex: 1, backgroundColor: color.background}}>
+      <View style={{paddingTop: insets.top, backgroundColor: color.background}}>
+        {home && embedded ? <MainTabHeader testID="settings-header" titleTestID="settings-header-title" title={title ?? '설정'} right={headerRight}/> :
+          <TopBar testID={home ? 'settings-header' : 'settings-detail-header'} titleTestID="settings-header-title" title={titleInHeader ? title ?? '설정' : ''} align="left"
+            {...(!embedded ? {left: <IconButton testID={home ? 'settings-back' : 'settings-detail-back'} icon="back" label={home ? '설정 닫기' : '설정으로 돌아가기'} onPress={onBack}/>} : {})}/>}
       </View>
-    </Animated.View>
-  </SafeAreaView></View></SettingsTextEditorHost>;
+      <ScrollView testID={home ? 'settings-scroll' : 'settings-detail-scroll'} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentInsetAdjustmentBehavior="never" alwaysBounceVertical={!home}
+        scrollEnabled={active} contentContainerStyle={{width: '100%', maxWidth: panelReference.contentMaxWidth, alignSelf: 'center', paddingHorizontal: ui.inset * s, paddingTop: 14 * s, paddingBottom: (embedded ? chrome?.bottomInset ?? insets.bottom : insets.bottom) + 24 * s}}>
+        <SwipeBackScrollContent>
+          {title && !titleInHeader && <Text accessibilityRole="header" style={{color: color.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', marginBottom: 24 * s}}>{title}</Text>}
+          {children}
+        </SwipeBackScrollContent>
+      </ScrollView>
+    </SafeAreaView>
+  </View></SettingsTextEditorHost>;
+}
+
+export function SettingsSection({title, children, first = false}: {title: string; children: ReactNode; first?: boolean}) {
+  const {s, color} = useDesign();
+  return <View style={{marginHorizontal: -ui.inset * s, borderTopWidth: first ? 0 : .5, borderTopColor: color.line, paddingTop: 26 * s, paddingBottom: 18 * s, paddingHorizontal: ui.inset * s}}>
+    <Text accessibilityRole="header" style={{color: color.muted, fontSize: 22 * s, lineHeight: 32 * s, fontWeight: '600', marginBottom: 20 * s}}>{title}</Text>
+    {children}
+  </View>;
 }
 
 export function SettingsGroup({children}: {children: ReactNode}) {
-  const {settings: p} = useAppearance();
   const s = useSettingsScale();
-  const radius = useSettingsRadius();
-  return <View testID="settings-group" style={{backgroundColor: p.surface, borderRadius: radius, paddingVertical: panelReference.groupPadding * s, marginBottom: panelReference.groupGap * s, overflow: 'hidden'}}>{children}</View>;
-}
-
-export function SettingsRow({label, value, onPress, plain = false, muted = false}: {label: string; value?: string; onPress: () => void; plain?: boolean; muted?: boolean}) {
-  const {settings: p} = useAppearance();
-  const s = useSettingsScale();
-  const radius = useSettingsRadius('control');
-  return <RowPressable accessibilityRole="button" accessibilityLabel={label} accessibilityValue={value ? {text: value} : undefined} onPress={onPress} radius={radius} highlightInset={plain ? 0 : panelReference.highlightInset * s} contentStyle={{minHeight: panelReference.rowHeight * s, paddingHorizontal: (plain ? 6 : panelReference.rowInset) * s, paddingVertical: panelReference.rowPadding * s, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
-    <Text style={{flex: 1, color: p.text, fontSize: panelReference.rowFont * s, lineHeight: panelReference.rowLine * s, includeFontPadding: false}}>{label}</Text>
-    {value && <Text numberOfLines={1} style={{maxWidth: '44%', color: muted ? p.secondary : p.accent, fontSize: panelReference.valueFont * s, lineHeight: 38 * s, includeFontPadding: false}}>{value}</Text>}
-    <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
-  </RowPressable>;
+  return <View testID="settings-group" style={{marginBottom: panelReference.groupGap * s}}>{children}</View>;
 }
 
 export function SettingsSheet({title, caption, onClose, children, footer, contentKey, fillHeight = false, slideFrom = 'bottom', dismiss = false, overlay, obscured = false, horizontalDrag, onBackRequest}: {
@@ -169,15 +142,12 @@ export function SettingsChoice({label, detail, selected, onPress}: {label: strin
   </RowPressable>;
 }
 
-export function SettingsNote({children}: {children: ReactNode}) {
+export function SettingsNote({children, inset = 6}: {children: ReactNode; inset?: number}) {
   const {settings: p} = useAppearance();
   const s = useSettingsScale();
-  return <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 36 * s, marginHorizontal: 6 * s, marginTop: 24 * s}}>{children}</Text>;
+  return <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 36 * s, marginLeft: inset * s, marginRight: 6 * s, marginTop: 24 * s}}>{children}</Text>;
 }
 
 export function SettingsSave({onPress, disabled = false}: {onPress: () => void; disabled?: boolean}) {
-  const {settings: p} = useAppearance();
-  const s = useSettingsScale();
-  const radius = useSettingsRadius('control');
-  return <PressSurface accessibilityRole="button" accessibilityLabel="적용" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} radius={radius} highlightColor={p.onPrimary} highlightOpacity={0.08} style={{marginTop: 32 * s}} contentStyle={{backgroundColor: p.primary, minHeight: 78 * s, alignItems: 'center', justifyContent: 'center'}}><Text style={{color: p.onPrimary, fontSize: 26 * s, fontWeight: '600'}}>적용</Text></PressSurface>;
+  return <SettingsMenuRow icon="check" label="적용" onPress={onPress} disabled={disabled}/>;
 }

@@ -1,34 +1,27 @@
 import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {ChatIcon} from './ChatIcon';
-import {chatAvatarColor, typographyScale} from './chatAppearance';
-import {headerScale, referenceHeader as r, referenceTypography} from '../../layout/metrics';
+import {chatAvatarColor} from './chatAppearance';
+import {headerScale} from '../../layout/metrics';
 import {useAppearance} from '../appearance/AppAppearance';
-import {HeaderButton, HeaderCapsule, ScreenHeader} from '../../layout/ScreenHeader';
+import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 
 export function ChatHeader({width, title, conversationId, openHistory, openSettings, onBack}: {
-  width: number;
-  title: string;
-  conversationId: string;
-  openHistory: () => void;
-  openSettings: () => void;
-  onBack?: () => void;
+  width: number; title: string; conversationId: string; openHistory: () => void; openSettings: () => void; onBack?: () => void;
 }) {
   const {colors: c} = useAppearance();
-  const s = headerScale(width);
-  const titleScale = typographyScale(width);
-  const insets = useSafeAreaInsets();
+  const s = headerScale(width), insets = useSafeAreaInsets();
   return <ScreenHeader width={width} topInset={insets.top} testID="chat-header">
     <HeaderButton width={width} testID="chat-header-back" icon="back" label={onBack ? '채팅 목록으로 돌아가기' : '카드 목록 열기'} onPress={onBack ?? openHistory}/>
-    <HeaderCapsule width={width} testID="chat-header-title" style={{flex: 1, minWidth: 0, justifyContent: 'center'}}>
-      <View accessible={false} style={{position: 'absolute', left: r.avatarInset * s, top: r.avatarInset * s, width: r.avatar * s, height: r.avatar * s, borderRadius: r.avatar * s / 2, backgroundColor: chatAvatarColor(conversationId), alignItems: 'center', justifyContent: 'center'}}>
-        <ChatIcon name="chat" size={r.icon * s} color="#FFFFFF"/>
+    <View testID="chat-header-title" style={{flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
+      <View accessible={false} style={{width: 48 * s, height: 48 * s, borderRadius: 24 * s, backgroundColor: chatAvatarColor(conversationId), alignItems: 'center', justifyContent: 'center'}}>
+        <ChatIcon name="chat" size={26 * s} color="#FFFFFF"/>
       </View>
-      <Text accessibilityRole="header" numberOfLines={1} style={{marginLeft: r.titleInset * s, marginRight: 16 * s, color: c.text, fontSize: r.titleFont * titleScale, lineHeight: referenceTypography.titleLineHeight * titleScale, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text>
-    </HeaderCapsule>
-    <HeaderCapsule width={width} testID="chat-header-actions" style={{width: r.actions * s, flexDirection: 'row', gap: r.actionGap * s}}>
-      <HeaderButton width={width} testID="chat-header-search" icon="search" label="카드 검색 열기" onPress={openHistory} variant="grouped"/>
-      <HeaderButton width={width} testID="chat-header-settings" icon="more" label="설정 열기" onPress={openSettings} variant="grouped"/>
-    </HeaderCapsule>
+      <Text accessibilityRole="header" numberOfLines={1} style={{flex: 1, color: c.text, fontSize: 28 * s, lineHeight: 38 * s, fontWeight: '600', includeFontPadding: false}}>{title}</Text>
+    </View>
+    <View testID="chat-header-actions" style={{flexDirection: 'row'}}>
+      <HeaderButton width={width} testID="chat-header-search" icon="search" label="채팅 목록 열기" onPress={openHistory}/>
+      <HeaderButton width={width} testID="chat-header-settings" icon="more" label="설정 열기" onPress={openSettings}/>
+    </View>
   </ScreenHeader>;
 }

@@ -3,9 +3,10 @@ import {ActivityIndicator, Text, View} from 'react-native';
 import {themeLabels, useAppearance, type ThemeMode} from '../appearance/AppAppearance';
 import {referenceTypography} from '../../layout/metrics';
 import {chatDisplayDescriptions, chatDisplayLabels, chatDisplayModes} from '../chat/chatPresentation';
-import {RowPressable} from '../../layout/RowPressable';
 import {SwipeBackModal} from '../../layout/SwipeBackModal';
-import {SettingsChoice, SettingsGroup, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, panelReference as r, useSettingsScale} from './SettingsLayout';
+import {SettingsChoice, SettingsMenuRow, SettingsNote, SettingsPage, SettingsRow, SettingsSave, SettingsSheet, panelReference as r, useSettingsScale} from './SettingsLayout';
+import type {SettingsIconName} from './SettingsIcon';
+import {settingsMenuGeometry} from './SettingsMenuRow';
 import {AiSettingsPreview} from './AiSettingsPreview';
 import {aiServices, type AiSettingsPreviewState} from './aiSettingsModel';
 import {useSettingsSheetState} from './useSettingsSheetState';
@@ -17,6 +18,7 @@ import {useUserProfile} from '../profile/UserProfileContext';
 import {ProfileSheet} from '../profile/ProfileSheet';
 import {PersonaPage} from '../personas/PersonaPage';
 import {usePersonas} from '../personas/PersonaContext';
+import {MainHeaderButton} from '../../app/MainTabHeader';
 
 type Page = 'ai' | 'persona' | 'prompt' | 'theme' | 'plugins' | 'about';
 type Sheet = 'profile' | 'theme' | 'display' | 'language';
@@ -28,7 +30,10 @@ const sheetCaptions: Partial<Record<Sheet, string>> = {
   language: '앱에서 사용할 언어를 선택해요.',
 };
 // Keep this order fixed. Usage frequency never rearranges the settings.
-const settingsGroups = [['ai', 'persona', 'prompt'], ['theme', 'language'], ['plugins', 'about']] as const;
+const settingsMenu = [
+  {key: 'ai', icon: 'model'}, {key: 'persona', icon: 'person'}, {key: 'prompt', icon: 'response'},
+  {key: 'theme', icon: 'theme'}, {key: 'language', icon: 'language'}, {key: 'plugins', icon: 'connection'}, {key: 'about', icon: 'info'},
+] as const satisfies readonly {key: Page | 'language'; icon: SettingsIconName}[];
 
 /** Appearance, user profile and AI preferences persist locally. */
 export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, extensions, embedded = false, active = true}: {
@@ -54,27 +59,29 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
   </>}</SettingsSheet>;
 
   const content = (close: () => void) => <>
-    <SettingsPage home onBack={close} embedded={embedded} active={active} {...(embedded ? {title: '설정', titleInHeader: true} : {})} obscured={page !== null || sheet !== null}>
-      <RowPressable testID="settings-profile" accessibilityRole="button" accessibilityLabel="프로필 수정" onPress={() => setSheet('profile')} radius={r.controlRadius * s} style={{alignSelf: 'center', maxWidth: '100%', marginBottom: r.profileBottom * s}} contentStyle={{alignItems: 'center', gap: r.profileGap * s, paddingHorizontal: r.profileInset * s, paddingVertical: r.profilePadding * s}}>
-        <UserAvatar testID="settings-user-avatar" image={profile.image} size={r.profileSize * s}/>
-        <Text numberOfLines={1} style={{color: p.text, textAlign: 'center', fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{profile.name}</Text>
-      </RowPressable>
-      {settingsGroups.map((group, index) => <SettingsGroup key={index}>
-        {group.map(key => <SettingsRow key={key} label={key === 'language' ? sheetTitles[key] : pageTitles[key]} {...(values[key] ? {value: values[key]} : {})} muted={key === 'ai'} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
-      </SettingsGroup>)}
-      <Text style={{marginLeft: 6 * s, marginTop: 34 * s, color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>Promlive 0.1.0</Text>
+    <SettingsPage home onBack={close} embedded={embedded} active={active}
+      {...(embedded ? {title: '설정', titleInHeader: true, headerRight: <MainHeaderButton testID="settings-profile-edit" icon="compose" label="프로필 편집" onPress={() => setSheet('profile')}/>} : {})}
+      obscured={page !== null || sheet !== null}>
+      <View testID="settings-menu">
+        <View style={{paddingTop: 6 * s, paddingBottom: 28 * s, borderBottomWidth: .5, borderBottomColor: p.divider, marginBottom: 10 * s}}>
+          <SettingsMenuRow testID="settings-profile" accessibilityLabel="프로필 수정" label={profile.name} detail="프로필 사진과 이름을 변경해요."
+            icon={<UserAvatar testID="settings-user-avatar" image={profile.image} size={64 * s}/>} onPress={() => setSheet('profile')}/>
+        </View>
+        {settingsMenu.map(({key, icon}) => <SettingsMenuRow key={key} testID={`settings-menu-${icon}`} icon={icon} label={key === 'language' ? sheetTitles[key] : pageTitles[key]}
+          {...(values[key] ? {value: values[key]} : {})} onPress={() => key === 'language' ? setSheet(key) : setPage(key)}/>)}
+      </View>
     </SettingsPage>
 
     {page === 'ai' && (aiReady ? <AiSettingsPreview key={pageKey} value={ai} onChange={onAiChange} saveError={aiError} onClose={closePage}/> : <SwipeBackModal key={pageKey} onClose={closePage}>{back => <SettingsPage title="AI" titleInHeader onBack={back}><ActivityIndicator color={p.secondary}/></SettingsPage>}</SwipeBackModal>)}
     {page === 'persona' && <PersonaPage key={pageKey} onClose={closePage}/>}
     {page !== null && page !== 'ai' && page !== 'persona' && <SwipeBackModal key={pageKey} onClose={() => {closeSheet(); closePage();}}>{back => <><SettingsPage title={pageTitles[page]} onBack={back} obscured={sheet !== null}>
       {page === 'theme' && <>
-        <SettingsRow plain label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
-        <SettingsRow plain label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>
+        <SettingsRow icon="theme" label="화면 색상" value={themeLabels[mode]} onPress={() => setSheet('theme')}/>
+        <SettingsRow icon="response" label="대화 표시" value={chatDisplayLabels[chatDisplay]} onPress={() => setSheet('display')}/>
       </>}
       {page === 'prompt' && <PromptEditor value={prompt} onApply={value => {setPrompt(value); back();}}/>}
-      {page === 'plugins' && (extensions ? <SummaryExtensionSettings extensions={extensions}/> : <SettingsNote>등록된 플러그인이 없어요.</SettingsNote>)}
-      {page === 'about' && <View style={{marginHorizontal: 6 * s, marginTop: 24 * s, gap: 24 * s}}>
+      {page === 'plugins' && (extensions ? <SummaryExtensionSettings extensions={extensions}/> : <SettingsNote inset={settingsMenuGeometry.textInset}>등록된 플러그인이 없어요.</SettingsNote>)}
+      {page === 'about' && <View style={{marginLeft: settingsMenuGeometry.textInset * s, marginTop: 16 * s, gap: 24 * s}}>
         <Text style={{color: p.text, fontSize: referenceTypography.logoFontSize * s, lineHeight: 58 * s, fontWeight: referenceTypography.logoWeight, letterSpacing: -s}}>Promlive</Text>
         <Text style={{color: p.secondary, fontSize: 26 * s, lineHeight: 38 * s}}>이야기가 시작되는 대화.</Text>
         <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: r.rowHeight * s}}><Text style={{color: p.text, fontSize: r.rowFont * s}}>앱 버전</Text><Text style={{color: p.secondary, fontSize: r.valueFont * s}}>0.1.0</Text></View>
@@ -87,8 +94,7 @@ export function SettingsPreview({onClose, ai, onAiChange, aiReady, aiError, exte
 }
 
 function SettingsField({label, value, onChange, placeholder, multiline = false, maxLength = 100}: {label: string; value: string; onChange: (value: string) => void; placeholder: string; multiline?: boolean; maxLength?: number}) {
-  const s = useSettingsScale();
-  return <View style={{marginTop: 24 * s}}><SettingsTextField label={label} value={value} onChange={onChange} placeholder={placeholder} multiline={multiline} maxLength={maxLength} autoCapitalize="sentences"/></View>;
+  return <SettingsTextField icon="response" label={label} value={value} onChange={onChange} placeholder={placeholder} multiline={multiline} maxLength={maxLength} autoCapitalize="sentences"/>;
 }
 
 function PromptEditor({value, onApply}: {value: string; onApply: (value: string) => void}) {

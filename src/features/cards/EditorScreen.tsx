@@ -5,7 +5,7 @@ import type {Card} from './model';
 import type {CreationService} from '../chat/service';
 import {AssistantPanel} from './AssistantPanel';
 import {Button, Field, Icon, Pill} from '../../layout/components';
-import {colors, mono, styles} from '../../layout/theme';
+import {useTheme, mono} from '../../layout/theme';
 import {CodePreview} from '../../creator-sdk/CodePreview';
 interface EditorScreenProps {
   session: CardEditor; creation: CreationService; width: number;
@@ -18,6 +18,7 @@ export function EditorScreen(props: EditorScreenProps) {
   return editor ? <EditorContent {...props} editor={editor}/> : null;
 }
 function EditorContent({session, creation, width, startChat, duplicate, archive, openSettings, report, editor}: EditorScreenProps & {editor: Editor}) {
+  const {colors, styles} = useTheme();
   const card = editor.card;
   const [tab, setTab] = useState('세계관'); const [showAi, setShowAi] = useState(false);
   const [codeTab, setCodeTab] = useState<'html' | 'css' | 'javascript'>('html');
@@ -27,13 +28,13 @@ function EditorContent({session, creation, width, startChat, duplicate, archive,
   const run = (promise: Promise<unknown>) => void promise.catch(e => report(e));
   return <View style={{flex: 1, flexDirection: 'row'}}>
     <View style={{flex: 1}}>
-      <View style={[styles.row, {paddingVertical: 13, paddingHorizontal: compact ? 20 : 32, gap: 8, borderBottomWidth: 1, borderColor: colors.line, flexWrap: 'wrap', justifyContent: 'space-between', backgroundColor: '#FFF'}]}>
+      <View style={[styles.row, {paddingVertical: 13, paddingHorizontal: compact ? 20 : 32, gap: 8, borderBottomWidth: 1, borderColor: colors.line, flexWrap: 'wrap', justifyContent: 'space-between', backgroundColor: colors.panel}]}>
         <View style={[styles.row, {gap: 7}]}><Text style={{fontSize: 11, color: editor.status === 'error' ? colors.danger : colors.sageInk}}>{editor.status === 'saving' ? '◌ 편집 내용 보관 중' : editor.dirty ? '✓ 편집 초안 자동 보관됨' : '✓ 기기에 저장됨'}</Text><Text style={{fontSize: 10, color: colors.faint}}>r{editor.baseRevision}</Text></View>
         <View style={[styles.row, {gap: 6}]}>{!wide && <Button small variant="ghost" onPress={() => setShowAi(!showAi)} icon="spark">{showAi ? '편집하기' : 'AI 도우미'}</Button>}<Button small variant="secondary" onPress={() => run(session.save())}>저장</Button><Button small icon="chat" onPress={() => run(startChat(card))}>대화 시작</Button></View>
       </View>
       {!wide && showAi ? <AssistantPanel session={session} creation={creation} connected={creation.coordinator.provider.connected} openSettings={openSettings} report={report}/> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets contentContainerStyle={{padding: compact ? 22 : 34, paddingBottom: 50}}>
         <View style={{maxWidth: 770, width: '100%', alignSelf: 'center', gap: 27}}>
-          <View style={{gap: 10}}><Text style={[styles.eyebrow, {color: colors.accent}]}>{card.body.kind === 'template' ? 'STORY STUDIO' : 'CODE STUDIO'}</Text><TextInput accessibilityLabel="이야기 제목" value={card.title} onChangeText={title => session.edit({title})} placeholder="이야기에 이름을 붙여 주세요" maxLength={120} style={{fontSize: compact ? 25 : 29, fontWeight: '600', letterSpacing: -1, paddingVertical: 8, color: colors.ink}}/><TextInput accessibilityLabel="이야기 소개" value={card.description} onChangeText={description => session.edit({description})} placeholder="이 이야기를 한두 문장으로 소개해 주세요." multiline maxLength={500} style={{fontSize: 13, color: colors.muted, lineHeight: 22, paddingVertical: 4, minHeight: 48}}/></View>
+          <View style={{gap: 10}}><Text style={[styles.eyebrow, {color: colors.accent}]}>{card.body.kind === 'template' ? 'STORY STUDIO' : 'CODE STUDIO'}</Text><TextInput accessibilityLabel="이야기 제목" value={card.title} onChangeText={title => session.edit({title})} placeholder="이야기에 이름을 붙여 주세요" maxLength={120} style={{fontSize: compact ? 25 : 29, fontWeight: '600', paddingVertical: 8, color: colors.ink}}/><TextInput accessibilityLabel="이야기 소개" value={card.description} onChangeText={description => session.edit({description})} placeholder="이 이야기를 한두 문장으로 소개해 주세요." multiline maxLength={500} style={{fontSize: 13, color: colors.muted, lineHeight: 22, paddingVertical: 4, minHeight: 48}}/></View>
           <View style={[styles.row, {gap: 8, flexWrap: 'wrap'}]}><Text style={[styles.small, {marginRight: 6}]}>표지 색</Text>{(['moon', 'forest', 'sunset', 'code'] as const).map(cover => <Pressable key={cover} accessibilityRole="button" accessibilityLabel={`표지 ${cover}`} accessibilityState={{selected: card.cover === cover}} onPress={() => session.edit({cover})} style={{width: 26, height: 26, borderRadius: 13, borderWidth: card.cover === cover ? 2 : 0, borderColor: colors.accent, backgroundColor: {moon: '#DAD3E5', forest: '#C7D5BD', sunset: '#E5C6B2', code: '#C4CCD9'}[cover]}}/>)}<Text style={[styles.small, {marginLeft: 'auto'}]}>{card.body.kind === 'template' ? '세계관 + 등장인물' : 'HTML · CSS · JavaScript'}</Text></View>
           {card.body.kind === 'template' ? <>
             <View style={[styles.row, {gap: 24, borderBottomWidth: 1, borderColor: colors.line}]}>{['세계관', '등장인물', '대화 스타일'].map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{selected: tab === item}} onPress={() => setTab(item)} style={{paddingBottom: 14, borderBottomWidth: tab === item ? 2 : 0, borderColor: colors.accent}}><Text style={{fontSize: 13, color: tab === item ? colors.accent : colors.muted, fontWeight: tab === item ? '600' : '400'}}>{item}</Text></Pressable>)}</View>
@@ -43,7 +44,7 @@ function EditorContent({session, creation, width, startChat, duplicate, archive,
           </> : <View style={{gap: 20}}>
             <Section number="01" title="직접 만드는 이야기 화면" detail="HTML과 CSS로 화면을 만들고, 격리된 JavaScript에서 creator SDK를 사용하세요."/>
             <View style={[styles.row, {gap: 8}]}>{(['html', 'css', 'javascript'] as const).map(item => <Pill key={item} active={codeTab === item} onPress={() => setCodeTab(item)}>{item.toUpperCase()}</Pill>)}</View>
-            <TextInput accessibilityLabel={`${codeTab} 소스`} multiline autoCapitalize="none" autoCorrect={false} spellCheck={false} value={card.body.source[codeTab]} onChangeText={value => {if (card.body.kind === 'code') session.edit({body: {...card.body, source: {...card.body.source, [codeTab]: value}}});}} style={[styles.field, {fontFamily: mono, fontSize: 12, minHeight: 300, backgroundColor: '#F1EFEA'}]} maxLength={30000}/>
+            <TextInput accessibilityLabel={`${codeTab} 소스`} multiline autoCapitalize="none" autoCorrect={false} spellCheck={false} value={card.body.source[codeTab]} onChangeText={value => {if (card.body.kind === 'code') session.edit({body: {...card.body, source: {...card.body.source, [codeTab]: value}}});}} style={[styles.field, {fontFamily: mono, fontSize: 12, minHeight: 300, backgroundColor: colors.side}]} maxLength={30000}/>
             <Text style={styles.small}>화면 변경: creator.text(selector, text){'\n'}이벤트: creator.on('click', selector, handler){'\n'}AI 요청: creator.generate(prompt) · 중단: creator.cancel(requestId){'\n'}DOM 직접 접근과 외부 네트워크는 제공하지 않아요.</Text>
             <View style={[styles.row, {gap: 12}]}><Switch accessibilityLabel="코드 AI 호출 권한" value={allowed} onValueChange={setAllowed} disabled={!creation.coordinator.provider.connected}/><Text style={styles.small}>이번 실행에 AI 호출 허용</Text></View>
             <View style={[styles.row, {gap: 8}]}><Button icon="code" onPress={() => {setRunningCard(card); setPreview(v => v + 1);}}>코드 실행</Button>{preview > 0 && <Button variant="secondary" icon="stop" onPress={() => setPreview(0)}>실행 종료</Button>}</View>
@@ -57,4 +58,4 @@ function EditorContent({session, creation, width, startChat, duplicate, archive,
     {wide && <View style={{width: 320, borderLeftWidth: 1, borderColor: colors.line}}><AssistantPanel session={session} creation={creation} connected={creation.coordinator.provider.connected} openSettings={openSettings} report={report}/></View>}
   </View>;
 }
-function Section({number, title, detail}: {number: string; title: string; detail: string}) { return <View style={{gap: 7}}><View style={[styles.row, {gap: 10}]}><Text style={{fontSize: 12, color: '#A79BAC', fontFamily: mono}}>{number}</Text><Text style={styles.subheading}>{title}</Text></View><View style={[styles.row, {gap: 8}]}><Icon name="" size={0}/><Text style={styles.small}>{detail}</Text></View></View>; }
+function Section({number, title, detail}: {number: string; title: string; detail: string}) { const {colors, styles} = useTheme(); return <View style={{gap: 7}}><View style={[styles.row, {gap: 10}]}><Text style={{fontSize: 12, color: colors.muted, fontFamily: mono}}>{number}</Text><Text style={styles.subheading}>{title}</Text></View><View style={[styles.row, {gap: 8}]}><Icon name="" size={0}/><Text style={styles.small}>{detail}</Text></View></View>; }

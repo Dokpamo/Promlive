@@ -29,41 +29,16 @@ export const referenceComposer = {
 } as const;
 
 export const darkChatColors = {
-  background: '#111111',
-  drawer: '#1F1F1F',
-  drawerPreview: '#1A1A1A',
-  historySelected: '#2A2A2A',
-  historyPressed: '#2D2D2D',
-  header: 'rgba(41, 41, 41, 0.80)',
-  headerBorder: 'rgba(255, 255, 255, 0.09)',
-  composer: 'rgba(40, 40, 40, 0.98)',
-  border: '#444444',
-  button: '#303030',
-  text: '#E4E4E4',
-  muted: '#929292',
-  placeholder: '#777777',
-  send: '#D1D1D1',
-  sendIcon: '#262626',
-  buttonIcon: '#CDCDCD',
-  icon: '#D0D0D0',
-  backIcon: '#FAFAFA',
-  headerPressed: '#333333',
-  actionPressed: '#383838',
-  brand: '#F3F3F3',
-  search: '#262626',
-  searchIcon: '#999999',
-  title: '#EFEFEF',
-  preview: '#969696',
-  divider: '#303030',
-  userName: '#E6E6E6',
-  userAvatar: '#494137',
-  userIcon: '#E1D8CC',
-  settingsIcon: '#CBCBCB',
-  bubble: '#2A2A2A',
-  error: '#E9AAAA',
-  noticeError: '#FFB9B9',
-  notice: '#353535',
-  noticeBorder: '#484848',
+  background: '#101010', drawer: '#101010', drawerPreview: '#101010',
+  historySelected: '#202020', historyPressed: '#2D2D2D',
+  header: '#101010', headerBorder: '#303030', headerPressed: '#202020', actionPressed: '#2D2D2D',
+  composer: '#202020', border: '#303030', button: '#202020',
+  text: '#F5F5F5', muted: '#999999', placeholder: '#777777',
+  send: '#F5F5F5', sendIcon: '#101010', buttonIcon: '#F5F5F5', icon: '#F5F5F5', backIcon: '#F5F5F5',
+  brand: '#F5F5F5', search: '#202020', searchIcon: '#999999',
+  title: '#F5F5F5', preview: '#999999', divider: '#303030',
+  userName: '#F5F5F5', userAvatar: '#202020', userIcon: '#999999', settingsIcon: '#F5F5F5',
+  bubble: '#202020', error: '#F08792', noticeError: '#FFB9B9', notice: '#202020', noticeBorder: '#303030',
 };
 
 /** Reference sidebar proportions; the create/search row spans the card list width. */
@@ -90,18 +65,18 @@ export function typographyScale(viewportWidth: number) {
 
 export type ChatColors = typeof darkChatColors;
 
-/** Sampled from the supplied light Kimi screenshots, using the same geometry. */
+/** Monochrome surfaces and black primary actions from the Threads references. */
 export const lightChatColors: ChatColors = {
-  background: '#FFFFFF', drawer: '#F5F5F5', drawerPreview: '#F9F9F9',
-  historySelected: '#EEEEEE', historyPressed: '#E6E6E6',
-  header: 'rgba(255, 255, 255, 0.84)', headerBorder: 'rgba(255, 255, 255, 0.65)', headerPressed: '#EEEEEE', actionPressed: '#EEEEEE',
-  composer: 'rgba(255, 255, 255, 0.98)', border: '#FFFFFF', button: '#F7F7F7',
-  text: '#1A1A1A', muted: '#777777', placeholder: '#999999',
-  send: '#252525', sendIcon: '#FFFFFF', buttonIcon: '#343434', icon: '#333333', backIcon: '#242424',
-  brand: '#1A1A1A', search: '#FFFFFF', searchIcon: '#555555',
-  title: '#1D1D1D', preview: '#777777', divider: '#E9E9E9',
-  userName: '#262626', userAvatar: '#E8DFD2', userIcon: '#665A49', settingsIcon: '#444444',
-  bubble: '#F1F1F1', error: '#B03E3E', noticeError: '#A72E2E', notice: '#F0F0F0', noticeBorder: '#E2E2E2',
+  background: '#FFFFFF', drawer: '#FFFFFF', drawerPreview: '#FFFFFF',
+  historySelected: '#F5F5F5', historyPressed: '#EEEEEE',
+  header: '#FFFFFF', headerBorder: '#E5E5E5', headerPressed: '#F5F5F5', actionPressed: '#EEEEEE',
+  composer: '#F5F5F5', border: '#E5E5E5', button: '#F5F5F5',
+  text: '#0A0A0A', muted: '#999999', placeholder: '#A0A0A0',
+  send: '#000000', sendIcon: '#FFFFFF', buttonIcon: '#0A0A0A', icon: '#0A0A0A', backIcon: '#0A0A0A',
+  brand: '#0A0A0A', search: '#F5F5F5', searchIcon: '#999999',
+  title: '#0A0A0A', preview: '#999999', divider: '#DEDEDE',
+  userName: '#0A0A0A', userAvatar: '#EEEEEE', userIcon: '#999999', settingsIcon: '#0A0A0A',
+  bubble: '#F5F5F5', error: '#D60026', noticeError: '#A72E2E', notice: '#F5F5F5', noticeBorder: '#DEDEDE',
 };
 
 const avatarColors = ['#499CC4', '#8270B5', '#4B928A', '#BA8958', '#657BAE'];

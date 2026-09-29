@@ -1,9 +1,12 @@
 # 작업별 기능 지도
 
+새 UI의 화면·기능 구조는 [UI_STRUCTURE.md](UI_STRUCTURE.md)에 정리합니다. 시각 디자인은 미정이며, 아래 UI 파일들은 교체 전 구현을 찾기 위한 위치입니다. 기존 치수·배치·선택 방식은 새 디자인의 요구사항이 아닙니다.
+
 전체 파일 목록 대신 해당 행의 진입점·계약·테스트부터 읽습니다. 관련된 규칙이 바뀔 때만 다음 경계로 이동합니다.
 
 | 작업 | 먼저 읽을 파일 | 상태의 주인 / 검증 |
 |---|---|---|
+| 화면 구조·네 개 탭 | [UI 구조](UI_STRUCTURE.md), [MainNavigation](../src/app/MainNavigation.tsx), [CollectionScreens](../src/app/CollectionScreens.tsx) | 서재·채팅·생성·설정의 역할과 기능 연결을 유지하고, 새 시각 디자인은 별도로 정함. 데이터·저장은 `Workspace`/`FolderLibrary`. [내비 검사](../tests/main-navigation.test.tsx) |
 | 초안·전송·중단 | [ChatSession](../src/features/chat/ChatSession.ts), [저장 계약](../src/features/chat/sessionStore.ts) | 대화별 세션. [세션 회귀 검사](../tests/chat-session.test.ts), [방 이동·화면 검사](../tests/chat-screen.test.tsx) |
 | 메시지 표시·이전 기록 | [ChatScreen](../src/features/chat/ChatScreen.tsx), [MessageHistory](../src/features/chat/messageHistory.ts) | 화면 조회 범위. [페이지 검사](../tests/message-history.test.ts) |
 | 입력창 크기·키보드·제스처 | [ChatComposer](../src/features/chat/ChatComposer.tsx), [composerGeometry](../src/features/chat/composerGeometry.ts), [Android 키보드 프레임](../android/app/src/main/java/com/promlive/KeyboardInsetMotion.kt) | 표시만 담당, 전송 정책은 세션. Android의 최종 레이아웃 높이가 시작 신호보다 먼저 와도 실제 애니메이션 프레임이 우선. [편집기 유지 검사](../tests/composer-motion.test.tsx), [키보드 신호 순서 검사](../android/app/src/test/java/com/promlive/KeyboardInsetMotionTest.kt) |
@@ -17,7 +20,7 @@
 | 안내·오류·자동 닫기 | [Notifications](../src/app/Notifications.ts), [NotificationToast](../src/app/NotificationToast.tsx) | 알림 ID로 오래된 타이머를 무효화. [소유자 검사](../tests/feature-owners.test.ts) |
 | 화면 이동·기능 연결 | [Workspace](../src/app/workspace.ts), [WorkspaceChat](../src/app/WorkspaceChat.tsx) | 화면 이동 순서, 카드 목록, 기능 연결만 담당. 늦은 요청이 새 선택을 덮지 않는 [회귀 검사](../tests/workspace-regressions.test.ts) |
 | 행·버튼 눌림과 공통 치수 | [RowPressable](../src/layout/RowPressable.tsx), [PressSurface](../src/layout/PressSurface.tsx), [panelGeometry](../src/layout/panelGeometry.ts), [metrics](../src/layout/metrics.ts) | 설정·카드 목록·채팅내역이 같은 눌림·곡률·비율을 사용 |
-| 화면 위아래 색상막·채팅/포켓 경계 | [EdgeTint](../src/layout/EdgeTint.tsx), [ScreenHeader](../src/layout/ScreenHeader.tsx), [ChatDrawer](../src/features/chat/ChatDrawer.tsx) | 페이지 바탕색으로 투명도만 변경. 두 페이지는 바탕과 바깥쪽 잘림을 공유하며 입력 팝업에는 색상막을 추가하지 않음 |
+| 목록 복귀·채팅/포켓 경계·색상막 | [ChatNavigation](../src/features/chat/ChatNavigation.tsx), [EdgeTint](../src/layout/EdgeTint.tsx), [ScreenHeader](../src/layout/ScreenHeader.tsx) | 오른쪽 스와이프는 현재 하단 탭 목록으로 복귀. 왼쪽 스와이프는 포켓 열기. 채팅과 포켓은 바탕과 바깥쪽 잘림을 공유. [복귀·저장·포켓 검사](../tests/chat-navigation.test.tsx) |
 | 팝업·뒤로가기·드래그 인계 | [SwipeBackModal](../src/layout/SwipeBackModal.tsx), [sheetMotion](../src/layout/sheetMotion.ts), [panelAnimation](../src/layout/panelAnimation.ts) | 공통 방향 판정·저항·스프링. 상세 페이지·시트는 같은 창을 사용하고 닫기 시작 시 부모에 입력을 인계. [제스처 경합 검사](../tests/gesture-interruption.test.tsx), [방향 검사](../tests/sheet-motion.test.ts) |
 | 선택창 내부 스크롤→당김 | [SheetScrollView](../src/layout/SheetScrollView.touch.tsx), [경계 인계](../src/layout/sheetScrollHandoff.ts) | 스크롤 전에는 바로 당김. 스크롤 후 위·아래 끝의 첫 당김은 팝업의 탄성 이동·복귀만 허용하고, 다음 새 당김부터 닫기 판정. Android·iOS에서는 손을 떼지 않고 반대로 움직이면 당김을 되돌린 뒤 내부 스크롤을 재개하며, 그 터치 동안은 닫지 않음. 네이티브 동시 인식, 나머지는 responder. [경계 검사](../tests/sheet-scroll-handoff.test.ts), [네이티브 연결 검사](../tests/sheet-scroll-view.test.tsx) |
 | AI 연결·스트리밍 | [SelectedProvider](../src/adapters/ai/selectedProvider.ts), [GenerationCoordinator](../src/features/chat/generation.ts) | 호스트만 인증·주소 보유. [전송 검사](../tests/transport.test.ts), [생성 수명 검사](../tests/generation.test.ts) |

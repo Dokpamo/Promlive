@@ -52,6 +52,7 @@ it('retains a tab’s local state, exposes only its active content and has four 
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<Host/>));
   expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.getAttribute('aria-label'))).toEqual(['서재', '채팅', '생성', '설정']);
+  expect(document.querySelector('[data-testid="main-tab-pager"]')).toBeNull();
   await press('test-library'); await press('main-tab-chats'); await press('main-tab-create'); await press('main-tab-settings');
   expect(document.querySelector('[data-testid="main-tab-settings"]')?.getAttribute('aria-selected')).toBe('true');
   expect(document.querySelector('[data-testid="main-page-library"]')?.getAttribute('aria-hidden')).toBe('true');
@@ -79,40 +80,15 @@ it('keeps the tab bar mounted and follows selection fade progress during restora
   expect(document.querySelector('[data-testid="main-tab-chats"]')?.getAttribute('aria-selected')).toBe('true');
 });
 
-it('carries the list with the header through the remaining snap distance without accumulating offset drift', async () => {
+it('keeps the navigation available while scrolling in either direction and after changing tabs', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<Host/>));
-  const offset = () => Number(document.querySelector('[data-testid="offset-library"]')?.textContent);
   const bar = () => document.querySelector('[data-testid="main-tab-bar"]')!;
-  for (let n = 0; n < 3; n++) {
-    await press('scroll-library-partial-down');
-    expect(offset()).toBe(60);
-    await act(async () => {await new Promise(resolve => setTimeout(resolve, 100));});
-    expect(bar().getAttribute('aria-hidden')).toBe('true');
-    expect(offset()).toBe(100);
-    await press('scroll-library-partial-up');
-    expect(offset()).toBe(40);
+  for (const action of ['down', 'little-up', 'up']) {
+    await press(`scroll-library-${action}`);
     await act(async () => {await new Promise(resolve => setTimeout(resolve, 100));});
     expect(bar().getAttribute('aria-hidden')).not.toBe('true');
-    expect(offset()).toBeCloseTo(0);
   }
-});
-
-it('snaps a short reversal closed and a longer reversal open, with immediate reset on tab change', async () => {
-  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<Host/>));
-  const bar = () => document.querySelector('[data-testid="main-tab-bar"]')!;
-  await press('scroll-library-down');
-  expect(bar().getAttribute('aria-hidden')).toBe('true');
-  await press('scroll-library-little-up');
-  expect(bar().getAttribute('aria-hidden')).not.toBe('true');
-  await act(async () => {await new Promise(resolve => setTimeout(resolve, 100));});
-  expect(bar().getAttribute('aria-hidden')).toBe('true');
-  await press('scroll-library-up');
-  await act(async () => {await new Promise(resolve => setTimeout(resolve, 100));});
-  expect(bar().getAttribute('aria-hidden')).not.toBe('true');
-  await press('scroll-library-down');
-  // Changing pages resets visibility without waiting for the hide animation.
   await press('main-tab-chats');
   expect(bar().getAttribute('aria-hidden')).not.toBe('true');
   expect(document.querySelector('[data-testid="main-tab-chats"]')?.getAttribute('aria-selected')).toBe('true');

@@ -44,7 +44,9 @@ interface Props<T extends ListItem> {
   scope: 'history' | 'card'; scale: number; resetKey: string; empty: string; active?: boolean;
   header?: (state: ListHeaderState) => ReactNode;
   leading?: (item: T) => ReactNode;
-  grid?: {columns: number; cover: (item: T, width: number, height: number) => ReactNode; byline?: (item: T) => string};
+  rowContent?: (item: T) => ReactNode;
+  grid?: {columns: number; cover: (item: T, width: number, height: number) => ReactNode; byline?: (item: T) => string; overlayLabels?: boolean};
+  intro?: ReactNode;
   categoryId?: string | null;
   subtitle?: (item: T) => string;
   openLabel?: (item: T) => string;
@@ -60,7 +62,7 @@ interface Props<T extends ListItem> {
 }
 
 /** Rows and cover grids share folder navigation, menus and selection behavior. */
-export function ManagedItemList<T extends ListItem>({items, allItems, selectedId, actions, library, search = '', onOpen, report, scope, scale: s, resetKey, empty, active = true, header, leading, grid, categoryId, subtitle, openLabel, onBack, backgroundColor, geometry, scroll, onListTouch, scrollChrome, hideRootBreadcrumb = false, rootLabel, selectionVariant, onSelectionChange}: Props<T>) {
+export function ManagedItemList<T extends ListItem>({items, allItems, selectedId, actions, library, search = '', onOpen, report, scope, scale: s, resetKey, empty, active = true, header, leading, rowContent, grid, intro, categoryId, subtitle, openLabel, onBack, backgroundColor, geometry, scroll, onListTouch, scrollChrome, hideRootBreadcrumb = false, rootLabel, selectionVariant, onSelectionChange}: Props<T>) {
   const {colors: c} = useAppearance();
   const safe = useSafeAreaInsets();
   const panel = useRef<View>(null);
@@ -72,6 +74,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
   const dimensions = useRef({content: 0, viewport: 0});
   const {width, fontScale} = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(width);
+  const [introHeight, setIntroHeight] = useState(0);
   const [menu, setMenu] = useState<(Pick<ItemMenuTarget, 'bounds' | 'anchor' | 'point'> & {entry: LibraryEntry<T>}) | null>(null);
   const [rename, setRename] = useState<LibraryEntry<T> | null>(null);
   const state = useLibrarySelection(allItems, library, active, report);
@@ -92,7 +95,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
   const gridGap = 3 * s;
   const tileWidth = Math.max(1, (pageWidth - 2 * geo.inset * s - gridGap * ((grid?.columns ?? 1) - 1)) / (grid?.columns ?? 1));
   const coverHeight = tileWidth * 4 / 3;
-  const tileHeight = coverHeight + (10 + 62 * fontScale + (grid?.byline ? 8 + 25 * fontScale : 0)) * s;
+  const tileHeight = grid?.overlayLabels ? coverHeight : coverHeight + (10 + 62 * fontScale + (grid?.byline ? 8 + 25 * fontScale : 0)) * s;
   const query = search.trim().toLocaleLowerCase();
   const visibleIds = new Set(items.map(item => item.id));
   const locations = new Map(value.items.map(item => [item.id, item.folderId]));
@@ -191,7 +194,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
     return <FlatList ref={interactive ? list : undefined} testID={interactive ? scope === 'card' ? 'card-list' : 'card-conversation-list' : undefined} data={rows} keyExtractor={item => item.key} CellRendererComponent={ItemListCell} style={{flex: 1}} removeClippedSubviews={false}
           contentContainerStyle={{flexGrow: 1, paddingHorizontal: geo.inset * s, paddingTop: scrollChrome?.animatedTopInset ? 0 : scrollChrome?.topInset ?? 0, paddingBottom: (scope === 'card' ? 12 * s : 0) + bottomInset}}
           extraData={{selected, selectedId, menu: menu?.entry.id}}
-          getItemLayout={(_, index) => ({index, length: rows[index]!.height, offset: rows[index]!.top + (id ? rowHeight : 0)
+          getItemLayout={(_, index) => ({index, length: rows[index]!.height, offset: rows[index]!.top + (intro ? introHeight : 0) + (id ? rowHeight : 0)
             + (scrollChrome?.topInset ?? 0) + (scrollChrome && library && (!hideRootBreadcrumb || id !== null) ? referenceHeader.height * s : 0)})}
           onLayout={event => {if (interactive) measureList('viewport', event.nativeEvent.layout.height);}} onContentSizeChange={(_, height) => {if (interactive) measureList('content', height);}}
           onScrollBeginDrag={event => {menuRequest.current++; if (interactive && active && !overlay && !selecting) scrollChrome?.onScrollBeginDrag(event);}}
@@ -203,7 +206,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
             if (scroll) scroll.current.offset = Math.max(0, event.nativeEvent.contentOffset.y);
             if (active && !overlay && !selecting) scrollChrome?.onScroll(event);
           }} scrollEventThrottle={16}
-          ListHeaderComponent={<>{scrollChrome?.animatedTopInset && <Animated.View pointerEvents="none" style={{height: scrollChrome.animatedTopInset}}/>}{scrollChrome && breadcrumbs(id)}{id ? <RowPressable accessibilityRole="button" accessibilityLabel={`상위 폴더, ${parentName}`} onPress={() => navigate(parent)} radius={geo.radius * s}
+          ListHeaderComponent={<>{scrollChrome?.animatedTopInset && <Animated.View pointerEvents="none" style={{height: scrollChrome.animatedTopInset}}/>}{intro && <View testID={`${scope}-intro`} pointerEvents={selection.present ? 'none' : 'auto'} aria-hidden={selection.present} accessibilityElementsHidden={selection.present} importantForAccessibility={selection.present ? 'no-hide-descendants' : 'auto'} onLayout={event => setIntroHeight(event.nativeEvent.layout.height)}>{intro}</View>}{scrollChrome && breadcrumbs(id)}{id ? <RowPressable accessibilityRole="button" accessibilityLabel={`상위 폴더, ${parentName}`} onPress={() => navigate(parent)} radius={geo.radius * s}
             contentStyle={{height: rowHeight, paddingHorizontal: geo.padding * s, flexDirection: 'row', alignItems: 'center', gap: 18 * s}}>
             <View style={{transform: [{rotate: '-90deg'}]}}><SettingsIcon name="chevron" size={30 * s} color={c.muted}/></View><Text style={{color: c.muted, fontSize: geo.fontSize * s}}>{parentName}</Text>
           </RowPressable> : null}</>}
@@ -217,7 +220,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
             {item.items.map((entry, column) => <GridMotionCell key={entry.id} id={entry.id} left={column * (tileWidth + gridGap)} top={item.top} width={tileWidth}
               resetKey={`${resetKey}:${id}:${tileWidth}:${tileHeight}`} positions={gridPositions} reduced={reduced}>
               <ItemRow entry={entry} interactive={interactive} scope={scope} scale={s} height={tileHeight} geometry={geo}
-                tile={{width: tileWidth, coverHeight}} leading={entry.kind === 'item' ? grid!.cover(entry.item, tileWidth, coverHeight) : undefined}
+                tile={{width: tileWidth, coverHeight, overlay: grid?.overlayLabels ?? false}} leading={entry.kind === 'item' ? grid!.cover(entry.item, tileWidth, coverHeight) : undefined}
                 subtitle={entry.kind === 'item' ? grid?.byline?.(entry.item) : undefined}
                 selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced} openLabel={entry.kind === 'item' ? openLabel?.(entry.item) : undefined}
                 selected={selected ? selected.has(entry.id) : entry.id === (menu?.entry.id ?? `item:${selectedId}`)}
@@ -226,6 +229,7 @@ export function ManagedItemList<T extends ListItem>({items, allItems, selectedId
           </View> : <ItemMotionCell item={item} resetKey={`${resetKey}:${id}:${rowHeight}`} reduced={reduced} backgroundColor={backgroundColor ?? c.drawer} radius={geo.radius * s}>
             {item.kind === 'divider' ? <ItemPinDivider scope={scope} visible={item.visible} scale={s} inset={geo.padding} reduced={reduced}/> :
               <ItemRow entry={item.item} interactive={interactive} scope={scope} scale={s} height={rowHeight} geometry={geo} leading={item.item.kind === 'item' ? leading?.(item.item.item) : undefined} selecting={selected !== null} selectionProgress={selection.progress} reduced={reduced}
+                content={item.item.kind === 'item' ? rowContent?.(item.item.item) : undefined}
                 subtitle={item.item.kind === 'item' ? subtitle?.(item.item.item) : undefined} openLabel={item.item.kind === 'item' ? openLabel?.(item.item.item) : undefined}
                 selected={selected ? selected.has(item.item.id) : item.item.id === (menu?.entry.id ?? `item:${selectedId}`)}
               longPressSelect={pageSelection} onPress={() => select(item.item)} onLongPress={(row, point) => hold(item.item, row, point)}/>}
@@ -308,9 +312,10 @@ function ItemPinDivider({scope, visible, scale: s, inset, reduced}: {scope: 'car
     style={{position: 'absolute', left: inset * s, right: inset * s, top: 12 * s, height: 1, backgroundColor: c.divider, opacity: progress,
       transform: [{scaleX: progress.interpolate({inputRange: [0, 1], outputRange: [0.9, 1]})}]}}/>;
 }
-function ItemRow<T extends ListItem>({entry, interactive, scope, scale: s, height, geometry, leading, tile, subtitle, openLabel, selecting, selectionProgress, reduced, selected, onPress, onLongPress, longPressSelect = false}: {
+function ItemRow<T extends ListItem>({entry, interactive, scope, scale: s, height, geometry, leading, content, tile, subtitle, openLabel, selecting, selectionProgress, reduced, selected, onPress, onLongPress, longPressSelect = false}: {
   entry: LibraryEntry<T>; scope: 'card' | 'history'; scale: number; height: number; geometry: NonNullable<Props<ListItem>['geometry']>; leading?: ReactNode;
-  tile?: {width: number; coverHeight: number};
+  content?: ReactNode;
+  tile?: {width: number; coverHeight: number; overlay: boolean};
   subtitle?: string | undefined; openLabel?: string | undefined;
   interactive: boolean; selecting: boolean; selectionProgress: Animated.Value; reduced: boolean; selected: boolean; onPress: () => void; onLongPress: (row: View, point?: MenuPoint) => void;
   longPressSelect?: boolean;
@@ -341,10 +346,11 @@ function ItemRow<T extends ListItem>({entry, interactive, scope, scale: s, heigh
         <Animated.View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, width: tile.width, height: tile.coverHeight, backgroundColor: '#000', opacity: Animated.multiply(highlight, 0.12)}}/>
         <CoverSelectionMark testID={`${scope}-check-${id}`} scale={s} selectionProgress={selectionProgress} checkedProgress={highlight}/>
       </>}
-      <View style={{flexDirection: 'row', alignItems: 'flex-start', paddingTop: 10 * s, paddingHorizontal: 10 * s}}>
+      <View style={[{flexDirection: 'row', alignItems: 'flex-start', paddingTop: 10 * s, paddingHorizontal: 10 * s}, tile.overlay ? {position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 30 * s, paddingBottom: 12 * s,
+        ...(Platform.OS === 'web' ? {backgroundImage: 'linear-gradient(transparent, rgba(0,0,0,0.68))'} : Platform.OS === 'android' || Platform.OS === 'ios' ? {experimental_backgroundImage: 'linear-gradient(transparent, rgba(0,0,0,0.68))'} : {backgroundColor: 'rgba(0,0,0,0.5)'})} : undefined]}>
         <View style={{flex: 1, minWidth: 0}}>
-          <Text numberOfLines={2} style={{fontSize: 23 * s, lineHeight: 31 * s, color: c.text, includeFontPadding: false}}>{entry.title}</Text>
-          {!!subtitle && <Text numberOfLines={1} style={{marginTop: 4 * s, fontSize: 19 * s, lineHeight: 25 * s, color: c.muted, includeFontPadding: false}}>{subtitle}</Text>}
+          <Text numberOfLines={tile.overlay ? 1 : 2} style={{fontSize: (tile.overlay ? 21 : 23) * s, lineHeight: 29 * s, color: tile.overlay ? '#FFFFFF' : c.text, fontWeight: tile.overlay ? '600' : '400', includeFontPadding: false}}>{entry.title}</Text>
+          {!!subtitle && <Text numberOfLines={1} style={{marginTop: 4 * s, fontSize: 18 * s, lineHeight: 24 * s, color: tile.overlay ? '#E1E1E4' : c.muted, includeFontPadding: false}}>{subtitle}</Text>}
         </View>
         <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: pinVisibility.interpolate({inputRange: [0, 1], outputRange: [0, 24 * s]}), paddingTop: 5 * s, opacity: pinVisibility, overflow: 'hidden', alignItems: 'flex-end'}}>
           <SettingsIcon name="pin" size={20 * s} color={c.muted}/>
@@ -353,10 +359,10 @@ function ItemRow<T extends ListItem>({entry, interactive, scope, scale: s, heigh
       </View>
     </> : <>
     {entry.kind === 'folder' ? <View style={{width: referenceSidebar.cardImage * s, marginRight: referenceSidebar.cardImageGap * s, alignItems: 'center'}}><SettingsIcon name="folder" size={38 * s} color={c.text}/></View> : leading}
-    <View style={{flex: 1, minWidth: 0, gap: 5 * s}}>
+    {content ?? <View style={{flex: 1, minWidth: 0, gap: 5 * s}}>
       <Text numberOfLines={1} style={{color: c.text, fontSize: geometry.fontSize * s, lineHeight: geometry.lineHeight * s, fontWeight: '400', includeFontPadding: false}}>{entry.title}</Text>
       {!!subtitle && <Text numberOfLines={1} style={{color: c.muted, fontSize: 21 * s, lineHeight: 28 * s, includeFontPadding: false}}>{subtitle}</Text>}
-    </View>
+    </View>}
     {entry.kind === 'folder' ? <Animated.View pointerEvents="none" style={{width: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [42 * s, 0]}), opacity: selectionProgress.interpolate({inputRange: [0, 1], outputRange: [1, 0]}), alignItems: 'flex-end', overflow: 'hidden'}}><SettingsIcon name="chevron" size={24 * s} color={c.muted}/></Animated.View>
       : <Animated.View pointerEvents="none" accessible={false} aria-hidden style={{width: pinVisibility.interpolate({inputRange: [0, 1], outputRange: [0, 40 * s]}), alignItems: 'flex-end', opacity: pinVisibility, overflow: 'hidden'}}><SettingsIcon name="pin" size={24 * s} color={c.muted}/></Animated.View>}
     <SelectionMark testID={`${scope}-check-${id}`} scale={s} selectionProgress={selectionProgress} checkedProgress={highlight}/>

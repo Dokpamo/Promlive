@@ -86,7 +86,7 @@ export function AnchoredActionMenu({target, scale: s, scope, closeLabel, actions
   <View testID={`${scope}-actions-overlay`} accessibilityViewIsModal style={{flex: 1}}>
     <Pressable testID={`${scope}-actions-dismiss`} accessibilityRole="button" accessibilityLabel={closeLabel} onPress={() => close()} style={StyleSheet.absoluteFill}/>
     <Animated.View testID={`${scope}-actions`} accessibilityRole="menu" style={{position: 'absolute', left, top, width: menuWidth, height, padding: menuPadding, borderRadius: radius, backgroundColor: p.sheet,
-      boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)', opacity: progress,
+      boxShadow: isDark ? '0px 3px 12px rgba(0,0,0,0.25)' : '0px 3px 12px rgba(0,0,0,0.10)', opacity: progress,
       transformOrigin: [originX, originY, 0], transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
       <Pressable accessible={false} onPress={() => close()} style={StyleSheet.absoluteFill}/>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{maxHeight: Math.max(1, height - 2 * menuPadding)}}>

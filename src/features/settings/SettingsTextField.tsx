@@ -5,16 +5,18 @@ import {KeyboardDock, KeyboardMotionProvider, useKeyboardFrame} from '../../layo
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
 import {PressSurface} from '../../layout/PressSurface';
 import {useAppearance} from '../appearance/AppAppearance';
-import {headerScale, referenceHeader, referenceTypography} from '../../layout/metrics';
+import {headerScale, referenceHeader} from '../../layout/metrics';
 import {expandedComposerFrame} from '../chat/composerGeometry';
-import {SettingsIcon} from './SettingsIcon';
+import {SettingsIcon, type SettingsIconName} from './SettingsIcon';
 import {SettingsSubtitle} from './SettingsSubtitle';
+import {SettingsMenuRow, settingsMenuGeometry} from './SettingsMenuRow';
 import {panelReference as r} from '../../layout/panelGeometry';
 import {SwipeBackModal} from '../../layout/SwipeBackModal';
 import {useBlankDismiss} from '../../layout/useBlankDismiss';
 import {DragClickBoundary} from '../../layout/DragClickBoundary';
 import {focusWithKeyboard} from '../../layout/focusWithKeyboard';
 import {SettingsMiniTextEditor} from './SettingsMiniTextEditor';
+import {SubmitButton} from '../../design/foundation';
 
 export interface FieldOptions {
   label: string;
@@ -67,17 +69,25 @@ export function SettingsTextEditorHost({children, resumeInput}: {children: React
   </TextEditor.Provider>;
 }
 
-export function SettingsTextField({detail, ...field}: FieldOptions & {detail?: string}) {
+export function SettingsTextField({detail, icon, ...field}: FieldOptions & {detail?: string; icon?: SettingsIconName}) {
   const open = useContext(TextEditor);
   const {settings: p} = useAppearance();
   const s = headerScale(useWindowDimensions().width);
   const preview = field.secret && field.value ? '••••••••' : field.value || field.placeholder;
+  if (icon) return <View>
+    <SettingsMenuRow icon={icon} label={field.label} {...(field.testID ? {testID: field.testID} : {})}
+      {...(field.keyboard === 'number-pad' || field.keyboard === 'decimal-pad' || field.secret ? {value: preview} : {detail: preview})}
+      accessibilityValue={field.secret ? field.value ? '등록됨' : '입력 안 함' : field.value || '입력 안 함'}
+      accessibilityHint="눌러서 입력창 열기" onPress={() => open?.(field)}/>
+    {detail && <Text style={{color: p.secondary, fontSize: 21 * s, lineHeight: 31 * s, marginLeft: settingsMenuGeometry.textInset * s, marginBottom: 16 * s}}>{detail}</Text>}
+  </View>;
   return <View style={{marginBottom: r.groupGap * s}}>
-    <SettingsSubtitle>{field.label}</SettingsSubtitle>
+    <SettingsSubtitle inset={0}>{field.label}</SettingsSubtitle>
     <PressSurface testID={field.testID} accessibilityRole="button" accessibilityLabel={field.label}
       accessibilityValue={{text: field.secret ? field.value ? '등록됨' : '입력 안 함' : field.value || '입력 안 함'}}
-      accessibilityHint="눌러서 입력창 열기" onPress={() => open?.(field)} radius={r.controlRadius * s} highlightColor={p.selected}
-      contentStyle={{minHeight: 84 * s, paddingHorizontal: r.rowInset * s, paddingVertical: 20 * s, backgroundColor: p.surface, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
+      accessibilityHint="눌러서 입력창 열기" onPress={() => open?.(field)} radius={0} highlightColor={p.selected}
+      style={{borderBottomWidth: .5, borderBottomColor: p.divider}}
+      contentStyle={{minHeight: 84 * s, paddingHorizontal: 0, paddingVertical: 20 * s, backgroundColor: p.background, flexDirection: 'row', alignItems: 'center', gap: 16 * s}}>
       <Text numberOfLines={3} ellipsizeMode="tail" style={{flex: 1, color: field.value ? p.text : p.faint, fontSize: 25 * s, lineHeight: 36 * s, includeFontPadding: false}}>{preview}</Text>
       <SettingsIcon name="chevron" size={24 * s} color={p.faint}/>
     </PressSurface>
@@ -162,9 +172,8 @@ function TextEditorBody({field, keepKeyboard, input, dismiss, keyboardVisible, c
     <Animated.View testID="settings-text-editor" accessibilityViewIsModal onAccessibilityEscape={pull.dismiss} pointerEvents={exiting ? 'none' : 'auto'} {...pull.panHandlers} style={{position: 'absolute', left: sheet.x, top: sheet.y, width: sheet.width, height: sheet.height, borderRadius: sheet.radius, backgroundColor: p.sheet, overflow: 'hidden', transform: [{translateY: pull.y}]}}>
       <View onStartShouldSetResponderCapture={pull.block} pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: insets.left, right: insets.right}}>
         <ScreenHeader width={window.width} edgeTint={false}>
-          <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
-          <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}>{!field.secret && <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: referenceTypography.titleFontSize * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{field.label}</Text>}</View>
           <HeaderButton width={window.width} testID="settings-text-editor-close" icon="close" label="입력창 닫기" onPress={pull.dismiss}/>
+          <View pointerEvents="none" style={{flex: 1, marginLeft: 12 * s, height: referenceHeader.height * s, justifyContent: 'center'}}>{!field.secret && <Text accessibilityRole="header" numberOfLines={1} style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: '700', includeFontPadding: false}}>{field.label}</Text>}</View>
         </ScreenHeader>
       </View>
       <View testID="settings-text-editor-viewport" pointerEvents="box-none" style={{position: 'absolute', top: inputTop, left: insets.left + 26 * s, right: insets.right + 26 * s, height}}>
@@ -181,7 +190,7 @@ function TextEditorBody({field, keepKeyboard, input, dismiss, keyboardVisible, c
       </View>
       <KeyboardDock fraction={footerFraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
         <View testID="settings-text-editor-footer" onStartShouldSetResponderCapture={pull.block} pointerEvents="box-none" style={{position: 'absolute', right: insets.right + referenceHeader.inset * s, bottom: insets.bottom + r.sheetInset * s}}>
-          <HeaderButton width={window.width} testID="settings-text-editor-done" icon="check" label="입력 완료" bright onPress={pull.dismiss}/>
+          <SubmitButton testID="settings-text-editor-done" label="완료" accessibilityLabel="입력 완료" onPress={pull.dismiss}/>
         </View>
       </KeyboardDock>
     </Animated.View>

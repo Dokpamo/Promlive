@@ -9,11 +9,11 @@ export const librarySelectionHeight = 78;
 export function LibrarySelectionBar({count, canMove, progress, present, scale: s, bottom, onFolder, onDelete, onCancel, scope = 'persona'}: {
   scope?: string; count: number; canMove: boolean; progress: Animated.Value; present: boolean; scale: number; bottom: number; onFolder: () => void; onDelete: () => void; onCancel: () => void;
 }) {
-  const {colors: c, settings: p, isDark} = useAppearance();
+  const {colors: c, settings: p} = useAppearance();
   if (!present) return null;
   return <Animated.View testID={`${scope}-selection-footer`} pointerEvents={count ? 'auto' : 'none'} aria-hidden={!count} accessibilityElementsHidden={!count} importantForAccessibility={count ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', bottom, alignSelf: 'center', height: librarySelectionHeight * s, opacity: progress, flexDirection: 'row', padding: 5 * s, gap: 4 * s,
-      borderRadius: g.controlRadius * s, backgroundColor: p.sheet, boxShadow: isDark ? '0px 3px 16px rgba(0,0,0,0.24)' : '0px 3px 16px rgba(0,0,0,0.07)',
+      borderRadius: g.controlRadius * s, backgroundColor: p.sheet, borderWidth: 1, borderColor: c.divider,
       transform: [{translateY: progress.interpolate({inputRange: [0, 1], outputRange: [20 * s, 0]})}, {scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
     {([
       {id: 'folder', icon: 'folder', accessibilityLabel: '선택한 항목 폴더 이동', disabled: !canMove, onPress: onFolder, color: p.text},

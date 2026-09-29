@@ -2,8 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, Modal, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {PressSurface} from '../../layout/PressSurface';
-import {headerScale, referenceTypography} from '../../layout/metrics';
-import {panelGroupScale, panelReference as g} from '../../layout/panelGeometry';
+import {headerScale} from '../../layout/metrics';
 import {syncSystemBars, useAppearance} from '../appearance/AppAppearance';
 import {useDrawerModalLock} from '../chat/DrawerGestureBoundary';
 
@@ -14,10 +13,7 @@ export function LibraryDeleteDialog({title, detail, onClose, onDelete, scope = '
   const {width, height} = useWindowDimensions();
   const safe = useSafeAreaInsets();
   const s = headerScale(width);
-  const dialogWidth = Math.min(340, (width - safe.left - safe.right) * 0.82);
-  const cornerScale = panelGroupScale(width, dialogWidth, safe.left + safe.right);
-  const radius = g.radius * cornerScale;
-  const padding = g.groupPadding * cornerScale;
+  const dialogWidth = Math.min(340, (width - safe.left - safe.right) * 0.68);
   const progress = useRef(new Animated.Value(0)).current;
   const reduced = useRef(false);
   const closing = useRef(false);
@@ -65,21 +61,21 @@ export function LibraryDeleteDialog({title, detail, onClose, onDelete, scope = '
   };
   return <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => {}} onShow={() => syncSystemBars(isDark)}>
     <View testID={`${scope}-delete-overlay`} accessibilityViewIsModal onAccessibilityEscape={() => {}} style={{flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: safe.top, paddingBottom: safe.bottom}}>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.2)', opacity: progress}]}/>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(0,0,0,0.6)', opacity: progress}]}/>
       <Animated.View testID={`${scope}-delete-confirm`} style={{width: dialogWidth, maxHeight: (height - safe.top - safe.bottom) * 0.8,
-        padding, paddingTop: g.rowInset * s, borderRadius: radius, backgroundColor: p.sheet,
-        boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)', opacity: progress,
+        borderRadius: 28 * s, backgroundColor: p.sheet, overflow: 'hidden', opacity: progress,
         transform: [{scale: progress.interpolate({inputRange: [0, 1], outputRange: [0.96, 1]})}]}}>
-        <ScrollView style={{flexShrink: 1}} contentContainerStyle={{paddingHorizontal: Math.max(0, g.rowInset * s - padding)}} showsVerticalScrollIndicator={false}>
-          <Text accessibilityRole="header" style={{color: p.text, fontSize: 32 * s, lineHeight: 44 * s, fontWeight: referenceTypography.titleWeight}}>{title}</Text>
-          <Text style={{color: p.secondary, fontSize: 24 * s, lineHeight: 36 * s, marginTop: 16 * s}}>{detail}</Text>
+        <ScrollView style={{flexShrink: 1}} contentContainerStyle={{paddingHorizontal: 32 * s, paddingVertical: 48 * s}} showsVerticalScrollIndicator={false}>
+          <Text accessibilityRole="header" style={{color: p.text, fontSize: 26 * s, lineHeight: 36 * s, fontWeight: '700', textAlign: 'center'}}>{title}</Text>
+          <Text style={{color: p.text, fontSize: 25 * s, lineHeight: 36 * s, marginTop: 14 * s, textAlign: 'center'}}>{detail}</Text>
           {!!error && <Text accessibilityRole="alert" style={{color: c.error, fontSize: 22 * s, marginTop: 18 * s}}>{error}</Text>}
         </ScrollView>
-        <View style={{height: 78 * s, flexShrink: 0, flexDirection: 'row', gap: 14 * s, marginTop: 24 * s}}>
+        <View style={{flexShrink: 0}}>
           {(['delete', 'cancel'] as const).map(action => <PressSurface key={action} accessibilityRole="button" accessibilityLabel={action === 'cancel' ? '삭제 취소' : '삭제 확인'}
-            disabled={busy} onPress={action === 'cancel' ? () => {if (!pending.current) close();} : () => {void confirm();}} radius={Math.max(0, radius - padding)} highlightColor={p.selected} style={{flex: 1}}
-            contentStyle={{minHeight: 78 * s, backgroundColor: p.selected, alignItems: 'center', justifyContent: 'center'}}>
-            <Text style={{color: action === 'cancel' ? p.text : c.error, fontSize: g.rowFont * s}}>{action === 'cancel' ? '취소' : '삭제'}</Text>
+            disabled={busy} onPress={action === 'cancel' ? () => {if (!pending.current) close();} : () => {void confirm();}} radius={0} highlightColor={p.selected}
+            style={{height: 88 * s, borderTopWidth: .5, borderTopColor: p.divider, opacity: busy ? .4 : 1}}
+            contentStyle={{backgroundColor: p.sheet, alignItems: 'center', justifyContent: 'center'}}>
+            <Text style={{color: action === 'cancel' ? p.text : c.error, fontSize: 25 * s, fontWeight: action === 'cancel' ? '400' : '600'}}>{action === 'cancel' ? '취소' : '삭제'}</Text>
           </PressSurface>)}
         </View>
       </Animated.View>

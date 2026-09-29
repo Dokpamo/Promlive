@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, View, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useAppearance} from '../features/appearance/AppAppearance';
 import {ChatIcon} from '../features/chat/ChatIcon';
@@ -12,19 +12,41 @@ import {RowPressable} from '../layout/RowPressable';
 import {PagingBoundary, usePagingLock} from '../layout/PagingBoundary';
 import {panelReference} from '../layout/panelGeometry';
 import {useCollectionChrome} from './NavigationChrome';
+import {useItemReducedMotion} from '../layout/itemListMotion';
+import {FilterPill} from '../design/foundation';
+import {collectionHeaderGeometry} from './CollectionHeader';
 
-export const categoryRowHeight = 84;
+export const categoryRowHeight = collectionHeaderGeometry.categories;
 
-export function LibraryCategories({library, value, selected, onSelect, onRemove, scale: s, active}: {
+export function LibraryCategories({library, value, selected, onSelect, onRemove, scale: s, active, variant = 'pill'}: {
   library: FolderLibrary; value: FolderTree; selected: string | null; onSelect: (id: string | null) => void;
   onRemove: (id: string) => Promise<void>; scale: number; active: boolean;
+  variant?: 'pill' | 'underline';
 }) {
-  const {colors: c, isDark} = useAppearance();
+  const {colors: c} = useAppearance();
   const {width, height} = useWindowDimensions(), safe = useSafeAreaInsets();
   const [menu, setMenu] = useState<(Pick<ItemMenuTarget, 'bounds' | 'anchor'> & {folder: LibraryFolder}) | null>(null);
   const [editing, setEditing] = useState<{id: string | null; title: string} | null>(null);
   const [deleting, setDeleting] = useState<LibraryFolder | null>(null);
   const resetChrome = useCollectionChrome()?.reset;
+  const strip = useRef<ScrollView>(null);
+  const pillBounds = useRef(new Map<string | null, {x: number; width: number}>()).current;
+  const viewport = useRef({width, offset: 0});
+  const reduced = useItemReducedMotion();
+  const revealSelected = () => {
+    const pill = pillBounds.get(selected);
+    if (!active || !pill) return;
+    const margin = panelReference.inset * s;
+    const {width, offset} = viewport.current;
+    const x = pill.x < offset + margin ? Math.max(0, pill.x - margin)
+      : pill.x + pill.width > offset + width - margin ? Math.max(0, pill.x + pill.width - width + margin) : offset;
+    if (Math.abs(x - offset) > 1) strip.current?.scrollTo({x, animated: !reduced});
+  };
+  useEffect(revealSelected, [selected, active, width, s, reduced]);
+  const measurePill = (id: string | null, event: LayoutChangeEvent) => {
+    pillBounds.set(id, event.nativeEvent.layout);
+    if (id === selected) revealSelected();
+  };
   const mounted = useRef(false);
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
   useEffect(() => {if (!active) {setMenu(null); setEditing(null); setDeleting(null);}}, [active]);
@@ -43,14 +65,15 @@ export function LibraryCategories({library, value, selected, onSelect, onRemove,
       bounds: {left: safe.left, top: 0, width: width - safe.left - safe.right, height: height - safe.top - safe.bottom}});
   });
   return <>
-    <PagingBoundary>{scrollEvents => <ScrollView {...scrollEvents} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} testID="library-categories" directionalLockEnabled
-      contentContainerStyle={{alignItems: 'center', gap: 12 * s, paddingHorizontal: panelReference.inset * s, height: categoryRowHeight * s}}>
-      <CategoryPill label="전체" selected={selected === null} scale={s} onPress={() => choose(null)}/>
-      {value.folders.map(folder => <CategoryPill key={folder.id} label={folderPath(value, folder.id).map(item => item.name).join(' › ')}
-        selected={folder.id === selected} scale={s} onPress={() => choose(folder.id)} onLongPress={row => openMenu(folder, row)}/>)}
-      <RowPressable accessibilityRole="button" accessibilityLabel="새 분류 만들기" testID="library-category-add" onPress={create} radius={36 * s}
-        contentStyle={{width: 70 * s, height: 66 * s, borderRadius: 36 * s, backgroundColor: isDark ? c.background : '#F2F2F2',
-          borderWidth: isDark ? 1 : 0, borderColor: c.divider, alignItems: 'center', justifyContent: 'center'}}>
+    <PagingBoundary>{scrollEvents => <ScrollView ref={strip} {...scrollEvents} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} testID="library-categories" directionalLockEnabled
+      onLayout={event => {viewport.current.width = event.nativeEvent.layout.width; revealSelected();}}
+      onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.x;}} scrollEventThrottle={16} onContentSizeChange={revealSelected}
+      contentContainerStyle={{alignItems: 'center', gap: (variant === 'pill' ? 10 : 0) * s, paddingHorizontal: (variant === 'pill' ? 28 : 12) * s, height: categoryRowHeight * s}}>
+      <CategoryTab label="전체" variant={variant} selected={selected === null} scale={s} onPress={() => choose(null)} onLayout={event => measurePill(null, event)}/>
+      {value.folders.map(folder => <CategoryTab key={folder.id} label={folderPath(value, folder.id).map(item => item.name).join(' › ')}
+        variant={variant} selected={folder.id === selected} scale={s} onPress={() => choose(folder.id)} onLongPress={row => openMenu(folder, row)} onLayout={event => measurePill(folder.id, event)}/>)}
+      <RowPressable accessibilityRole="button" accessibilityLabel="새 분류 만들기" testID="library-category-add" onPress={create} radius={0}
+        contentStyle={{width: 66 * s, height: categoryRowHeight * s, alignItems: 'center', justifyContent: 'center'}}>
         <ChatIcon name="plus" size={28 * s} color={c.text}/>
       </RowPressable>
     </ScrollView>}</PagingBoundary>
@@ -68,21 +91,23 @@ export function LibraryCategories({library, value, selected, onSelect, onRemove,
   </>;
 }
 
-function CategoryPill({label, selected, scale: s, onPress, onLongPress}: {
-  label: string; selected: boolean; scale: number; onPress: () => void; onLongPress?: (row: View) => void;
+function CategoryTab({label, selected, scale: s, onPress, onLongPress, onLayout, variant}: {
+  label: string; selected: boolean; scale: number; onPress: () => void; onLongPress?: (row: View) => void; onLayout: (event: LayoutChangeEvent) => void;
+  variant: 'pill' | 'underline';
 }) {
-  const {colors: c, isDark} = useAppearance();
+  const {colors: c} = useAppearance();
   const row = useRef<View>(null);
-  const ink = selected ? isDark ? '#151515' : '#FFFFFF' : c.text;
-  return <View ref={row} collapsable={false}>
-    <RowPressable accessibilityRole="button" accessibilityLabel={`${label} 분류`} accessibilityState={{selected}}
-      {...(onLongPress ? {accessibilityHint: '길게 눌러 분류 관리', accessibilityActions: [{name: 'longpress', label: '분류 관리'}],
-        onAccessibilityAction: (event: {nativeEvent: {actionName: string}}) => {if (event.nativeEvent.actionName === 'longpress' && row.current) onLongPress(row.current);},
-        onLongPress: () => {if (row.current) onLongPress(row.current);}, delayLongPress: 420} : {})}
-      onPress={onPress} radius={36 * s} contentStyle={{height: 66 * s, paddingHorizontal: 28 * s, justifyContent: 'center', borderRadius: 36 * s,
-        backgroundColor: selected ? isDark ? '#F4F4F4' : '#191919' : isDark ? c.background : '#F2F2F2',
-        borderWidth: isDark && !selected ? 1 : 0, borderColor: c.divider}}>
+  const pill = variant === 'pill';
+  const ink = selected ? c.text : c.muted;
+  const longPress = onLongPress ? {accessibilityHint: '길게 눌러 분류 관리', accessibilityActions: [{name: 'longpress', label: '분류 관리'}],
+    onAccessibilityAction: (event: {nativeEvent: {actionName: string}}) => {if (event.nativeEvent.actionName === 'longpress' && row.current) onLongPress(row.current);},
+    onLongPress: () => {if (row.current) onLongPress(row.current);}, delayLongPress: 420} : {};
+  return <View ref={row} collapsable={false} onLayout={onLayout}>
+    {pill ? <FilterPill label={label} accessibilityLabel={`${label} 분류`} selected={selected} onPress={onPress} {...longPress}/> : <RowPressable accessibilityRole="button" accessibilityLabel={`${label} 분류`} accessibilityState={{selected}}
+      {...longPress} onPress={onPress} radius={0}
+      contentStyle={{height: categoryRowHeight * s, minWidth: 100 * s, paddingHorizontal: 26 * s, justifyContent: 'center', alignItems: 'center', backgroundColor: c.background}}>
       <Text numberOfLines={1} style={{color: ink, fontSize: 25 * s, fontWeight: '600', lineHeight: 34 * s, includeFontPadding: false}}>{label}</Text>
-    </RowPressable>
+      {selected && <View style={{position: 'absolute', height: 2 * s, bottom: 0, left: 12 * s, right: 12 * s, backgroundColor: c.text}}/>}
+    </RowPressable>}
   </View>;
 }

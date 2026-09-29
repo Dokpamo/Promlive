@@ -154,6 +154,25 @@ it('ignores an old native grab response after resetting navigation', async () =>
   expect(panel.visible).toBe(false);
 });
 
+it('only commits navigation after the current spring settles, never after a reversal or reset', async () => {
+  const settled = vi.fn();
+  let panel!: ReturnType<typeof usePanelMotion>;
+  function Host() {panel = usePanelMotion(false, 400, settled); return null;}
+  await render(<Host/>);
+  await act(async () => panel.settle(true));
+  const opening = native.springs.at(-1)!;
+  await act(async () => {panel.settle(false); opening.finish();});
+  expect(settled).not.toHaveBeenCalled();
+  await act(async () => native.springs.at(-1)!.finish());
+  expect(settled.mock.calls).toEqual([[false]]);
+  await act(async () => panel.settle(true));
+  const resetOpening = native.springs.at(-1)!;
+  await act(async () => {panel.reset(); resetOpening.finish();});
+  expect(settled.mock.calls).toEqual([[false]]);
+  await act(async () => {panel.settle(true); native.springs.at(-1)!.finish();});
+  expect(settled.mock.calls).toEqual([[false], [true]]);
+});
+
 it('allows grabbing a settings sheet before its entrance finishes', async () => {
   const close = vi.fn();
   await render(<SwipeBackModal sheet sheetHeight={400} onClose={close}>{() => null}</SwipeBackModal>);

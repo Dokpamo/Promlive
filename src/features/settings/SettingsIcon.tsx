@@ -1,12 +1,45 @@
 import {Text, View} from 'react-native';
 
-export type SettingsIconName = 'connection' | 'model' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy' | 'folder' | 'export';
+export type SettingsIconName = 'connection' | 'model' | 'person' | 'language' | 'key' | 'sliders' | 'shield' | 'image' | 'play' | 'sound' | 'response' | 'text' | 'haptic' | 'bell' | 'theme' | 'info' | 'chevron' | 'edit' | 'check' | 'select' | 'pin' | 'delete' | 'copy' | 'folder' | 'export';
 
 export function SettingsIcon({name, color, size = 22}: {name: SettingsIconName; color: string; size?: number}) {
   const s = size / 24;
   const line = {position: 'absolute' as const, backgroundColor: color, height: 1.7 * s, borderRadius: 2 * s};
   const outline = {position: 'absolute' as const, borderWidth: 1.7 * s, borderColor: color};
   return <View pointerEvents="none" accessible={false} style={{width: size, height: size}}>
+    {name === 'key' && <>
+      <View style={[outline, {left: 2 * s, top: 8 * s, width: 9 * s, height: 9 * s, borderRadius: 5 * s}]}/>
+      <View style={[line, {left: 11 * s, top: 11.6 * s, width: 11 * s}]}/>
+      {[17, 21].map(x => <View key={x} style={[line, {left: x * s, top: 12 * s, width: 1.7 * s, height: 4 * s}]}/>)}
+    </>}
+    {name === 'sliders' && <>{[5, 12, 19].map((y, i) => <View key={y}>
+      <View style={[line, {left: 2 * s, top: y * s, width: 20 * s}]}/>
+      <View style={[outline, {left: (i === 1 ? 14 : 6) * s, top: (y - 2) * s, width: 5 * s, height: 5 * s, borderRadius: 3 * s}]}/>
+    </View>)}</>}
+    {name === 'shield' && <View style={[outline, {left: 4 * s, top: 2 * s, width: 16 * s, height: 20 * s, borderTopLeftRadius: 4 * s, borderTopRightRadius: 4 * s, borderBottomLeftRadius: 10 * s, borderBottomRightRadius: 10 * s}]}/>}
+    {name === 'image' && <>
+      <View style={[outline, {inset: 2 * s, borderRadius: 3 * s}]}/>
+      <View style={[outline, {left: 6 * s, top: 6 * s, width: 4 * s, height: 4 * s, borderRadius: 3 * s}]}/>
+      <View style={[outline, {left: 8 * s, top: 13 * s, width: 11 * s, height: 9 * s, borderRightWidth: 0, borderBottomWidth: 0, transform: [{rotate: '45deg'}]}]}/>
+    </>}
+    {name === 'play' && <>
+      <View style={[outline, {inset: 2 * s, borderRadius: 5 * s}]}/>
+      <View style={[line, {left: 9 * s, top: 7 * s, width: 1.7 * s, height: 10 * s}]}/>
+      <View style={[line, {left: 9 * s, top: 9 * s, width: 8 * s, transform: [{rotate: '30deg'}]}]}/>
+      <View style={[line, {left: 9 * s, top: 13 * s, width: 8 * s, transform: [{rotate: '-30deg'}]}]}/>
+    </>}
+    {name === 'sound' && <>
+      {[8, 16, 22, 16, 8].map((height, i) => <View key={i} style={[line, {left: (2 + i * 5) * s, top: (24 - height) / 2 * s, width: 1.7 * s, height: height * s}]}/>)}
+    </>}
+    {name === 'person' && <>
+      <View style={[outline, {left: 8 * s, top: 2 * s, width: 8 * s, height: 8 * s, borderRadius: 5 * s}]}/>
+      <View style={[outline, {left: 3 * s, top: 13 * s, width: 18 * s, height: 9 * s, borderTopLeftRadius: 12 * s, borderTopRightRadius: 12 * s, borderBottomWidth: 0}]}/>
+    </>}
+    {name === 'language' && <>
+      <View style={[outline, {inset: 2 * s, borderRadius: size}]}/>
+      <View style={[outline, {left: 8 * s, top: 2 * s, width: 8 * s, height: 20 * s, borderRadius: size}]}/>
+      <View style={[line, {left: 2 * s, top: 11.2 * s, width: 20 * s}]}/>
+    </>}
     {name === 'export' && <>
       <View style={[outline, {left: 3 * s, top: 11 * s, width: 18 * s, height: 11 * s, borderTopWidth: 0, borderRadius: 3 * s}]}/>
       <View style={[line, {left: 11 * s, top: 2 * s, width: 1.7 * s, height: 14 * s}]}/>

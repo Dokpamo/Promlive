@@ -26,9 +26,9 @@ export function StudioEditor({session, project, scale: s, report, disabled}: {se
   };
   return <View pointerEvents={disabled ? 'none' : 'auto'}>
     <PressSurface accessibilityRole="button" accessibilityLabel={image ? '카드 이미지 변경' : '카드 이미지 추가'} onPress={() => void chooseImage()} disabled={importing || disabled}
-      radius={36 * s} highlightColor={p.selected} contentStyle={{flex: 0, backgroundColor: p.surface, padding: 22 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s, marginBottom: 16 * s}}>
-      {image ? <Image testID="studio-image" source={{uri: image}} resizeMode="cover" style={{width: 116 * s, height: 116 * s, borderRadius: 24 * s}}/> : <CardThumbnail cover={project.draft.cover} size={116 * s}/>}
-      <View style={{flex: 1, gap: 8 * s}}><Text style={{color: p.text, fontSize: 27 * s}}>{importing ? '이미지 가져오는 중…' : image ? '이미지 변경' : '이미지 추가'}</Text><Text style={{color: p.secondary, fontSize: 21 * s, lineHeight: 30 * s}}>카드 목록에 표시할 이미지를 골라요.</Text></View>
+      radius={0} highlightColor={p.selected} contentStyle={{flex: 0, paddingVertical: 24 * s, flexDirection: 'row', alignItems: 'center', gap: 24 * s, marginBottom: 16 * s, borderBottomWidth: .5, borderBottomColor: p.divider}}>
+      <View style={{flex: 1, gap: 8 * s}}><Text style={{color: p.text, fontSize: 28 * s, fontWeight: '600'}}>{importing ? '이미지 가져오는 중…' : image ? '이미지 변경' : '이미지 추가'}</Text><Text style={{color: p.secondary, fontSize: 22 * s, lineHeight: 32 * s}}>카드 목록에 표시할 이미지를 골라요.</Text></View>
+      {image ? <Image testID="studio-image" source={{uri: image}} resizeMode="cover" style={{width: 112 * s, height: 112 * s, borderRadius: 56 * s}}/> : <CardThumbnail cover={project.draft.cover} size={112 * s}/>}
     </PressSurface>
     {(['title', 'description', 'tags'] as const).map(field => <View key={field} style={{marginTop: 18 * s}}>
       <SettingsTextField label={fieldLabels[field]} testID={`studio-field-${field}`} value={fieldValue(project.draft, field)} placeholder={field === 'title' ? '카드 이름' : field === 'tags' ? '예: 판타지, 시뮬레이션, 다인물' : '어떤 카드인지 짧게 소개해 주세요'}

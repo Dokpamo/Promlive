@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {Animated, BackHandler, Platform, View, useWindowDimensions, type ScrollView} from 'react-native';
+import {Animated, BackHandler, Platform, Text, View, useWindowDimensions, type ScrollView} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {HeaderButton, ScreenHeader} from '../../layout/ScreenHeader';
@@ -17,6 +17,7 @@ import type {ComposerAction} from './ChatSession';
 import {composerScale, referenceComposer as r, typographyScale} from './chatAppearance';
 import {composerEditorHeight, expandedComposerFrame} from './composerGeometry';
 import {clampEditorScroll} from '../../layout/editorScroll';
+import {SubmitButton} from '../../design/foundation';
 
 interface Props {
   value: string; onChange: (value: string) => void; onSend: () => void; onCancel: () => void;
@@ -142,13 +143,13 @@ export function ExpandedComposer(p: Props) {
           </View>
           <View onStartShouldSetResponderCapture={pull.block} pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: insets.left, right: insets.right}}>
             <ScreenHeader width={p.width} testID="expanded-composer-header" edgeTint={false}>
-              <View style={{flex: 1}} pointerEvents="none"/>
               <HeaderButton width={p.width} testID="expanded-composer-close" icon="close" label="입력창 접기" onPress={pull.dismiss}/>
+              <Text accessibilityRole="header" style={{flex: 1, marginLeft: 12 * headerSize, color: settings.text, fontSize: 32 * headerSize, lineHeight: 44 * headerSize, fontWeight: '700'}}>메시지 작성</Text>
             </ScreenHeader>
           </View>
           <KeyboardDock fraction={footerFraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
             <View testID="expanded-composer-footer" onStartShouldSetResponderCapture={pull.block} pointerEvents="box-none" style={{position: 'absolute', right: insets.right + referenceHeader.inset * headerSize, bottom: insets.bottom + panelReference.sheetInset * s}}>
-              <HeaderButton width={p.width} testID="expanded-composer-send" icon={cancelling ? 'stop' : 'send'} label={p.action.label} bright disabled={!p.action.enabled}
+              <SubmitButton testID="expanded-composer-send" label={cancelling ? '중단' : '전송'} accessibilityLabel={p.action.label} disabled={!p.action.enabled}
                 onPress={() => {if (cancelling) p.onCancel(); else {p.onSend(); pull.dismiss();}}}/>
             </View>
           </KeyboardDock>

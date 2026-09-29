@@ -77,9 +77,9 @@ export function ChatHistory({cards: allCards, cardActions, active, selectedCardI
 
 export function CardConversationHeader({card, scale: s, onClose, closeLabel = '채팅내역 닫기'}: {card: Card; scale: number; onClose: () => void; closeLabel?: string}) {
   const {colors: c} = useAppearance();
-  // Center the circular close button on the popup's outer corner arc.
-  const inset = panelReference.radius - referenceHeader.height / 2;
-  const top = inset - panelReference.groupPadding;
+  // Align the image, title and close control with the shared sheet inset.
+  const inset = panelReference.sheetInset;
+  const top = 8;
   const bottom = panelReference.rowHeight + panelReference.groupPadding - referenceHeader.height - top;
   return <View testID="card-history-header" style={{height: referenceHeader.height * s, flexShrink: 0, marginTop: top * s, marginBottom: bottom * s, paddingLeft: panelReference.rowInset * s, paddingRight: inset * s, flexDirection: 'row', alignItems: 'center', gap: r.cardImageGap * s}}>
     <CardThumbnail testID="card-history-image" cover={card.cover} assetId={card.coverAssetId} size={r.cardImage * s}/>

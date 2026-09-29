@@ -12,6 +12,7 @@ import {headerScale, referenceHeader, referenceTypography} from '../../layout/me
 import {useItemPresence, useItemReducedMotion} from '../../layout/itemListMotion';
 import {selectionHaptic} from '../../layout/selectionHaptic';
 import {panelReference as g} from '../../layout/panelGeometry';
+import {settingsMenuGeometry} from '../settings/SettingsMenuRow';
 import {useAppearance} from '../appearance/AppAppearance';
 import {referenceSidebar as r} from '../chat/chatAppearance';
 import {usePersonas} from './PersonaContext';
@@ -119,7 +120,7 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
     if (!Keyboard.isVisible()) return false;
     Keyboard.dismiss(); return true;
   }}>{back => <>
-    <SafeAreaView testID="persona-page" edges={['left', 'right']} style={{flex: 1, backgroundColor: c.drawer}} pointerEvents={obscured ? 'none' : 'auto'} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}>
+    <SafeAreaView testID="persona-page" edges={['left', 'right']} style={{flex: 1, backgroundColor: c.background}} pointerEvents={obscured ? 'none' : 'auto'} accessibilityElementsHidden={obscured} importantForAccessibility={obscured ? 'no-hide-descendants' : 'auto'}>
       <View style={{paddingTop: insets.top + referenceHeader.barHeight * s, flex: 1}}>
         <View style={{width: '100%', maxWidth: g.contentMaxWidth, alignSelf: 'center', paddingHorizontal: g.inset * s}}>
         <View testID="persona-toolbar" style={{marginTop: (r.searchTop - referenceHeader.barHeight) * s, flexDirection: 'row', alignItems: 'center', gap: r.searchActionGap * s}}>
@@ -150,10 +151,9 @@ export function PersonaPage({onClose, folderId = null, onNavigateAncestor}: {onC
         </View>
         }
       </View>
-      <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top, left: 0, right: 0}}><ScreenHeader width={width} topInset={insets.top} surfaceColor={c.drawer}>
-        <HeaderButton width={width} icon="back" label={folderId ? '페르소나 목록으로 돌아가기' : '페르소나 닫기'} onPress={back}/>
-        <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', alignItems: 'center'}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: referenceHeader.titleFont * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text></View>
-        <View pointerEvents="none" style={{width: referenceHeader.height * s}}/>
+      <View pointerEvents="box-none" style={{position: 'absolute', top: 0, paddingTop: insets.top, left: 0, right: 0, backgroundColor: c.background}}><ScreenHeader width={width} edgeTint={false}>
+        <HeaderButton width={width} icon="back" variant="plain" label={folderId ? '페르소나 목록으로 돌아가기' : '페르소나 닫기'} onPress={back}/>
+        <View pointerEvents="none" style={{flex: 1, height: referenceHeader.height * s, justifyContent: 'center', marginLeft: (g.inset + settingsMenuGeometry.textInset - referenceHeader.inset - referenceHeader.height - referenceHeader.gap) * s}}><Text accessibilityRole="header" numberOfLines={1} style={{color: c.text, fontSize: referenceHeader.titleFont * s, fontWeight: referenceTypography.titleWeight, includeFontPadding: false}}>{title}</Text></View>
       </ScreenHeader></View>
       <PersonaSelectionBar count={selectedEntries.length} canMove={selectedEntries.length > 0} progress={selection.progress} present={selection.present} scale={s} bottom={footerBottom}
         onCancel={() => setSelected(null)}

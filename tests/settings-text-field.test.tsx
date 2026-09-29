@@ -45,9 +45,9 @@ function Form() {
   const [url, setUrl] = useState('https://custom.example/v1');
   const [tokens, setTokens] = useState('10000');
   return <DrawerModalLocks.Provider value={locks}><SettingsTextEditorHost>
-    <SettingsTextField label="API 키" testID="key" secret editor="mini" value={key} onChange={value => {setKey(value); changes(value);}} placeholder="API 키를 입력해 주세요"/>
-    <SettingsTextField label="API 주소" editor="mini" resetValue="https://api.x.ai/v1" value={url} onChange={value => {setUrl(value); changes(value);}} placeholder="https://api.x.ai/v1"/>
-    <SettingsTextField label="최대 생성 토큰" editor="mini" keyboard="number-pad" value={tokens} onChange={value => {setTokens(value); changes(value);}} placeholder="10000"/>
+    <SettingsTextField icon="key" label="API 키" testID="key" secret editor="mini" value={key} onChange={value => {setKey(value); changes(value);}} placeholder="API 키를 입력해 주세요"/>
+    <SettingsTextField icon="connection" label="API 주소" editor="mini" resetValue="https://api.x.ai/v1" value={url} onChange={value => {setUrl(value); changes(value);}} placeholder="https://api.x.ai/v1"/>
+    <SettingsTextField icon="text" label="최대 생성 토큰" editor="mini" keyboard="number-pad" value={tokens} onChange={value => {setTokens(value); changes(value);}} placeholder="10000"/>
     <SettingsTextField label="프롬프트" testID="prompt" multiline value={prompt} onChange={setPrompt} placeholder="내용 입력"/>
   </SettingsTextEditorHost></DrawerModalLocks.Provider>;
 }

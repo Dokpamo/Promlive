@@ -3,7 +3,6 @@ import {AccessibilityInfo, Animated, View, useWindowDimensions, type ScrollView}
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardDock, useKeyboardFrame} from '../../layout/KeyboardMotion';
 import {PressSurface} from '../../layout/PressSurface';
-import {EdgeTint} from '../../layout/EdgeTint';
 import {ChatIcon, type ChatIconName} from './ChatIcon';
 import {ComposerInput} from './ComposerInput';
 import type {ComposerInputHandle, ComposerSelection} from './ComposerInput.types';
@@ -35,7 +34,7 @@ interface Props {
 
 /** The dock stays mounted underneath the independent full-screen editor. */
 export function ChatComposer(p: Props) {
-  const {colors: c, isDark} = useAppearance();
+  const {colors: c} = useAppearance();
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardFrame();
@@ -142,13 +141,12 @@ export function ChatComposer(p: Props) {
     <KeyboardDock fraction={fraction} bottomInset={p.bottom} freezeKeyboard={false} followCaret={!covered} restoreScroll={scrollRestore ?? undefined}>
       {/* Keep the focused input's native ancestors mounted when covering the dock. */}
       <View collapsable={false} pointerEvents={covered ? 'none' : 'box-none'} aria-hidden={covered} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} style={{flex: 1}}>
-        <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: frame.height + p.bottom + (r.bottom + 40) * s}}>
-          <EdgeTint edge="bottom" testID="composer-tint" style={{flex: 1}}/>
+        <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: frame.height + p.bottom + r.bottom * s}}>
+          <View testID="composer-background" style={{flex: 1, backgroundColor: c.background}}/>
         </View>
         <View testID="composer-controls-layer" pointerEvents="box-none" style={{position: 'absolute', left, width, bottom: p.bottom + r.bottom * s, height: frame.height, overflow: 'visible'}}>
         <View nativeID="promlive-composer-surface" testID="chat-composer" style={{position: 'absolute', inset: 0, height: frame.height,
-          borderRadius: shape(r.compactHeight / 2, 40), borderWidth: s, borderColor: c.border, backgroundColor: c.composer, overflow: 'hidden',
-          boxShadow: isDark ? undefined : '0px 6px 26px rgba(0, 0, 0, 0.08)',
+          borderRadius: shape(32, 24), borderWidth: 0, borderColor: c.border, backgroundColor: c.composer, overflow: 'hidden',
         }}>
           <SheetGestureRoot>
             {/* Text gets its final viewport with its content. Only the outer bar animates. */}
@@ -199,7 +197,7 @@ function Circle({label, icon, size, iconSize, onPress, bright = false, disabled 
   const {colors: c, settings: p} = useAppearance();
   return <PressSurface compact accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
     surfaceTestID="composer-button-surface" highlightTestID="composer-button-highlight" radius={size / 2} highlightColor={bright ? c.sendIcon : p.selected} highlightOpacity={bright ? 0.08 : 1}
-    style={{width: size, height: size}} contentStyle={{backgroundColor: bright ? c.send : c.button, alignItems: 'center', justifyContent: 'center'}}>
+    style={{width: size, height: size}} contentStyle={{backgroundColor: bright ? c.send : 'transparent', alignItems: 'center', justifyContent: 'center'}}>
     <ChatIcon name={icon} size={iconSize} color={bright ? c.sendIcon : c.buttonIcon}/>
   </PressSurface>;
 }

@@ -1,12 +1,12 @@
-import {headerScale, referenceTypography} from './metrics';
+import {headerScale} from './metrics';
 
-const rowInset = 34;
+const rowInset = 28;
 
-/** 618px reference geometry; panel corners follow photo_6159075255742305500_y.jpg. */
+/** Flat 618px reference layout shared by settings and editing surfaces. */
 export const panelReference = {
   contentMaxWidth: 560,
-  inset: 34, top: 42, radius: 48, controlRadius: 30, groupGap: 18, groupPadding: 14,
-  rowHeight: 82, rowInset, rowPadding: 17, rowFont: referenceTypography.titleFontSize, rowLine: 40, valueFont: 26,
+  inset: 28, top: 42, radius: 24, controlRadius: 12, groupGap: 18, groupPadding: 14,
+  rowHeight: 82, rowInset, rowPadding: 17, rowFont: 26, rowLine: 36, valueFont: 24,
   // Bring the underline into the field's padding without moving text or its touch target.
   inputUnderlineInset: 8,
   subtitle: {fontSize: 24, lineHeight: 34, bottom: 16, sectionTop: 14},
@@ -16,7 +16,7 @@ export const panelReference = {
   // The header already leaves 20px below its buttons; balance the remaining gaps.
   profileTop: 8, profileBottom: 28,
   sheetInset: 17, sheetPadding: rowInset, sheetContentGap: 38,
-  sheetHandle: {width: 82, height: 7, radius: 4, top: 21},
+  sheetHandle: {width: 48, height: 4, radius: 2, top: 20},
 } as const;
 
 /** Fit every setting-group measurement by the same rendered-width ratio. */

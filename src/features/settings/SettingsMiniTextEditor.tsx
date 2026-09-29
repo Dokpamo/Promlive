@@ -63,7 +63,7 @@ function MiniEditorBody({field, input, keyboardVisible, closing, close, motionSt
     <KeyboardDock fraction={fraction} bottomInset={insets.bottom} freezeKeyboard={false} followCaret={false}>
       <Animated.View testID="settings-mini-text-editor" accessibilityViewIsModal onLayout={event => onHeight(event.nativeEvent.layout.height + bottom)}
         style={[{position: 'absolute', bottom, alignSelf: 'center', width: Math.min(440, width - insets.left - insets.right - 2 * gap), paddingTop: gap, paddingBottom: g.groupPadding * s,
-          borderRadius: g.radius * s, backgroundColor: p.sheet, boxShadow: isDark ? '0px 6px 28px rgba(0,0,0,0.4)' : '0px 6px 28px rgba(0,0,0,0.15)'}, motionStyle]}>
+          borderRadius: g.radius * s, backgroundColor: p.sheet, boxShadow: isDark ? '0px 3px 12px rgba(0,0,0,0.25)' : '0px 3px 12px rgba(0,0,0,0.10)'}, motionStyle]}>
         <View pointerEvents="none" style={{position: 'absolute', alignSelf: 'center', top: g.sheetHandle.top * s, width: g.sheetHandle.width * s, height: g.sheetHandle.height * s, borderRadius: g.sheetHandle.radius * s, backgroundColor: p.divider}}/>
         <ScreenHeader width={width} edgeTint={false}>
           <SwipeBackBoundary><HeaderButton width={width} testID="settings-text-editor-close" icon="close" label="입력창 닫기" onPress={close}/></SwipeBackBoundary>
