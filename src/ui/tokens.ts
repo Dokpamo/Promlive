@@ -16,14 +16,99 @@ export const navigation = {
   avatarRingSize: 52,
 } as const;
 
-export const colors = {
-  background: '#FFFFFF',
-  foreground: '#0F1012',
-  separator: '#EDEDED',
-  avatarBackground: '#F3F4F6',
-  avatarBorder: '#D8DCDE',
-  avatarForeground: '#89919B',
+/** Shared neutral ramp. Components consume roles below, never separate grays. */
+const neutral = {
+  white: '#FFFFFF',
+  nearWhite: '#F5F5F5',
+  lightSurface: '#F2F2F2',
+  lightSeparator: '#EDEDED',
+  lightBorder: '#D8DCDE',
+  avatar: '#89919B',
+  secondary: '#777777',
+  controlText: '#5B5B5B',
+  darkBorder: '#3A3A3A',
+  darkSurface: '#1E1E1E',
+  charcoal: '#191919',
+  black: '#101010',
 } as const;
+
+const avatarColors = {
+  avatarBackground: neutral.lightSurface,
+  avatarBorder: neutral.lightBorder,
+  avatarForeground: neutral.avatar,
+} as const;
+
+export const colorPalettes = {
+  light: {
+    background: neutral.white,
+    surface: neutral.lightSurface,
+    foreground: neutral.black,
+    secondaryForeground: neutral.secondary,
+    controlForeground: neutral.controlText,
+    separator: neutral.lightSeparator,
+    border: neutral.lightBorder,
+    selectedBackground: neutral.charcoal,
+    selectedForeground: neutral.white,
+    error: '#B32323',
+    ...avatarColors,
+  },
+  dark: {
+    background: neutral.black,
+    surface: neutral.darkSurface,
+    foreground: neutral.nearWhite,
+    secondaryForeground: neutral.secondary,
+    controlForeground: neutral.nearWhite,
+    separator: neutral.darkSurface,
+    border: neutral.darkBorder,
+    // Selection stays inverse: a light fill and dark text, including dark mode.
+    selectedBackground: neutral.nearWhite,
+    selectedForeground: neutral.black,
+    error: '#FF8A8A',
+    ...avatarColors,
+  },
+} as const;
+
+/** The new UI still opens in light mode; system appearance is not connected. */
+export const uiAppearance: keyof typeof colorPalettes = 'light';
+export const colors = colorPalettes[uiAppearance];
+
+/** Rounded filters measured from the KakaoTalk references at a 618px viewport. */
+export const filterChips = {
+  // Includes the reserved border; the native filled shape measures about 65px.
+  height: 66,
+  minWidth: 100,
+  horizontalInset: 28,
+  gap: 10,
+  targetHeight: 72,
+  bottomInset: 12,
+  fontSize: 24,
+  lineHeight: 32,
+  textOffsetY: -1,
+  borderWidth: 1,
+} as const;
+
+export const filterChipColors = {
+  light: {
+    surface: colorPalettes.light.background,
+    background: colorPalettes.light.surface,
+    foreground: colorPalettes.light.controlForeground,
+    border: 'transparent',
+    selectedBackground: colorPalettes.light.selectedBackground,
+    selectedForeground: colorPalettes.light.selectedForeground,
+  },
+  dark: {
+    surface: colorPalettes.dark.background,
+    background: colorPalettes.dark.background,
+    foreground: colorPalettes.dark.controlForeground,
+    border: colorPalettes.dark.border,
+    selectedBackground: colorPalettes.dark.selectedBackground,
+    selectedForeground: colorPalettes.dark.selectedForeground,
+  },
+} as const;
+
+export function filterChipsHeight(scale: number) {
+  return Math.max(48, filterChips.targetHeight * scale) + filterChips.bottomInset * scale;
+}
 
 export function navigationScale(width: number) {
   return Math.min(width, 412) / navigation.referenceWidth;

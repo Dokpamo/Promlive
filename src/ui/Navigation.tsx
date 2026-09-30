@@ -12,7 +12,7 @@ const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   settings: {icon: 'compose', label: '프로필 편집'},
 };
 
-export function Header({tab, scale: s, onSearch, searchOpen}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean}) {
+export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean; onAction?: () => void}) {
   const action = headerActions[tab];
   const touch = Math.max(48, m.actionSize * s);
   return <View testID="ui-header" style={{height: m.headerHeight * s, flexShrink: 0, paddingLeft: m.titleInset * s,
@@ -21,13 +21,13 @@ export function Header({tab, scale: s, onSearch, searchOpen}: {tab: Tab; scale: 
       ...(Platform.OS === 'android' ? {fontFamily: 'sans-serif'} : {}),
       fontSize: m.titleSize * s, lineHeight: m.titleLineHeight * s, fontWeight: '700', includeFontPadding: false,
       transform: [{translateY: m.titleOffsetY * s}]}}>{tabLabels[tab]}</Text>
-    {tab === 'library' && <Pressable testID="ui-library-search-button" accessibilityRole="button" accessibilityLabel="서재 검색"
+    {tab !== 'settings' && <Pressable testID={`ui-${tab}-search-button`} accessibilityRole="button" accessibilityLabel={`${tabLabels[tab]} 검색`}
       accessibilityState={{expanded: searchOpen}} aria-expanded={searchOpen} onPress={onSearch}
       style={({pressed}) => ({width: touch, height: touch, flexShrink: 0, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.55 : 1})}>
       <Icon name="search" size={m.iconSize * s}/>
     </Pressable>}
-    <Pressable testID="ui-header-action" accessibilityRole="button" accessibilityLabel={action.label} accessibilityState={{disabled: true}} disabled
-      style={{width: touch, height: touch, flexShrink: 0, alignItems: 'center', justifyContent: 'center'}}>
+    <Pressable testID="ui-header-action" accessibilityRole="button" accessibilityLabel={action.label} accessibilityState={{disabled: !onAction}} disabled={!onAction}
+      onPress={onAction} style={({pressed}) => ({width: touch, height: touch, flexShrink: 0, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.55 : 1})}>
       <Icon name={action.icon} size={m.iconSize * s}/>
     </Pressable>
   </View>;
