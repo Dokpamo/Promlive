@@ -1,4 +1,4 @@
-import {useRef, useState, type ReactNode} from 'react';
+import {useEffect, useRef, type ReactNode} from 'react';
 import {Animated, type FlatList, StyleSheet, Text, View} from 'react-native';
 import type {LibraryCard} from './cardWorkspace';
 import {PreviewArtwork} from './PreviewArtwork';
@@ -7,13 +7,14 @@ import {colors, filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
 import {FilterChips} from './FilterChips';
+import type {ScreenMemory} from './ScreenMemory';
+import type {LibraryFilter} from './screenState';
 
 const filters = [
   {id: 'all', label: '전체'},
   {id: 'recent', label: '요즘 한 거'},
   {id: 'idle', label: '방치 중'},
 ] as const;
-type LibraryFilter = typeof filters[number]['id'];
 
 type Props = {
   items: LibraryCard[];
@@ -24,13 +25,17 @@ type Props = {
   query: string;
   onQueryChange: (query: string) => void;
   onCloseSearch: () => void;
+  memory: ScreenMemory;
+  filter: LibraryFilter;
+  onFilterChange: (filter: LibraryFilter) => void;
 };
 
 /** A new presentation-only library. Card opening/import will be connected separately. */
-export function Library({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch}: Props) {
-  const [filter, setFilter] = useState<LibraryFilter>('all');
+export function Library({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, filter, onFilterChange}: Props) {
+  const restoringSearch = useRef(true);
+  useEffect(() => {restoringSearch.current = false;}, []);
   const list = useRef<FlatList<LibraryCard>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, filter, searchOpen, query]));
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, filter, searchOpen, query]), memory, 'library');
   const gap = 3 * scale;
   const cardWidth = (width - gap * 2) / 3;
   const term = query.trim().normalize('NFKC').toLocaleLowerCase();
@@ -40,8 +45,8 @@ export function Library({items, width, scale, header, searchOpen, query, onQuery
 
   const listHeader = <>
     {header}
-    <FilterChips scope="library" items={filters} selected={filter} onChange={setFilter} scale={scale}/>
-    {searchOpen && <SearchField scope="library" query={query} onQueryChange={onQueryChange} onClose={onCloseSearch}/>}
+    <FilterChips scope="library" items={filters} selected={filter} onChange={onFilterChange} scale={scale}/>
+    {searchOpen && <SearchField scope="library" query={query} onQueryChange={onQueryChange} onClose={onCloseSearch} autoFocus={!restoringSearch.current}/>}
   </>;
 
   return <ScrollFrame scope="library" header={listHeader} scrolling={scrolling}>

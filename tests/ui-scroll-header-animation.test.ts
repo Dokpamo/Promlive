@@ -10,6 +10,19 @@ const value = (node: unknown) => (node as {__getValue: () => number}).__getValue
 const nativeUpdate = (node: unknown, next: number) =>
   (node as {__onAnimatedValueUpdateReceived: (value: number) => void}).__onAnimatedValueUpdateReceived(next);
 
+it('restores a partly revealed header at a saved scroll offset and follows the next drag', () => {
+  const animation = createScrollHeaderAnimation(120, 600, {offset: 400, hidden: 35});
+  const stop = animation.observeInputs(vi.fn());
+  expect(value(animation.translateY)).toBe(-35);
+  nativeUpdate(animation.scrollY, 410);
+  expect(value(animation.hidden)).toBe(45);
+  nativeUpdate(animation.scrollY, 380);
+  expect(value(animation.hidden)).toBe(15);
+  nativeUpdate(animation.scrollY, 350);
+  expect(value(animation.hidden)).toBe(0);
+  stop();
+});
+
 it('keeps a release render at the native position after reversing within one drag', () => {
   const animation = createScrollHeaderAnimation(120, 352);
   const stop = animation.observeInputs(vi.fn());

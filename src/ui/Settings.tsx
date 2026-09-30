@@ -1,4 +1,7 @@
 import {Platform, ScrollView, Text, View} from 'react-native';
+import {useRef} from 'react';
+import type {ScreenMemory} from './ScreenMemory';
+import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {Icon, type IconName} from './Icon';
 import {colors, listTypography, navigation, settingsLayout as layout} from './tokens';
 
@@ -13,7 +16,9 @@ const items: {id: string; title: string; icon: IconName}[] = [
 ];
 
 /** Root settings preview. Detail screens will be built within the new UI. */
-export function Settings({scale}: {scale: number}) {
+export function Settings({scale, memory}: {scale: number; memory: ScreenMemory}) {
+  const scroll = useRef<ScrollView>(null);
+  const scrolling = usePlainScrollMemory(memory, 'settings', scroll);
   const iconSize = navigation.iconSize * scale;
   const horizontalInset = navigation.titleInset * scale;
   const labelStyle = {
@@ -21,7 +26,7 @@ export function Settings({scale}: {scale: number}) {
     color: colors.foreground,
     fontFamily: Platform.OS === 'android' ? 'sans-serif' : undefined,
   };
-  return <ScrollView testID="ui-settings-list" style={{flex: 1, backgroundColor: colors.background}}
+  return <ScrollView ref={scroll} {...scrolling} testID="ui-settings-list" style={{flex: 1, backgroundColor: colors.background}}
     contentContainerStyle={{paddingBottom: layout.rowVerticalInset * scale}}
     bounces={false} alwaysBounceVertical={false} overScrollMode="never" showsVerticalScrollIndicator={false}>
     <View testID="ui-settings-user" accessible accessibilityLabel="사용자, 이름과 프로필 이미지"

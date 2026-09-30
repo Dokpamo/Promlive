@@ -1,8 +1,8 @@
 import {Animated} from 'react-native';
 
 /** Native events drive the transform; observers maintain release decisions and render snapshots. */
-export function createScrollHeaderAnimation(height: number, range = 0) {
-  const scrollY = new Animated.Value(0);
+export function createScrollHeaderAnimation(height: number, range = 0, initial = {offset: 0, hidden: 0}) {
+  const scrollY = new Animated.Value(initial.offset);
   const maxOffset = new Animated.Value(range);
   const positive = {inputRange: [0, 1], outputRange: [0, 1],
     extrapolateLeft: 'clamp' as const, extrapolateRight: 'extend' as const};
@@ -10,7 +10,8 @@ export function createScrollHeaderAnimation(height: number, range = 0) {
   const overflow = Animated.subtract(nonnegative, maxOffset).interpolate(positive);
   // Clamp *before* accumulating deltas, so elastic rebounds cannot reveal the header.
   const boundedScroll = Animated.subtract(nonnegative, overflow);
-  const collapsed = Animated.diffClamp(boundedScroll, 0, height);
+  const origin = Math.min(height, initial.hidden) - Math.min(range, initial.offset);
+  const collapsed = Animated.diffClamp(Animated.add(boundedScroll, origin), 0, height);
   const scrollable = Animated.subtract(maxOffset, height).interpolate({
     inputRange: [0, 0.001], outputRange: [0, 1], extrapolate: 'clamp',
   });

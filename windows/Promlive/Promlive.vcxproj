@@ -103,6 +103,7 @@
     <ClInclude Include="Promlive.h" />
     <ClInclude Include="PromliveSqlite.h" />
     <ClInclude Include="PromliveCredentials.h" />
+    <ClInclude Include="PromliveScreenMemory.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />
     <ClInclude Include="pch.h" />

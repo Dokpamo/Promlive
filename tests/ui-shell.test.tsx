@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
-import {afterEach, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import App from '../App';
+import {ScreenMemory} from '../src/ui/ScreenMemory';
+import {createScreenStorage} from '../src/ui/screenStorage.web';
+
+vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
 
 vi.mock('react-native', async () => ({...await vi.importActual<typeof import('react-native')>('react-native-web'),
   useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),
@@ -13,6 +17,14 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
+beforeEach(() => {
+  // Node's optional localStorage can shadow jsdom's browser storage in this runner.
+  const values = new Map<string, string>();
+  const storage: Storage = {get length() {return values.size;}, key: index => [...values.keys()][index] ?? null,
+    getItem: key => values.get(key) ?? null, setItem: (key, value) => {values.set(key, value);},
+    removeItem: key => {values.delete(key);}, clear: () => values.clear()};
+  Object.defineProperty(window, 'localStorage', {configurable: true, value: storage});
+});
 afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren();});
 
 // Inactive tab pages stay mounted, but are hidden from users and accessibility.
@@ -147,6 +159,48 @@ it('searches chat titles and AI replies while keeping library and chat search in
   await act(async () => (query('[aria-label="검색 닫기"]') as HTMLElement).click());
   expect(query('input')).toBeNull();
   expect(query('[data-testid="ui-chats-search-button"]')?.getAttribute('aria-expanded')).toBe('false');
+});
+
+it('opens a saved editor on the first render after restart and restores each tab search and filter', async () => {
+  const disk = createScreenStorage();
+  const memory = new ScreenMemory(disk);
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await clickControl('ui-library-search-button');
+  await enterText('ui-library-search-input', '서율');
+  await clickControl('ui-tab-create');
+  await clickControl('ui-create-filter-mine');
+  await clickControl('ui-creation-row-draft-1');
+  await enterText('ui-card-editor-summary', '앱을 꺼도 남아야 하는 내용');
+  await memory.flush();
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  const reopened = new ScreenMemory(disk);
+  await act(async () => root!.render(<App memory={reopened}/>));
+  expect(query('[data-testid="ui-card-editor"]')).not.toBeNull();
+  expect((query('[data-testid="ui-card-editor-summary"]') as HTMLTextAreaElement).value).toBe('앱을 꺼도 남아야 하는 내용');
+  expect(document.activeElement?.tagName).not.toMatch(/INPUT|TEXTAREA/);
+  await clickControl('ui-card-editor-back');
+  expect(query('[data-testid="ui-create-filter-mine"]')?.getAttribute('aria-pressed')).toBe('true');
+  await clickControl('ui-tab-library');
+  expect((query('[data-testid="ui-library-search-input"]') as HTMLInputElement).value).toBe('서율');
+  expect(queryAll('[data-testid^="ui-bot-card-"]')).toHaveLength(1);
+});
+
+it('keeps the visible chat screen mounted while a background refresh changes one message', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  memory.updateView(view => ({...view, tab: 'chats'}));
+  await memory.flush();
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  const page = query('[data-testid="ui-page-chats"]');
+  const unchanged = query('[data-testid="ui-chat-row-forest-post"]');
+  const previous = memory.getSnapshot().data;
+  await act(async () => memory.refresh(async () => ({...previous,
+    chats: previous.chats.map((chat, index) => index ? chat : {...chat, lastAssistantMessage: '방금 도착한 내용'})})));
+  expect(query('[data-testid="ui-page-chats"]')).toBe(page);
+  expect(query('[data-testid="ui-chat-row-forest-post"]')).toBe(unchanged);
+  expect(query('[data-testid="ui-chat-message-night-library"]')?.textContent).toBe('방금 도착한 내용');
 });
 
 it('searches preview cards and can clear or close search without opening legacy screens', async () => {

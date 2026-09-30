@@ -7,14 +7,15 @@ type Props = {
   query: string;
   onQueryChange: (query: string) => void;
   onClose: () => void;
+  autoFocus?: boolean;
 };
 
-export function SearchField({scope, query, onQueryChange, onClose}: Props) {
+export function SearchField({scope, query, onQueryChange, onClose, autoFocus = true}: Props) {
   const label = scope === 'library' ? '카드 검색' : scope === 'chats' ? '채팅 검색' : '제작물 검색';
   return <View testID={`ui-${scope}-search`} style={styles.row}>
     <View style={styles.field}>
       <Icon name="search" size={22}/>
-      <TextInput testID={`ui-${scope}-search-input`} accessibilityLabel={`${label}어`} autoFocus
+      <TextInput testID={`ui-${scope}-search-input`} accessibilityLabel={`${label}어`} autoFocus={autoFocus}
         value={query} onChangeText={onQueryChange} placeholder={label} placeholderTextColor={colors.secondaryForeground}
         autoCorrect={false} autoCapitalize="none" returnKeyType="search" underlineColorAndroid="transparent"
         style={styles.input}/>

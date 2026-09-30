@@ -7,7 +7,7 @@ it('keeps the production entry disconnected from every legacy UI and application
   const root = resolve(import.meta.dirname, '..');
   const uiRoot = resolve(root, 'src/ui') + sep;
   const visited = new Set<string>();
-  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context']);
+  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context', '@op-engineering/op-sqlite']);
   function visit(file: string) {
     if (visited.has(file)) return;
     visited.add(file);

@@ -24,7 +24,7 @@ export type CardAction =
   | {type: 'edit'; id: string; field: EditableCardField; value: string; now: number}
   | {type: 'complete'; id: string; now: number};
 
-/** Session-only UI workspace. A draft never modifies the published library snapshot. */
+/** UI workspace model persisted by ScreenMemory. A draft never modifies the published library snapshot. */
 export function createPreviewWorkspace(): WorkCard[] {
   const external: WorkCard[] = creationPreviewItems.map(item => {
     const {card} = item;

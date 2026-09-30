@@ -4,9 +4,11 @@ import type {EditableCardField, WorkCard} from './cardWorkspace';
 import {Icon} from './Icon';
 import {PreviewArtwork} from './PreviewArtwork';
 import {colors, navigation} from './tokens';
+import type {ScreenMemory} from './ScreenMemory';
+import {usePlainScrollMemory} from './usePlainScrollMemory';
 
 /** Edits the new UI's draft. Only Complete updates the library's published snapshot. */
-export function CardEditor({card, scale, topInset, bottomInset, onChange, onComplete, onClose}: {
+export function CardEditor({card, scale, topInset, bottomInset, onChange, onComplete, onClose, memory}: {
   card: WorkCard;
   scale: number;
   topInset: number;
@@ -14,10 +16,12 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
   onChange: (field: EditableCardField, value: string) => void;
   onComplete: () => void;
   onClose: () => void;
+  memory: ScreenMemory;
 }) {
   const [titleError, setTitleError] = useState(false);
   const titleInput = useRef<TextInput>(null);
   const scroll = useRef<ScrollView>(null);
+  const scrolling = usePlainScrollMemory(memory, 'editor', scroll);
   const focusedField = useRef<EditableCardField | null>(null);
   const fieldOffsets = useRef<Partial<Record<EditableCardField, number>>>({});
   const keyboardVisible = useRef(false);
@@ -68,8 +72,8 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
         <Text style={styles.completeText}>완료</Text>
       </Pressable>
     </View>
-    <ScrollView ref={scroll} testID="ui-card-editor-content" style={styles.content} contentContainerStyle={styles.body}
-      onLayout={() => {if (keyboardVisible.current) revealFocusedField();}}
+    <ScrollView ref={scroll} {...scrolling} testID="ui-card-editor-content" style={styles.content} contentContainerStyle={styles.body}
+      onLayout={event => {scrolling.onLayout(event); if (keyboardVisible.current) revealFocusedField();}}
       bounces overScrollMode="auto" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <View style={styles.identity}>
         <View testID="ui-card-editor-cover" style={styles.cover}><PreviewArtwork tile={card.draft.tile} width={72} height={96}/></View>

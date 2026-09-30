@@ -9,6 +9,7 @@
 #include "NativeModules.h"
 #include "PromliveSqlite.h"
 #include "PromliveCredentials.h"
+#include "PromliveScreenMemory.h"
 
 // A PackageProvider containing any turbo modules you define within this app project
 struct CompReactPackageProvider
