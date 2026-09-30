@@ -5,6 +5,7 @@ import {Header, TabBar, type Tab} from './Navigation';
 import {Library} from './Library';
 import {Chats} from './Chats';
 import {Creation} from './Creation';
+import {Settings} from './Settings';
 import {CardEditor} from './CardEditor';
 import {cardWorkspaceReducer, createPreviewWorkspace, publishedLibraryCards} from './cardWorkspace';
 import {colors, navigationScale, uiAppearance} from './tokens';
@@ -77,6 +78,7 @@ function Shell() {
         header={<Header tab={tab} scale={scale} onSearch={() => creationSearchOpen ? closeCreationSearch() : setCreationSearchOpen(true)} searchOpen={creationSearchOpen} onAction={createCard}/>}
         searchOpen={creationSearchOpen} query={creationQuery} onQueryChange={setCreationQuery} onCloseSearch={closeCreationSearch}
         onOpen={id => {Keyboard.dismiss(); setOpenedCardId(id);}}/>}
+      {tab === 'settings' && <Settings scale={scale}/>}
     </View>
     <TabBar tab={tab} onChange={next => {Keyboard.dismiss(); setTab(next);}} scale={scale} bottomInset={safe.bottom}/>
     </View>

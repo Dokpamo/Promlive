@@ -16,6 +16,23 @@ export const navigation = {
   avatarRingSize: 52,
 } as const;
 
+/** Existing chat/creation list text, also used by the flat settings list (dp/sp). */
+export const listTypography = {
+  fontSize: 16,
+  lineHeight: 22,
+  includeFontPadding: false,
+} as const;
+
+/** Settings-only spacing in reference units; shared sizes come from other tokens. */
+export const settingsLayout = {
+  iconGap: 32,
+  userHeight: 162,
+  userTopInset: 20,
+  userTextGap: 12,
+  rowHeight: 83,
+  rowVerticalInset: 18,
+} as const;
+
 /** Shared neutral ramp. Components consume roles below, never separate grays. */
 const neutral = {
   white: '#FFFFFF',

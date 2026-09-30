@@ -21,6 +21,14 @@ const icons = {
   close: '<path d="M7 7L25 25M25 7L7 25"/>',
   back: '<path d="M27 16H5M14.5 6.5L5 16L14.5 25.5"/>',
   compose: '<g transform="translate(16 15.75) scale(1.025 1.04) translate(-16 -16)"><path d="M16 5.1H10.2C6.2 5.1 4.2 7.1 4.2 11.1V22C4.2 26 6.2 28 10.2 28H21C25 28 27 26 27 22V16"/><path d="M13.3 15L23.4 4.9Q25.1 3.2 26.8 4.9L27.6 5.7Q29.3 7.4 27.6 9.1L17.5 19.2L11.8 20.7Z"/></g>',
+  user: '<circle cx="16" cy="9" r="5.7"/><path d="M4.5 29C5.8 15.5 26.2 15.5 27.5 29"/>',
+  aiSettings: '<rect x="3.5" y="3.5" width="25" height="25" rx="4"/><path d="M11 9V23M21 9V23M8 14H14M18 19H24"/>',
+  personas: '<circle cx="12" cy="9" r="5"/><path d="M2.8 28C3.2 17 20.8 17 21.2 28M23 5.5C29 6 29 13.5 23 14M24 19C28 20 29.4 23 29.4 27"/>',
+  prompt: '<path d="M19 3.5H7A2.5 2.5 0 0 0 4.5 6V26A2.5 2.5 0 0 0 7 28.5H25A2.5 2.5 0 0 0 27.5 26V12Z"/><path d="M19 3.5V12H27.5M10 18H22M10 23H19"/>',
+  appearance: '<path d="M27.5 18.4A12.3 12.3 0 1 1 13.6 4.5A9.3 9.3 0 0 0 27.5 18.4Z"/>',
+  language: '<path d="M3 7H20M11.5 3V7M6 7C7.5 13.7 11.5 18.5 17 21M17 7C15.5 14 10.6 20 3 23M18 28L23.5 15L29 28M20 23.5H27"/>',
+  plugin: '<path d="M12 4H7A3 3 0 0 0 4 7V12H6A4 4 0 0 1 6 20H4V25A3 3 0 0 0 7 28H12V26A4 4 0 0 1 20 26V28H25A3 3 0 0 0 28 25V20H26A4 4 0 0 1 26 12H28V7A3 3 0 0 0 25 4H20V6A4 4 0 0 1 12 6Z"/>',
+  info: '<circle cx="16" cy="16" r="12.5"/><path d="M16 15V23"/><circle cx="16" cy="9.5" r="1.3" fill="black" stroke="none"/>',
 };
 // These are drawing dimensions in the 618px-wide reference, excluding empty margins.
 const drawingSizes = {

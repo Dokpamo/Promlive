@@ -29,7 +29,7 @@ async function enterText(id: string, value: string) {
   });
 }
 
-it('shows the new library, chat, and creation lists while leaving legacy actions disconnected', async () => {
+it('shows all four new root screens while leaving legacy actions disconnected', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App/>));
   expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.getAttribute('aria-label'))).toEqual(['서재', '채팅', '생성', '설정']);
@@ -56,7 +56,12 @@ it('shows the new library, chat, and creation lists while leaving legacy actions
       const headerButtons = [...document.querySelectorAll('[data-testid="ui-header"] [role="button"]')];
       expect(headerButtons.map(button => button.getAttribute('aria-label'))).toEqual(['생성 검색', '새 카드 만들기']);
     } else {
-      expect(page.childElementCount).toBe(0);
+      expect(page.querySelector('[data-testid="ui-settings-list"]')).not.toBeNull();
+      expect(page.querySelector('[data-testid="ui-settings-user"]')?.textContent).toBe('사용자이름과 프로필 이미지');
+      expect([...page.querySelectorAll('[data-testid^="ui-settings-row-"]')].map(row => row.textContent))
+        .toEqual(['AI', '페르소나', '프롬프트', '테마', '언어', '플러그인', '정보']);
+      expect(page.querySelectorAll('[role="button"], input, textarea')).toHaveLength(0);
+      expect(page.textContent).not.toMatch(/버전|Meta|팔로우/);
       expect(document.querySelector('[data-testid="ui-library-search-button"]')).toBeNull();
     }
     const action = document.querySelector('[data-testid="ui-header-action"]') as HTMLElement;

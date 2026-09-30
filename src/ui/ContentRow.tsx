@@ -1,6 +1,6 @@
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {PreviewArtwork} from './PreviewArtwork';
-import {colors} from './tokens';
+import {colors, listTypography} from './tokens';
 
 /** Chat and creation rows use the same avatar, text alignment, and hit area. */
 export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessibilityLabel, onPress}: {
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
   avatar: {width: 60, height: 60, flexShrink: 0, borderRadius: 30, overflow: 'hidden', backgroundColor: colors.surface},
   text: {flex: 1, minWidth: 0, gap: 4},
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
-  title: {flex: 1, minWidth: 0, fontSize: 16, lineHeight: 22, fontWeight: '600', color: colors.foreground, includeFontPadding: false},
+  title: {...listTypography, flex: 1, minWidth: 0, fontWeight: '600', color: colors.foreground},
   timestamp: {flexShrink: 0, fontSize: 12, lineHeight: 18, color: colors.secondaryForeground, includeFontPadding: false},
-  subtitle: {fontSize: 16, lineHeight: 22, color: colors.secondaryForeground, includeFontPadding: false},
+  subtitle: {...listTypography, color: colors.secondaryForeground},
 });
