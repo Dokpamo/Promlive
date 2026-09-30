@@ -49,6 +49,9 @@ export class ScreenMemory {
   rememberScroll = (scope: ScrollScope, position: ScrollMemory) => {
     if (JSON.stringify(this.positions[scope]) === JSON.stringify(position)) return;
     this.positions = {...this.positions, [scope]: {...position}};
+    // Retain the tab-level snapshot for older readers, without mixing prepared filter pages.
+    if (scope === `library:${this.state.view.libraryFilter}`) this.positions.library = {...position};
+    if (scope === `create:${this.state.view.creationFilter}`) this.positions.create = {...position};
     this.revision++;
     // Scroll events never notify React or serialize the whole screen every frame.
     if (!this.timer) this.timer = setTimeout(() => {this.timer = null; void this.flush();}, 160);
@@ -87,8 +90,9 @@ export class ScreenMemory {
         if (!incoming || !validScreenData(incoming) || dataRevision !== this.dataRevision) return;
         const data = reconcileScreenData(this.state.data, incoming);
         if (data === this.state.data) return;
-        const view = this.state.view.openedCardId && !data.cards.some(card => card.id === this.state.view.openedCardId)
-          ? {...this.state.view, openedCardId: null} : this.state.view;
+        let view = this.state.view;
+        if (view.openedCardId && !data.cards.some(card => card.id === view.openedCardId)) view = {...view, openedCardId: null};
+        if (view.detailCardId && !data.cards.some(card => card.id === view.detailCardId && card.published)) view = {...view, detailCardId: null};
         this.state = {...this.state, data, view};
         this.dataRevision++; this.changed();
       } catch { /* Keep the last usable screen on refresh/network failure. */ }

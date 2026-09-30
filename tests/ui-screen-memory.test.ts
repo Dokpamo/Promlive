@@ -14,6 +14,22 @@ function snapshot(): ScreenSnapshot {
   return {version: 1, savedAt: 1, data: initialScreenData(), view: initialScreenView(), positions: {}};
 }
 
+it('stores filter scroll positions independently and migrates only the selected legacy filter', async () => {
+  const old = snapshot();
+  old.view.libraryFilter = 'recent';
+  old.positions.library = {offset: 210, hidden: 60, height: 120, maxOffset: 900};
+  const disk = storage(JSON.stringify(old));
+  const memory = new ScreenMemory(disk);
+  expect(memory.getScroll('library:recent').offset).toBe(210);
+  expect(memory.getScroll('library:all').offset).toBe(0);
+  memory.rememberScroll('library:all', {offset: 500, hidden: 120, height: 120, maxOffset: 900});
+  expect(memory.getScroll('library').offset).toBe(210);
+  await memory.flush();
+  const reopened = new ScreenMemory(disk);
+  expect(reopened.getScroll('library:all').offset).toBe(500);
+  expect(reopened.getScroll('library:recent').offset).toBe(210);
+});
+
 it('restores the last tab, filters, search, scroll, open editor and unpublished edits before any async read', async () => {
   const disk = storage();
   const first = new ScreenMemory(disk);
@@ -132,4 +148,22 @@ it('saves scroll without rerendering the page on every event', async () => {
   await memory.flush();
   expect(disk.write).toHaveBeenCalledTimes(1);
   expect(new ScreenMemory(disk).getScroll('library').offset).toBe(30);
+});
+
+it('restores detail state and scroll while accepting older snapshots and rejecting unpublished detail targets', async () => {
+  const disk = storage();
+  const memory = new ScreenMemory(disk);
+  memory.updateView(view => ({...view, detailCardId: 'night-library'}));
+  memory.rememberScroll('detail', {offset: 130, hidden: 0, height: 0, maxOffset: 260});
+  await memory.flush();
+  const reopened = new ScreenMemory(disk);
+  expect(reopened.getSnapshot().view.detailCardId).toBe('night-library');
+  expect(reopened.getScroll('detail').offset).toBe(130);
+  const previous = snapshot();
+  const {detailCardId: _detailCardId, ...oldView} = previous.view;
+  expect(decodeScreenSnapshot(JSON.stringify({...previous, view: oldView}))?.view.detailCardId).toBeNull();
+  expect(decodeScreenSnapshot(JSON.stringify({...previous, view: {...oldView, detailCardId: 'draft-1'}}))?.view.detailCardId).toBeNull();
+  await reopened.refresh(async () => ({...reopened.getSnapshot().data,
+    cards: reopened.getSnapshot().data.cards.filter(card => card.id !== 'night-library')}));
+  expect(reopened.getSnapshot().view.detailCardId).toBeNull();
 });

@@ -7,7 +7,7 @@ it('keeps the production entry disconnected from every legacy UI and application
   const root = resolve(import.meta.dirname, '..');
   const uiRoot = resolve(root, 'src/ui') + sep;
   const visited = new Set<string>();
-  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context', '@op-engineering/op-sqlite']);
+  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context', '@op-engineering/op-sqlite', 'react-native-gesture-handler']);
   function visit(file: string) {
     if (visited.has(file)) return;
     visited.add(file);
@@ -22,6 +22,11 @@ it('keeps the production entry disconnected from every legacy UI and application
       expect(target, `Missing dependency: ${file} → ${specifier}`).toBeDefined();
       expect(target!.startsWith(uiRoot), `Legacy dependency reconnected: ${file} → ${target}`).toBe(true);
       visit(target!);
+      // Check native adapters too, rather than only the default desktop/web module.
+      for (const platform of ['android', 'ios', 'web']) for (const extension of ['ts', 'tsx']) {
+        const adapter = `${base}.${platform}.${extension}`;
+        if (existsSync(adapter)) visit(adapter);
+      }
     }
     function walk(node: ts.Node) {
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) dependency(node.moduleSpecifier.text);

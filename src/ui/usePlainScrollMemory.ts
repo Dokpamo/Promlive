@@ -3,7 +3,7 @@ import type {LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollV
 import type {ScreenMemory} from './ScreenMemory';
 import type {ScrollScope} from './screenState';
 
-/** ScrollView counterpart of the list/header restoration, for settings and the editor. */
+/** ScrollView counterpart of list/header restoration, including detail and editor views. */
 export function usePlainScrollMemory(memory: ScreenMemory, scope: ScrollScope, scroll: RefObject<ScrollView | null>) {
   const saved = useRef(memory.getScroll(scope)).current;
   const contentOffset = useRef({x: 0, y: saved.offset}).current;

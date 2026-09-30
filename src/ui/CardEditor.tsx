@@ -1,14 +1,18 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent} from 'react-native';
 import type {EditableCardField, WorkCard} from './cardWorkspace';
-import {Icon} from './Icon';
+import {NavigationButton} from './Navigation';
 import {PreviewArtwork} from './PreviewArtwork';
 import {colors, navigation} from './tokens';
 import type {ScreenMemory} from './ScreenMemory';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
+import {SwipeBack} from './SwipeBack';
+import {EditorTextInput} from './EditorTextInput';
+import type {GestureBlockRef} from './HorizontalGesture.types';
+import type {BackTransition} from './backTransition';
 
 /** Edits the new UI's draft. Only Complete updates the library's published snapshot. */
-export function CardEditor({card, scale, topInset, bottomInset, onChange, onComplete, onClose, memory}: {
+export function CardEditor({card, scale, topInset, bottomInset, onChange, onComplete, onClose, memory, backTransition}: {
   card: WorkCard;
   scale: number;
   topInset: number;
@@ -17,9 +21,11 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
   onComplete: () => void;
   onClose: () => void;
   memory: ScreenMemory;
+  backTransition: BackTransition;
 }) {
   const [titleError, setTitleError] = useState(false);
   const titleInput = useRef<TextInput>(null);
+  const blockers = useMemo(() => Array.from({length: 4}, () => createRef() as GestureBlockRef), []);
   const scroll = useRef<ScrollView>(null);
   const scrolling = usePlainScrollMemory(memory, 'editor', scroll);
   const focusedField = useRef<EditableCardField | null>(null);
@@ -58,14 +64,12 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
     onComplete();
   }
   // Android keeps the root canvas fixed, so the editor must shrink its own viewport.
-  return <KeyboardAvoidingView testID="ui-card-editor" keyboardVerticalOffset={topInset}
+  return <SwipeBack identity={card.id} onBack={onClose} blockers={blockers} transition={backTransition}>
+    <KeyboardAvoidingView testID="ui-card-editor" keyboardVerticalOffset={topInset}
     behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
     style={[styles.screen, {paddingBottom: bottomInset}]}>
     <View testID="ui-card-editor-header" style={[styles.header, {height: navigation.headerHeight * scale}]}>
-      <Pressable testID="ui-card-editor-back" accessibilityRole="button" accessibilityLabel="생성 목록으로 돌아가기"
-        onPress={onClose} style={({pressed}) => [styles.back, {opacity: pressed ? 0.55 : 1}]}>
-        <Icon name="back" size={navigation.iconSize * scale}/>
-      </Pressable>
+      <NavigationButton testID="ui-card-editor-back" icon="back" label="이전 화면으로 돌아가기" scale={scale} onPress={onClose}/>
       <Text accessibilityRole="header" style={styles.headerTitle}>카드 편집</Text>
       <Pressable testID="ui-card-editor-complete" accessibilityRole="button" accessibilityLabel="완료하고 서재에 반영"
         onPress={complete} style={({pressed}) => [styles.complete, {opacity: pressed ? 0.55 : 1}]}>
@@ -84,34 +88,33 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
         </View>
       </View>
       <Text style={styles.label} nativeID="card-title-label">제목</Text>
-      <TextInput ref={titleInput} testID="ui-card-editor-title" accessibilityLabel="카드 제목" aria-labelledby="card-title-label"
+      <EditorTextInput ref={titleInput} blockerRef={blockers[0]!} testID="ui-card-editor-title" accessibilityLabel="카드 제목" aria-labelledby="card-title-label"
         {...inputEvents('title')}
         value={card.draft.title} onChangeText={value => {setTitleError(false); onChange('title', value);}}
         placeholder="카드 제목" placeholderTextColor={colors.secondaryForeground} style={styles.input} multiline underlineColorAndroid="transparent"/>
       {titleError && <Text accessibilityRole="alert" style={styles.error}>완료하려면 제목을 입력해 주세요.</Text>}
       <Text style={styles.label} nativeID="card-character-label">캐릭터 이름</Text>
-      <TextInput testID="ui-card-editor-character" accessibilityLabel="캐릭터 이름" aria-labelledby="card-character-label"
+      <EditorTextInput blockerRef={blockers[1]!} testID="ui-card-editor-character" accessibilityLabel="캐릭터 이름" aria-labelledby="card-character-label"
         {...inputEvents('character')}
         value={card.draft.character} onChangeText={value => onChange('character', value)} placeholder="캐릭터 이름"
         placeholderTextColor={colors.secondaryForeground} style={styles.input} underlineColorAndroid="transparent"/>
       <Text style={styles.label} nativeID="card-summary-label">소개</Text>
-      <TextInput testID="ui-card-editor-summary" accessibilityLabel="카드 소개" aria-labelledby="card-summary-label"
+      <EditorTextInput blockerRef={blockers[2]!} testID="ui-card-editor-summary" accessibilityLabel="카드 소개" aria-labelledby="card-summary-label"
         {...inputEvents('summary')}
         value={card.draft.summary} onChangeText={value => onChange('summary', value)} placeholder="어떤 이야기인지 소개해 주세요."
         placeholderTextColor={colors.secondaryForeground} style={[styles.input, styles.summary]} multiline textAlignVertical="top" underlineColorAndroid="transparent"/>
       <Text style={styles.label} nativeID="card-introduction-label">시작 장면</Text>
-      <TextInput testID="ui-card-editor-introduction" accessibilityLabel="시작 장면" aria-labelledby="card-introduction-label"
+      <EditorTextInput blockerRef={blockers[3]!} testID="ui-card-editor-introduction" accessibilityLabel="시작 장면" aria-labelledby="card-introduction-label"
         {...inputEvents('introduction')}
         value={card.draft.introduction} onChangeText={value => onChange('introduction', value)} placeholder="첫 장면을 적어 주세요."
         placeholderTextColor={colors.secondaryForeground} style={[styles.input, styles.introduction]} multiline textAlignVertical="top" underlineColorAndroid="transparent"/>
     </ScrollView>
-  </KeyboardAvoidingView>;
+  </KeyboardAvoidingView></SwipeBack>;
 }
 
 const styles = StyleSheet.create({
   screen: {flex: 1, minHeight: 0, backgroundColor: colors.background},
-  header: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, flexShrink: 0, backgroundColor: colors.background},
-  back: {width: 48, height: 48, alignItems: 'center', justifyContent: 'center'},
+  header: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: navigation.backInset, flexShrink: 0, backgroundColor: colors.background},
   headerTitle: {flex: 1, marginLeft: 12, fontSize: 20, lineHeight: 28, fontWeight: '600', color: colors.foreground},
   complete: {minWidth: 64, minHeight: 48, alignItems: 'center', justifyContent: 'center'},
   completeText: {fontSize: 16, fontWeight: '600', color: colors.foreground},

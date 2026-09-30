@@ -55,6 +55,7 @@ const icons = {
   search: '<circle cx="13.6" cy="13.6" r="9.7"/><path d="M20.7 20.7L28.4 28.4"/>',
   close: '<path d="M7.2 7.2L24.8 24.8M24.8 7.2L7.2 24.8"/>',
   back: '<path d="M26.6 16H5.4M15 6.4L5.4 16L15 25.6"/>',
+  more: '<g fill="currentColor" stroke="none"><circle cx="6.5" cy="16" r="2.1"/><circle cx="16" cy="16" r="2.1"/><circle cx="25.5" cy="16" r="2.1"/></g>',
   compose: '<path d="M17 4.7H9.3C6 4.7 4.4 6.4 4.4 9.7V22.9C4.4 26.2 6 27.8 9.3 27.8H22.4C25.7 27.8 27.3 26.2 27.3 22.9V16.8"/><path d="M13.1 14.8L23.6 4.3Q25.5 2.4 27.4 4.3L28 4.9Q29.9 6.8 28 8.7L17.5 19.2L11.7 20.6Z"/><path d="M21.5 6.4L25.9 10.8"/>',
   user: `${head}<path d="${shoulders}"/>`,
   aiSettings: '<rect x="3.7" y="3.7" width="24.6" height="24.6" rx="5.2"/><path d="M10.7 8.3V11.3M10.7 16.1V23.7M21.3 8.3V16M21.3 20.8V23.7"/><circle cx="10.7" cy="13.7" r="2.4"/><circle cx="21.3" cy="18.4" r="2.4"/>',

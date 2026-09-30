@@ -6,6 +6,8 @@ export const navigation = {
   actionInset: 16,
   actionSize: 72,
   iconSize: 44,
+  // Existing internal-screen back button inset, in dp (not reference units).
+  backInset: 8,
   // Calibrated with the same "kazzonku" text as the reference, not Hangul ink height.
   titleSize: 38.5,
   titleLineHeight: 48,
@@ -118,4 +120,12 @@ export function filterChipsHeight(scale: number) {
 
 export function navigationScale(width: number) {
   return Math.min(width, 412) / navigation.referenceWidth;
+}
+
+/** Shared by header buttons and independent controls over artwork. */
+export function navigationActionMetrics(scale: number) {
+  const size = Math.max(48, navigation.actionSize * scale);
+  return {size, iconSize: navigation.iconSize * scale,
+    top: (navigation.headerHeight * scale - size) / 2,
+    backInset: navigation.backInset, endInset: navigation.actionInset * scale};
 }

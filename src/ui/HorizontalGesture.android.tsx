@@ -1,0 +1,1 @@
+export {HorizontalGesture} from './NativeHorizontalGesture';

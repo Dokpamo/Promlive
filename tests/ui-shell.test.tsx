@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
+import {AccessibilityInfo, Animated} from 'react-native';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
@@ -8,9 +9,13 @@ import {createScreenStorage} from '../src/ui/screenStorage.web';
 
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
 
-vi.mock('react-native', async () => ({...await vi.importActual<typeof import('react-native')>('react-native-web'),
-  useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),
-}));
+vi.mock('react-native', async () => {
+  const native = await vi.importActual<typeof import('react-native')>('react-native-web');
+  return {...native,
+    AccessibilityInfo: {...native.AccessibilityInfo, isReduceMotionEnabled: async () => false},
+    useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),
+  };
+});
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({children}: {children: ReactNode}) => <>{children}</>,
   useSafeAreaInsets: () => ({top: 24, right: 0, bottom: 24, left: 0}),
@@ -25,7 +30,7 @@ beforeEach(() => {
     removeItem: key => {values.delete(key);}, clear: () => values.clear()};
   Object.defineProperty(window, 'localStorage', {configurable: true, value: storage});
 });
-afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks();});
 
 // Inactive tab pages stay mounted, but are hidden from users and accessibility.
 function queryAll(selector: string) {
@@ -35,10 +40,14 @@ function query(selector: string) {
   return queryAll(selector)[0] ?? null;
 }
 
-async function clickControl(id: string) {
+async function clickControl(id: string, settle = true) {
   const element = query(`[data-testid="${id}"]`) as HTMLElement | null;
   expect(element, id).not.toBeNull();
   await act(async () => element!.click());
+  const motion = query('[data-testid="ui-back-motion"]') as HTMLElement | null;
+  if (settle && motion && motion.style.transform !== 'translateX(0px)') {
+    await act(async () => {await new Promise(resolve => setTimeout(resolve, 600));});
+  }
 }
 async function enterText(id: string, value: string) {
   const element = query(`[data-testid="${id}"]`) as HTMLInputElement | HTMLTextAreaElement;
@@ -48,6 +57,216 @@ async function enterText(id: string, value: string) {
     element.dispatchEvent(new Event('input', {bubbles: true}));
   });
 }
+
+async function beginDrag(id: string, from: number, to: number) {
+  const target = query(`[data-testid="${id}"]`)!;
+  const dispatch = async (type: string, x: number, buttons: number) => {
+    await act(async () => {
+      target.dispatchEvent(new MouseEvent(type, {bubbles: true, clientX: x, clientY: 450, button: 0, buttons}));
+      await new Promise(resolve => setTimeout(resolve, 25));
+    });
+  };
+  await dispatch('mousedown', from, 1);
+  await dispatch('mousemove', from + (to - from) * 0.2, 1);
+  await dispatch('mousemove', to, 1);
+  return () => dispatch('mouseup', to, 0);
+}
+
+async function dragBody(id: string, from: number, to: number) {
+  const release = await beginDrag(id, from, to);
+  await release();
+  await act(async () => {await new Promise(resolve => setTimeout(resolve, id === 'ui-back-swipe' ? 550 : 260));});
+}
+
+it('opens from the right with the same full-size underlay and safely interrupts an entrance with back', async () => {
+  // RN Web uses immediate AnimatedMock in tests. Hold native frames explicitly
+  // so this checks mounted content and stale completion, not a wall-clock delay.
+  const entries: {source: Animated.Value; complete: () => void}[] = [];
+  vi.spyOn(Animated, 'spring').mockImplementation(source => ({
+    start: callback => entries.push({source: source as Animated.Value, complete: () => callback?.({finished: true})}),
+    stop: () => {}, reset: () => {},
+  }));
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  const underlay = query('[data-testid="ui-root-screen"]') as HTMLElement;
+  const tint = underlay.querySelector('[data-testid="ui-root-screen-dim"]') as HTMLElement;
+  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
+  await clickControl('ui-bot-card-night-library', false);
+  const motion = query('[data-testid="ui-back-motion"]') as HTMLElement;
+  expect(x(motion)).toBeGreaterThan(0);
+  expect(x(motion)).toBeLessThanOrEqual(412);
+  await act(async () => entries[0]!.source.setValue(206));
+  expect(x(motion)).toBeGreaterThan(0);
+  expect(x(motion)).toBeLessThan(412);
+  expect(x(underlay)).toBeCloseTo((x(motion) - 412) * 0.3);
+  expect(Number(tint.style.opacity)).toBeCloseTo((1 - x(motion) / 412) * 0.12);
+  expect(underlay.style.opacity).toBe('1');
+  expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('32px');
+  await clickControl('ui-card-detail-back', false);
+  expect(query('[data-testid="ui-card-detail"]')).toBeNull();
+  expect(x(underlay)).toBe(0);
+  expect(Number(tint.style.opacity)).toBe(0);
+  // An old entry completion must not pull the root away again after close/reopen.
+  await clickControl('ui-bot-card-night-library', false);
+  await act(async () => entries[0]!.complete());
+  expect(x(query('[data-testid="ui-back-motion"]') as HTMLElement)).toBe(412);
+  await act(async () => {entries[1]!.source.setValue(0); entries[1]!.complete();});
+  expect(x(query('[data-testid="ui-back-motion"]') as HTMLElement)).toBe(0);
+  expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('0px');
+  await clickControl('ui-card-detail-back');
+  expect(x(underlay)).toBe(0);
+  expect(Number(tint.style.opacity)).toBe(0);
+});
+
+it('opens immediately when the system requests reduced motion', async () => {
+  vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  await clickControl('ui-bot-card-night-library', false);
+  expect((query('[data-testid="ui-back-motion"]') as HTMLElement).style.transform).toBe('translateX(0px)');
+  expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('0px');
+});
+
+it('keeps both bars fixed while adjacent filter bodies travel together without a blank frame or fade', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  const page = query('[data-testid="ui-page-library"]') as HTMLElement;
+  const header = query('[data-testid="ui-library-scroll-header"]') as HTMLElement;
+  const bar = query('[data-testid="ui-tab-bar"]') as HTMLElement;
+  const headerPosition = header.style.transform, barPosition = bar.style.transform;
+  const release = await beginDrag('ui-library-swipe', 350, 60);
+  expect(page.style.transform).toBe('translateX(0px)');
+  expect(header.style.transform).toBe(headerPosition);
+  expect(bar.style.transform).toBe(barPosition);
+  const body = query('[data-testid="ui-library-moving-body"]') as HTMLElement;
+  expect(body.style.transform).not.toBe('translateX(0px)');
+  const prepared = document.querySelector('[data-testid="ui-prepared-library:recent"]') as HTMLElement;
+  const incomingBody = prepared.querySelector('[data-testid="ui-library-moving-body"]') as HTMLElement;
+  expect(getComputedStyle(prepared).display).not.toBe('none');
+  expect(prepared.style.opacity).toBe('1');
+  expect((prepared.querySelector('[data-testid="ui-library-scroll-header"]') as HTMLElement).style.opacity).toBe('0');
+  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
+  expect(x(incomingBody) - x(body)).toBeCloseTo(412);
+  expect(x(incomingBody)).toBeGreaterThan(0);
+  expect(x(incomingBody)).toBeLessThan(412);
+  expect(memory.getSnapshot().view.libraryFilter).toBe('all');
+  const landingOpacity: number[] = [];
+  const observer = new MutationObserver(() => {
+    if (memory.getSnapshot().view.libraryFilter === 'recent') {
+      const incoming = query('[data-testid="ui-library-moving-body"]') as HTMLElement;
+      if (incoming) landingOpacity.push(Number(incoming.style.opacity || 1));
+    }
+  });
+  observer.observe(container, {subtree: true, attributes: true, attributeFilter: ['style', 'aria-hidden']});
+  await release();
+  await act(async () => {await new Promise(resolve => setTimeout(resolve, 250));});
+  expect(memory.getSnapshot().view.libraryFilter).toBe('recent');
+  const destination = query('[data-testid="ui-library-moving-body"]') as HTMLElement;
+  expect(destination).toBe(incomingBody);
+  expect(destination.style.transform).toBe('translateX(0px)');
+  observer.disconnect();
+  expect(landingOpacity.length).toBeGreaterThan(0);
+  expect(landingOpacity.every(opacity => opacity === 1)).toBe(true);
+  // A short drag keeps this content without an opacity change.
+  await dragBody('ui-library-swipe', 300, 289);
+  expect(memory.getSnapshot().view.libraryFilter).toBe('recent');
+  expect(Number(destination.style.opacity || 1)).toBe(1);
+});
+
+it('keeps the immediate previous page painted and slides it from the left without resizing or fading', async () => {
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  await clickControl('ui-bot-card-night-library');
+  await clickControl('ui-card-detail-more');
+  await clickControl('ui-card-detail-edit');
+  const underlay = document.querySelector('[data-testid="ui-detail-screen"]') as HTMLElement;
+  const dim = underlay.querySelector('[data-testid="ui-detail-screen-dim"]') as HTMLElement;
+  const x = () => Number(underlay.style.transform.match(/^translateX\(([-\d.]+)px\)$/)?.[1]);
+  expect(x()).toBeCloseTo(-412 * 0.3);
+  expect(underlay.style.opacity).toBe('1');
+  expect(Number(dim.style.opacity)).toBe(0.12);
+  // The rounded page spans the display; only its content is inset below the status bar.
+  expect((query('[data-testid="ui-shell"]') as HTMLElement).style.paddingTop).toBe('');
+  expect((query('[data-testid="ui-back-safe-content"]') as HTMLElement).style.paddingTop).toBe('24px');
+  const release = await beginDrag('ui-back-swipe', 60, 280);
+  const page = query('[data-testid="ui-back-page"]') as HTMLElement;
+  const rootScreen = document.querySelector('[data-testid="ui-root-screen"]') as HTMLElement;
+  expect(page.style.borderTopLeftRadius).toBe('32px');
+  expect(x()).toBeGreaterThan(-412 * 0.3);
+  expect(x()).toBeLessThan(0);
+  expect(Number(underlay.style.opacity)).toBe(1);
+  expect(Number(dim.style.opacity)).toBeGreaterThan(0);
+  expect(Number(dim.style.opacity)).toBeLessThan(0.12);
+  expect(Number((query('[data-testid="ui-back-shadow"]') as HTMLElement).style.opacity)).toBe(1);
+  expect(Number(rootScreen.style.opacity)).toBe(0);
+  await release();
+  await act(async () => {await new Promise(resolve => setTimeout(resolve, 550));});
+  expect(query('[data-testid="ui-card-editor"]')).toBeNull();
+  expect(query('[data-testid="ui-card-detail"]')).not.toBeNull();
+  expect(underlay.style.transform).toBe('translateX(0px)');
+  expect(Number(dim.style.opacity)).toBe(0);
+  // A cancelled return restores the foreground without leaving a shadow or a stale dim layer.
+  await dragBody('ui-back-swipe', 60, 71);
+  expect(query('[data-testid="ui-card-detail"]')).not.toBeNull();
+  expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('0px');
+  expect(Number((query('[data-testid="ui-back-shadow"]') as HTMLElement).style.opacity)).toBe(0);
+  expect(Number(dim.style.opacity)).toBe(0);
+});
+
+it('keeps a collapsed header at the same height when a swipe lands on a shorter filter', async () => {
+  const disk = createScreenStorage();
+  const memory = new ScreenMemory(disk);
+  memory.rememberScroll('library:all', {offset: 320, hidden: 120, height: 120, maxOffset: 600});
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  const previous = query('[data-testid="ui-library-scroll-header"]') as HTMLElement;
+  expect(previous.style.transform).toBe('translateY(-120px)');
+  await dragBody('ui-library-swipe', 350, 60);
+  expect(memory.getSnapshot().view.libraryFilter).toBe('recent');
+  const next = query('[data-testid="ui-library-scroll-header"]') as HTMLElement;
+  expect(next.style.transform).toBe(previous.style.transform);
+  // The new short list can scroll downward to reveal the preserved header again.
+  expect(memory.getScroll('library:recent').maxOffset).toBeGreaterThan(120);
+  // Native pixel rounding can put the measured range slightly above the requested minimum.
+  memory.rememberScroll('library:recent', {offset: 120, hidden: 120, height: 120, maxOffset: 121.142857});
+  await memory.flush();
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  await act(async () => root!.render(<App memory={new ScreenMemory(disk)}/>));
+  expect((query('[data-testid="ui-library-scroll-header"]') as HTMLElement).style.transform).toBe('translateY(-120px)');
+  const grid = query('[data-testid="ui-library-grid"]') as HTMLElement;
+  const content = grid.firstElementChild as HTMLElement;
+  expect(parseFloat(content.style.minHeight)).toBeGreaterThan(892);
+}, 10000);
+
+it('swipes the body through filters before tabs and returns from details without opening a card during the drag', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await dragBody('ui-library-swipe', 350, 60);
+  expect(memory.getSnapshot().view.libraryFilter).toBe('recent');
+  expect(memory.getSnapshot().view.detailCardId).toBeNull();
+  await dragBody('ui-library-swipe', 350, 60);
+  expect(memory.getSnapshot().view.libraryFilter).toBe('idle');
+  await dragBody('ui-library-swipe', 350, 60);
+  expect(memory.getSnapshot().view.tab).toBe('chats');
+  await dragBody('ui-chats-swipe', 60, 350);
+  expect(memory.getSnapshot().view.tab).toBe('library');
+  expect(memory.getSnapshot().view.libraryFilter).toBe('idle');
+  await clickControl('ui-library-filter-all');
+  await clickControl('ui-bot-card-night-library');
+  await dragBody('ui-back-swipe', 60, 350);
+  expect(memory.getSnapshot().view.detailCardId).toBeNull();
+  expect(query('[data-testid="ui-library-grid"]')).not.toBeNull();
+  await clickControl('ui-bot-card-night-library');
+  const reopened = query('[data-testid="ui-back-page"]') as HTMLElement;
+  expect(reopened).not.toBeNull();
+  expect(reopened.parentElement!.style.transform).toBe('translateX(0px)');
+  expect((query('[data-testid="ui-detail-screen"]') as HTMLElement).style.backgroundColor).toBe('');
+  await clickControl('ui-card-detail-back');
+  expect(memory.getSnapshot().view.detailCardId).toBeNull();
+}, 10000);
 
 it('shows all four new root screens while leaving legacy actions disconnected', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -90,7 +309,7 @@ it('shows all four new root screens while leaving legacy actions disconnected', 
     if (id !== 'create') await act(async () => action.click());
     expect(query(`[data-testid="ui-page-${id}"]`)).toBe(page);
     expect(queryAll('input, textarea, [role="dialog"]')).toHaveLength(0);
-    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 5 : id === 'chats' ? 2 : 1);
+    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 17 : id === 'chats' ? 2 : 1);
     expect(queryAll('[data-testid^="ui-page-"]')).toHaveLength(1);
   }
 });
@@ -121,6 +340,54 @@ it('switches on press down and keeps inactive pages ready without exposing their
   expect(query('[data-testid="ui-library-grid"]')).toBe(grid);
   expect(grid.scrollTop).toBe(240);
   expect(query('[data-testid="ui-library-filter-recent"]')?.getAttribute('aria-pressed')).toBe('true');
+});
+
+it('opens published card details without a header, preserves the library, and publishes edits only on completion', async () => {
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  await clickControl('ui-library-filter-recent');
+  const grid = query('[data-testid="ui-library-grid"]')!;
+  grid.scrollTop = 180;
+  await clickControl('ui-bot-card-night-library');
+  expect(query('[data-testid="ui-header"]')).toBeNull();
+  expect(query('[data-testid="ui-tab-bar"]')).toBeNull();
+  expect(query('[data-testid="ui-card-detail-title"]')?.textContent).toBe('별이 머무는 도서관');
+  await clickControl('ui-card-detail-more');
+  expect(query('[data-testid="ui-card-detail-more"]')?.getAttribute('aria-expanded')).toBe('true');
+  await clickControl('ui-card-detail-menu-dismiss');
+  expect(query('[data-testid="ui-card-detail-menu"]')).toBeNull();
+  await clickControl('ui-card-detail-more');
+  await clickControl('ui-card-detail-edit');
+  await enterText('ui-card-editor-title', '상세에서 편집한 제목');
+  await clickControl('ui-card-editor-back');
+  expect(query('[data-testid="ui-card-detail-title"]')?.textContent).toBe('별이 머무는 도서관');
+  await clickControl('ui-card-detail-more');
+  await clickControl('ui-card-detail-edit');
+  expect((query('[data-testid="ui-card-editor-title"]') as HTMLTextAreaElement).value).toBe('상세에서 편집한 제목');
+  await clickControl('ui-card-editor-complete');
+  expect(query('[data-testid="ui-card-detail-title"]')?.textContent).toBe('상세에서 편집한 제목');
+  await clickControl('ui-card-detail-back');
+  expect(query('[data-testid="ui-library-grid"]')).toBe(grid);
+  expect(grid.scrollTop).toBe(180);
+  expect(query('[data-testid="ui-library-filter-recent"]')?.getAttribute('aria-pressed')).toBe('true');
+  expect(query('[data-testid="ui-bot-card-night-library"]')?.textContent).toContain('상세에서 편집한 제목');
+});
+
+it('restores an open card detail on the first render after restart', async () => {
+  const disk = createScreenStorage();
+  const memory = new ScreenMemory(disk);
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await clickControl('ui-bot-card-night-library');
+  await memory.flush();
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  await act(async () => root!.render(<App memory={new ScreenMemory(disk)}/>));
+  expect(query('[data-testid="ui-card-detail-title"]')?.textContent).toBe('별이 머무는 도서관');
+  expect(query('[data-testid="ui-library-grid"]')).toBeNull();
+  expect((query('[data-testid="ui-back-motion"]') as HTMLElement).style.transform).toBe('translateX(0px)');
+  await clickControl('ui-card-detail-back');
+  expect(query('[data-testid="ui-library-grid"]')).not.toBeNull();
 });
 
 it('searches chat titles and AI replies while keeping library and chat search independent', async () => {

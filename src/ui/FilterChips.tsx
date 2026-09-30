@@ -1,3 +1,4 @@
+import {useCallback, useEffect, useRef} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {filterChipColors, filterChips as m, navigation, uiAppearance} from './tokens';
 
@@ -11,6 +12,21 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
   appearance?: keyof typeof filterChipColors;
 }) {
   const palette = filterChipColors[appearance];
+  const scroll = useRef<ScrollView>(null);
+  const measurements = useRef({viewport: 0, content: 0, offset: 0, items: {} as Record<string, {x: number; width: number}>});
+  const revealSelection = useCallback(() => {
+    const {viewport, content, offset, items: bounds} = measurements.current;
+    const item = bounds[selected];
+    if (!item || viewport <= 0 || content <= 0) return;
+    const inset = navigation.titleInset * scale;
+    const wanted = item.x < offset + inset ? item.x - inset
+      : item.x + item.width > offset + viewport - inset ? item.x + item.width - viewport + inset : offset;
+    const x = Math.max(0, Math.min(content - viewport, wanted));
+    if (Math.abs(x - offset) < 1) return;
+    measurements.current.offset = x;
+    scroll.current?.scrollTo({x, animated: false});
+  }, [selected, scale]);
+  useEffect(revealSelection, [revealSelection]);
   const chip = {
     minWidth: m.minWidth * scale,
     minHeight: m.height * scale,
@@ -18,13 +34,17 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
     paddingVertical: (m.height - m.lineHeight - m.borderWidth * 2) / 2 * scale,
     borderWidth: m.borderWidth * scale,
   };
-  return <ScrollView testID={`ui-${scope}-filters`} horizontal showsHorizontalScrollIndicator={false}
+  return <ScrollView ref={scroll} testID={`ui-${scope}-filters`} horizontal showsHorizontalScrollIndicator={false}
+    onLayout={event => {measurements.current.viewport = event.nativeEvent.layout.width; revealSelection();}}
+    onContentSizeChange={width => {measurements.current.content = width; revealSelection();}}
+    onScroll={event => {measurements.current.offset = event.nativeEvent.contentOffset.x;}} scrollEventThrottle={16}
     keyboardShouldPersistTaps="handled" style={[styles.filters, {backgroundColor: palette.surface}]}
     contentContainerStyle={[styles.content, {paddingHorizontal: navigation.titleInset * scale,
       gap: m.gap * scale, paddingBottom: m.bottomInset * scale}]}>
     {items.map(item => {
       const active = selected === item.id;
       return <Pressable key={item.id} testID={`ui-${scope}-filter-${item.id}`}
+        onLayout={event => {measurements.current.items[item.id] = event.nativeEvent.layout; if (active) revealSelection();}}
         accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{selected: active}}
         aria-pressed={active} onPress={() => onChange(item.id)}
         style={({pressed}) => [styles.target, {minHeight: Math.max(48, m.targetHeight * scale), opacity: pressed ? 0.65 : 1}]}>

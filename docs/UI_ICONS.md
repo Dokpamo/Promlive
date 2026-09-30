@@ -39,7 +39,7 @@
 
 - 원본: `scripts/icon-artwork.cjs`. 하단 경로와 선택 전환용 레이어를 함께 관리한다.
 - 생성: `node scripts/generate-navigation-icons.cjs`.
-- SVG: `src/ui/icons/svg/*.svg`, 기본 17개와 선택 4개로 총 21개다.
+- SVG: `src/ui/icons/svg/*.svg`, 기본 18개와 선택 4개로 총 22개다. 카드 상세의 메뉴용 `more`를 같은 32단위 좌표계에 추가했다.
 - 앱: `src/ui/icons/sources.ts`에 264px 투명 PNG와 탭 레이어를 생성한다. 기존 React Native `Image`로 렌더링하며 추가 패키지는 없다.
 - 검토 시트: `docs/icons/preview.svg`, `preview.png`. 앱 전체 테마 자동 전환 범위는 [UI_COLORS.md](UI_COLORS.md)를 따른다.
 

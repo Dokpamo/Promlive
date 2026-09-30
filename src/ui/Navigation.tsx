@@ -1,11 +1,9 @@
-import {Platform, Pressable, Text, View} from 'react-native';
+import {Platform, Pressable, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {Icon, type IconName} from './Icon';
 import {TabIcon} from './TabIcon';
-import {colors, navigation as m} from './tokens';
-
-export const tabs = ['library', 'chats', 'create', 'settings'] as const;
-export type Tab = typeof tabs[number];
-export const tabLabels: Record<Tab, string> = {library: '서재', chats: '채팅', create: '생성', settings: '설정'};
+import {colors, navigation as m, navigationActionMetrics} from './tokens';
+import {tabs, tabLabels, type Tab} from './navigationRoutes';
+export {tabs, tabLabels, type Tab} from './navigationRoutes';
 const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   library: {icon: 'plus', label: '카드 가져오기'},
   chats: {icon: 'compose', label: '새 채팅'},
@@ -13,24 +11,31 @@ const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   settings: {icon: 'compose', label: '프로필 편집'},
 };
 
+export function NavigationButton({icon, label, scale, onPress, expanded, testID, style}: {
+  icon: IconName; label: string; scale: number; onPress?: (() => void) | undefined; expanded?: boolean;
+  testID?: string; style?: StyleProp<ViewStyle>;
+}) {
+  const {size, iconSize} = navigationActionMetrics(scale);
+  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
+    accessibilityState={{disabled: !onPress, ...(expanded === undefined ? {} : {expanded})}} aria-expanded={expanded}
+    disabled={!onPress} onPress={onPress}
+    style={({pressed}) => [{width: size, height: size, flexShrink: 0, alignItems: 'center', justifyContent: 'center'},
+      style, {opacity: pressed ? 0.55 : 1}]}>
+    <Icon name={icon} size={iconSize}/>
+  </Pressable>;
+}
+
 export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean; onAction?: () => void}) {
   const action = headerActions[tab];
-  const touch = Math.max(48, m.actionSize * s);
   return <View testID="ui-header" style={{height: m.headerHeight * s, flexShrink: 0, paddingLeft: m.titleInset * s,
     paddingRight: m.actionInset * s, flexDirection: 'row', alignItems: 'center'}}>
     <Text testID="ui-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: colors.foreground,
       ...(Platform.OS === 'android' ? {fontFamily: 'sans-serif'} : {}),
       fontSize: m.titleSize * s, lineHeight: m.titleLineHeight * s, fontWeight: '700', includeFontPadding: false,
       transform: [{translateY: m.titleOffsetY * s}]}}>{tabLabels[tab]}</Text>
-    {tab !== 'settings' && <Pressable testID={`ui-${tab}-search-button`} accessibilityRole="button" accessibilityLabel={`${tabLabels[tab]} 검색`}
-      accessibilityState={{expanded: searchOpen}} aria-expanded={searchOpen} onPress={onSearch}
-      style={({pressed}) => ({width: touch, height: touch, flexShrink: 0, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.55 : 1})}>
-      <Icon name="search" size={m.iconSize * s}/>
-    </Pressable>}
-    <Pressable testID="ui-header-action" accessibilityRole="button" accessibilityLabel={action.label} accessibilityState={{disabled: !onAction}} disabled={!onAction}
-      onPress={onAction} style={({pressed}) => ({width: touch, height: touch, flexShrink: 0, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.55 : 1})}>
-      <Icon name={action.icon} size={m.iconSize * s}/>
-    </Pressable>
+    {tab !== 'settings' && <NavigationButton testID={`ui-${tab}-search-button`} icon="search" label={`${tabLabels[tab]} 검색`}
+      scale={s} onPress={onSearch} expanded={searchOpen}/>}
+    <NavigationButton testID="ui-header-action" icon={action.icon} label={action.label} scale={s} onPress={onAction}/>
   </View>;
 }
 

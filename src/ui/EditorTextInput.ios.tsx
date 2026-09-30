@@ -1,0 +1,1 @@
+export {EditorTextInput} from './NativeEditorTextInput';

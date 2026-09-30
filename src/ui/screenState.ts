@@ -13,16 +13,17 @@ export type ScreenView = {
   libraryFilter: LibraryFilter;
   creationFilter: CreationFilter;
   openedCardId: string | null;
+  detailCardId: string | null;
 };
 export type ScrollMemory = {offset: number; hidden: number; height: number; maxOffset: number};
-export type ScrollScope = Tab | 'editor';
+export type ScrollScope = Tab | 'editor' | 'detail' | `library:${LibraryFilter}` | `create:${CreationFilter}`;
 export type ScreenSnapshot = {version: 1; savedAt: number; data: ScreenData; view: ScreenView; positions: Partial<Record<ScrollScope, ScrollMemory>>};
 export type ScreenState = {data: ScreenData; view: ScreenView; saveError: boolean};
 
 export function initialScreenData(): ScreenData { return {cards: createPreviewWorkspace(), chats: chatPreviewRows}; }
 export function initialScreenView(): ScreenView {
   return {tab: 'library', searches: {library: {open: false, query: ''}, chats: {open: false, query: ''}, create: {open: false, query: ''}},
-    libraryFilter: 'all', creationFilter: 'all', openedCardId: null};
+    libraryFilter: 'all', creationFilter: 'all', openedCardId: null, detailCardId: null};
 }
 export const emptyScrollMemory: ScrollMemory = {offset: 0, hidden: 0, height: 0, maxOffset: 0};
 
@@ -57,17 +58,24 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     if (choice(saved.libraryFilter, ['all', 'recent', 'idle'])) view.libraryFilter = saved.libraryFilter;
     if (choice(saved.creationFilter, ['all', 'draft', 'ready', 'mine', 'external'])) view.creationFilter = saved.creationFilter;
     if (typeof saved.openedCardId === 'string' && value.data.cards.some(card => card.id === saved.openedCardId)) view.openedCardId = saved.openedCardId;
+    if (typeof saved.detailCardId === 'string' && value.data.cards.some(card => card.id === saved.detailCardId && card.published)) view.detailCardId = saved.detailCardId;
     if (object(saved.searches)) for (const scope of ['library', 'chats', 'create'] as const) {
       const search = saved.searches[scope];
       if (object(search) && typeof search.open === 'boolean' && text(search.query)) view.searches[scope] = {open: search.open, query: search.query};
     }
     const positions: ScreenSnapshot['positions'] = {};
-    if (object(value.positions)) for (const scope of ['library', 'chats', 'create', 'settings', 'editor'] as const) {
+    if (object(value.positions)) for (const scope of ['library', 'chats', 'create', 'settings', 'editor', 'detail',
+      'library:all', 'library:recent', 'library:idle', 'create:all', 'create:draft', 'create:ready', 'create:mine', 'create:external'] as const) {
       const position = value.positions[scope];
       if (object(position) && number(position.offset) && number(position.hidden) && number(position.height) && number(position.maxOffset)) {
         positions[scope] = {offset: Math.min(position.offset, position.maxOffset), hidden: Math.min(position.hidden, position.height), height: position.height, maxOffset: position.maxOffset};
       }
     }
+    // Older snapshots saved one position per tab. Assign it only to that tab's selected filter.
+    const libraryScope = `library:${view.libraryFilter}` as const;
+    const creationScope = `create:${view.creationFilter}` as const;
+    if (!positions[libraryScope] && positions.library) positions[libraryScope] = positions.library;
+    if (!positions[creationScope] && positions.create) positions[creationScope] = positions.create;
     return {version: 1, savedAt: number(value.savedAt) ? value.savedAt : 0, data: value.data, view, positions};
   } catch { return null; }
 }

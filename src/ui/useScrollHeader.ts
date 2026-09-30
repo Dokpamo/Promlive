@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} from 'react';
-import {AccessibilityInfo, Animated, PanResponder, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
+import {AccessibilityInfo, Animated, PanResponder, Platform, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
 import {advanceHeaderScroll, headerSettleTarget, type HeaderScrollPosition} from './scrollHeaderMotion';
 import {createScrollHeaderAnimation} from './scrollHeaderAnimation';
 import type {ScreenMemory} from './ScreenMemory';
@@ -10,18 +10,26 @@ type ScrollTarget = {scrollToOffset: (options: {offset: number; animated?: boole
 /** Keep content overscroll separate from header visibility and its settle animation. */
 export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHeight: number, resetKey: string, memory?: ScreenMemory, scope?: ScrollScope) {
   const saved = useRef(memory && scope ? memory.getScroll(scope) : emptyScrollMemory).current;
-  const position = useRef<HeaderScrollPosition>({...saved, height: saved.height || initialHeight});
+  const {height: windowHeight} = useWindowDimensions();
+  const position = useRef<HeaderScrollPosition>({...saved, height: saved.height || initialHeight,
+    maxOffset: saved.hidden > 0 ? Math.max(saved.maxOffset, (saved.height || initialHeight) + 1) : saved.maxOffset});
   const [headerHeight, setHeaderHeight] = useState(saved.height || initialHeight);
+  const [adoption, setAdoption] = useState(0);
+  // Preserve a short list's inherited collapse on cold start, before native layout arrives.
+  const [minimumContentHeight, setMinimumContentHeight] = useState(() => saved.hidden > 0
+    ? windowHeight + (saved.height || initialHeight) + 1 : 0);
+  const pendingAdoption = useRef<number | null>(null);
   const measurements = useRef({content: 0, viewport: 0});
   const previousKey = useRef(resetKey);
   const restorePending = useRef(saved.offset > 0);
   const contentOffset = useRef({x: 0, y: saved.offset}).current;
   // A new graph discards the accumulated native delta when search/filter/width changes.
   const animation = useMemo(() => createScrollHeaderAnimation(headerHeight, position.current.maxOffset,
-    previousKey.current === resetKey ? position.current : {offset: 0, hidden: 0}), [headerHeight, resetKey]);
+    previousKey.current === resetKey ? position.current : {offset: 0, hidden: 0}), [headerHeight, resetKey, adoption]);
   const touching = useRef(false);
   const dragging = useRef(false);
   const momentum = useRef(false);
+  const horizontalGesture = useRef(false);
   const reduceMotion = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remember = useCallback(() => {if (memory && scope) memory.rememberScroll(scope, position.current);}, [memory, scope]);
@@ -44,16 +52,51 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
     cancelSnap();
     timer.current = setTimeout(() => {
       timer.current = null;
-      if (touching.current || dragging.current || momentum.current) return;
+      if (touching.current || dragging.current || momentum.current || horizontalGesture.current) return;
       const target = headerSettleTarget(position.current);
       if (target) list.current?.scrollToOffset({offset: target.offset, animated: !reduceMotion.current});
     }, delay);
   }, [cancelSnap, list]);
 
+  const holdForHorizontalGesture = useCallback((active: boolean) => {
+    horizontalGesture.current = active;
+    if (active) cancelSnap();
+  }, [cancelSnap]);
+
+  const readHidden = useCallback(() => position.current.maxOffset > position.current.height ? position.current.hidden : 0, []);
+  const adoptHidden = useCallback((hidden: number) => {
+    cancelSnap();
+    const nextHidden = Math.max(0, Math.min(position.current.height, hidden));
+    if (Math.abs(nextHidden - position.current.hidden) < 0.5 && (nextHidden === 0 || position.current.maxOffset > position.current.height)) return;
+    // A short destination needs enough scroll range to pull the preserved header back down.
+    if (nextHidden > 0 && position.current.maxOffset <= position.current.height) {
+      position.current.maxOffset = position.current.height + 1;
+      setMinimumContentHeight(measurements.current.viewport + position.current.height + 1);
+    }
+    const offset = Math.max(position.current.offset, nextHidden);
+    position.current = {...position.current, offset, hidden: nextHidden};
+    restorePending.current = false;
+    pendingAdoption.current = offset;
+    setAdoption(value => value + 1);
+    remember();
+  }, [cancelSnap, remember]);
+
+  useLayoutEffect(() => {
+    if (pendingAdoption.current === null) return;
+    const frame = requestAnimationFrame(() => {
+      const offset = pendingAdoption.current;
+      pendingAdoption.current = null;
+      if (offset !== null) list.current?.scrollToOffset({offset, animated: false});
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [adoption, list]);
+
   const reset = useCallback(() => {
     cancelSnap();
     if (previousKey.current === resetKey) return;
     previousKey.current = resetKey;
+    pendingAdoption.current = null;
+    setMinimumContentHeight(0);
     restorePending.current = false;
     const wasScrolled = position.current.offset !== 0;
     position.current = {...position.current, offset: 0, hidden: 0, height: headerHeight};
@@ -64,7 +107,8 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
 
   const updateRange = useCallback(() => {
     if (measurements.current.content <= 0 || measurements.current.viewport <= 0) return;
-    const maxOffset = Math.max(0, measurements.current.content - measurements.current.viewport);
+    const requiredHeight = minimumContentHeight > 0 ? measurements.current.viewport + position.current.height + 1 : 0;
+    const maxOffset = Math.max(0, Math.max(measurements.current.content, requiredHeight) - measurements.current.viewport);
     if (position.current.maxOffset !== maxOffset) {
       position.current.maxOffset = maxOffset;
       animation.maxOffset.setValue(maxOffset);
@@ -74,7 +118,7 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
       list.current?.scrollToOffset({offset: Math.min(saved.offset, maxOffset), animated: false});
     }
     remember();
-  }, [animation, list, remember, saved.offset]);
+  }, [animation, list, remember, saved.offset, minimumContentHeight]);
 
   useLayoutEffect(reset, [reset, resetKey]);
   useEffect(() => {
@@ -134,6 +178,9 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
   }), [beginTouch, endTouch, list]);
 
   return {
+    holdForHorizontalGesture,
+    readHidden, adoptHidden,
+    minimumContentStyle: minimumContentHeight > 0 ? {minHeight: minimumContentHeight} : undefined,
     onHeaderLayout,
     headerHeight,
     headerStyle: {transform: [{translateY: animation.translateY}]},
@@ -144,7 +191,11 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
       bounces: true,
       alwaysBounceVertical: false,
       overScrollMode: 'auto' as const,
-      onLayout: (event: LayoutChangeEvent) => {measurements.current.viewport = event.nativeEvent.layout.height; updateRange();},
+      onLayout: (event: LayoutChangeEvent) => {
+        measurements.current.viewport = event.nativeEvent.layout.height;
+        if (minimumContentHeight > 0) setMinimumContentHeight(measurements.current.viewport + headerHeight + 1);
+        updateRange();
+      },
       onContentSizeChange: (_width: number, height: number) => {measurements.current.content = height; updateRange();},
       onScroll,
       onTouchStart: beginTouch,
