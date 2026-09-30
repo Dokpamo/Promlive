@@ -1,7 +1,8 @@
-import {useEffect, useReducer, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {Keyboard, NativeModules, Platform, StatusBar, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Header, TabBar, type Tab} from './Navigation';
+import {TabPages} from './TabPages';
 import {Library} from './Library';
 import {Chats} from './Chats';
 import {Creation} from './Creation';
@@ -38,49 +39,62 @@ function Shell() {
   const nextCardNumber = useRef(0);
   const safe = useSafeAreaInsets();
   const {width} = useWindowDimensions();
-  const scale = navigationScale(width - safe.left - safe.right);
-  function closeSearch() {
+  const contentWidth = width - safe.left - safe.right;
+  const scale = navigationScale(contentWidth);
+  const closeSearch = useCallback(() => {
     Keyboard.dismiss();
     setSearchOpen(false);
     setQuery('');
-  }
-  function closeChatSearch() {
+  }, []);
+  const closeChatSearch = useCallback(() => {
     Keyboard.dismiss();
     setChatSearchOpen(false);
     setChatQuery('');
-  }
-  function closeCreationSearch() {
+  }, []);
+  const closeCreationSearch = useCallback(() => {
     Keyboard.dismiss();
     setCreationSearchOpen(false);
     setCreationQuery('');
-  }
+  }, []);
   function closeEditor() {
     Keyboard.dismiss();
     setOpenedCardId(null);
   }
-  function createCard() {
+  const createCard = useCallback(() => {
     const id = `created-${Date.now()}-${++nextCardNumber.current}`;
     dispatchCard({type: 'create', id, now: Date.now()});
     Keyboard.dismiss();
     setOpenedCardId(id);
+  }, []);
+  const openCard = useCallback((id: string) => {
+    Keyboard.dismiss();
+    setOpenedCardId(id);
+  }, []);
+  function changeTab(next: Tab) {
+    // onPress remains as a keyboard/accessibility fallback after onPressIn.
+    if (next === tab) return;
+    setTab(next);
+    Keyboard.dismiss();
   }
+  // Stable elements let React skip the lists entirely during tab-only updates.
+  const libraryPage = useMemo(() => <Library items={publishedLibraryCards(cards)} width={contentWidth} scale={scale}
+      header={<Header tab="library" scale={scale} onSearch={() => searchOpen ? closeSearch() : setSearchOpen(true)} searchOpen={searchOpen}/>}
+      searchOpen={searchOpen} query={query} onQueryChange={setQuery} onCloseSearch={closeSearch}/>,
+    [cards, contentWidth, scale, searchOpen, query, closeSearch]);
+  const chatsPage = useMemo(() => <Chats width={contentWidth} scale={scale}
+      header={<Header tab="chats" scale={scale} onSearch={() => chatSearchOpen ? closeChatSearch() : setChatSearchOpen(true)} searchOpen={chatSearchOpen}/>}
+      searchOpen={chatSearchOpen} query={chatQuery} onQueryChange={setChatQuery} onCloseSearch={closeChatSearch}/>,
+    [contentWidth, scale, chatSearchOpen, chatQuery, closeChatSearch]);
+  const creationPage = useMemo(() => <Creation cards={cards} width={contentWidth} scale={scale}
+      header={<Header tab="create" scale={scale} onSearch={() => creationSearchOpen ? closeCreationSearch() : setCreationSearchOpen(true)} searchOpen={creationSearchOpen} onAction={createCard}/>}
+      searchOpen={creationSearchOpen} query={creationQuery} onQueryChange={setCreationQuery} onCloseSearch={closeCreationSearch} onOpen={openCard}/>,
+    [cards, contentWidth, scale, creationSearchOpen, creationQuery, closeCreationSearch, createCard, openCard]);
+  const settingsPage = useMemo(() => <><Header tab="settings" scale={scale} onSearch={() => {}} searchOpen={false}/><Settings scale={scale}/></>, [scale]);
   return <View testID="ui-shell" style={{flex: 1, backgroundColor: colors.background, paddingTop: safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>
-    <View style={{flex: 1, minHeight: 0, display: openedCard ? 'none' : 'flex'}}>
-    {tab === 'settings' && <Header tab={tab} scale={scale} onSearch={() => {}} searchOpen={false}/>}
-    <View key={tab} testID={`ui-page-${tab}`} style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
-      {tab === 'library' && <Library items={publishedLibraryCards(cards)} width={width - safe.left - safe.right} scale={scale}
-        header={<Header tab={tab} scale={scale} onSearch={() => searchOpen ? closeSearch() : setSearchOpen(true)} searchOpen={searchOpen}/>}
-        searchOpen={searchOpen} query={query} onQueryChange={setQuery} onCloseSearch={closeSearch}/>}
-      {tab === 'chats' && <Chats width={width - safe.left - safe.right} scale={scale}
-        header={<Header tab={tab} scale={scale} onSearch={() => chatSearchOpen ? closeChatSearch() : setChatSearchOpen(true)} searchOpen={chatSearchOpen}/>}
-        searchOpen={chatSearchOpen} query={chatQuery} onQueryChange={setChatQuery} onCloseSearch={closeChatSearch}/>}
-      {tab === 'create' && <Creation cards={cards} width={width - safe.left - safe.right} scale={scale}
-        header={<Header tab={tab} scale={scale} onSearch={() => creationSearchOpen ? closeCreationSearch() : setCreationSearchOpen(true)} searchOpen={creationSearchOpen} onAction={createCard}/>}
-        searchOpen={creationSearchOpen} query={creationQuery} onQueryChange={setCreationQuery} onCloseSearch={closeCreationSearch}
-        onOpen={id => {Keyboard.dismiss(); setOpenedCardId(id);}}/>}
-      {tab === 'settings' && <Settings scale={scale}/>}
-    </View>
-    <TabBar tab={tab} onChange={next => {Keyboard.dismiss(); setTab(next);}} scale={scale} bottomInset={safe.bottom}/>
+    <View aria-hidden={!!openedCard} accessibilityElementsHidden={!!openedCard} importantForAccessibility={openedCard ? 'no-hide-descendants' : 'auto'}
+      style={{flex: 1, minHeight: 0, display: openedCard ? 'none' : 'flex'}}>
+      <TabPages tab={tab} pages={{library: libraryPage, chats: chatsPage, create: creationPage, settings: settingsPage}}/>
+      <TabBar tab={tab} onChange={changeTab} scale={scale} bottomInset={safe.bottom}/>
     </View>
     {openedCard && <CardEditor card={openedCard} scale={scale} topInset={safe.top} bottomInset={safe.bottom} onClose={closeEditor}
       onChange={(field, value) => dispatchCard({type: 'edit', id: openedCard.id, field, value, now: Date.now()})}

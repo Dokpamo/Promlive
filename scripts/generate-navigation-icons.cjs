@@ -1,64 +1,51 @@
-// Small, tintable PNG masks keep the same curved paths on native and web.
+// Original vectors are in icon-artwork.cjs. Generate standalone SVGs and native masks.
 // Run with: node scripts/generate-navigation-icons.cjs
-const {mkdir, writeFile} = require('node:fs/promises');
+const {mkdir, writeFile, unlink} = require('node:fs/promises');
 const {join} = require('node:path');
 const sharp = require('sharp');
-
-// The first destination is still Library; its silhouette follows the supplied home tab.
-const home = 'M3.5 15.7Q3.5 13.8 5 12.3L12.9 4.3Q16 1.2 19.1 4.3L27 12.3Q28.5 13.8 28.5 15.7V24.8Q28.5 28.5 24.8 28.5H20.7V20Q20.7 14.8 16 14.8Q11.3 14.8 11.3 20V28.5H7.2Q3.5 28.5 3.5 24.8Z';
-const plane = 'M6.2 5H25.2C27.9 5 29 7.8 27.6 10.1L17.1 26.2C15.4 28.9 12.8 28.4 12.1 25.3L10.3 17.2L3.9 10C2 7.9 3.4 5 6.2 5Z';
-const cutout = (body, cut) => `<defs><mask id="cut"><rect width="32" height="32" fill="white" stroke="none"/>${cut}</mask></defs><g mask="url(#cut)">${body}</g>`;
-const homeFit = body => `<g transform="translate(16 16.42) scale(1.02 1) translate(-16 -16)">${body}</g>`;
-const planeFit = body => `<g transform="translate(16 16) scale(1.02 .99) translate(-16 -16.4)">${body}</g>`;
-const icons = {
-  library: homeFit(`<path d="${home}"/>`),
-  librarySelected: homeFit(`<path d="${home}" fill="black"/>`),
-  chats: planeFit(`<path d="${plane}M10.3 17.2L21.1 10.4"/>`),
-  chatsSelected: planeFit(cutout(`<path d="${plane}" fill="black"/>`, '<path d="M8.8 18.2L21.1 10.4" stroke="black" stroke-width="2.1"/>')),
-  plus: '<path d="M4 16H28M16 4V28"/>',
-  plusSelected: '<path d="M4 16H28M16 4V28" stroke-width="3.4"/>',
-  search: '<circle cx="13.7" cy="13.7" r="10.3"/><path d="M21 21L29 29"/>',
-  close: '<path d="M7 7L25 25M25 7L7 25"/>',
-  back: '<path d="M27 16H5M14.5 6.5L5 16L14.5 25.5"/>',
-  compose: '<g transform="translate(16 15.75) scale(1.025 1.04) translate(-16 -16)"><path d="M16 5.1H10.2C6.2 5.1 4.2 7.1 4.2 11.1V22C4.2 26 6.2 28 10.2 28H21C25 28 27 26 27 22V16"/><path d="M13.3 15L23.4 4.9Q25.1 3.2 26.8 4.9L27.6 5.7Q29.3 7.4 27.6 9.1L17.5 19.2L11.8 20.7Z"/></g>',
-  user: '<circle cx="16" cy="9" r="5.7"/><path d="M4.5 29C5.8 15.5 26.2 15.5 27.5 29"/>',
-  aiSettings: '<rect x="3.5" y="3.5" width="25" height="25" rx="4"/><path d="M11 9V23M21 9V23M8 14H14M18 19H24"/>',
-  personas: '<circle cx="12" cy="9" r="5"/><path d="M2.8 28C3.2 17 20.8 17 21.2 28M23 5.5C29 6 29 13.5 23 14M24 19C28 20 29.4 23 29.4 27"/>',
-  prompt: '<path d="M19 3.5H7A2.5 2.5 0 0 0 4.5 6V26A2.5 2.5 0 0 0 7 28.5H25A2.5 2.5 0 0 0 27.5 26V12Z"/><path d="M19 3.5V12H27.5M10 18H22M10 23H19"/>',
-  appearance: '<path d="M27.5 18.4A12.3 12.3 0 1 1 13.6 4.5A9.3 9.3 0 0 0 27.5 18.4Z"/>',
-  language: '<path d="M3 7H20M11.5 3V7M6 7C7.5 13.7 11.5 18.5 17 21M17 7C15.5 14 10.6 20 3 23M18 28L23.5 15L29 28M20 23.5H27"/>',
-  plugin: '<path d="M12 4H7A3 3 0 0 0 4 7V12H6A4 4 0 0 1 6 20H4V25A3 3 0 0 0 7 28H12V26A4 4 0 0 1 20 26V28H25A3 3 0 0 0 28 25V20H26A4 4 0 0 1 26 12H28V7A3 3 0 0 0 25 4H20V6A4 4 0 0 1 12 6Z"/>',
-  info: '<circle cx="16" cy="16" r="12.5"/><path d="M16 15V23"/><circle cx="16" cy="9.5" r="1.3" fill="black" stroke="none"/>',
-};
-// These are drawing dimensions in the 618px-wide reference, excluding empty margins.
-const drawingSizes = {
-  library: {width: 38, height: 38, androidExtraWidth: 1, androidExtraHeight: 1},
-  librarySelected: {width: 38, height: 38, androidExtraWidth: 1, androidExtraHeight: 1},
-  chats: {width: 38, height: 34, androidExtraWidth: 0, androidExtraHeight: 1},
-  chatsSelected: {width: 38, height: 34, androidExtraWidth: 0, androidExtraHeight: 1},
-};
+const {icons, tabArtwork, svgFor, tabLayerSvgFor} = require('./icon-artwork.cjs');
 
 (async () => {
-  const sources = {};
-  const sizes = {};
-  for (const [name, body] of Object.entries(icons)) {
-    const drawing = drawingSizes[name];
-    const resolution = drawing ? 1024 : 192;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${resolution}" height="${resolution}" viewBox="0 0 32 32" fill="none" stroke="black" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-    let raster = sharp(Buffer.from(svg));
-    if (drawing) {
-      // Crop transparent margins before sizing. The renderer can now size the actual
-      // drawing, independently of the common 44px alignment frame.
-      raster = raster.trim({background: '#00000000', threshold: 0}).resize(drawing.width * 8, drawing.height * 8, {fit: 'fill'});
-    }
-    const png = await raster.png().toBuffer();
-    sources[name] = {uri: `data:image/png;base64,${png.toString('base64')}`};
-    sizes[name] = drawing || {width: 44, height: 44, androidExtraWidth: 0, androidExtraHeight: 0};
-  }
   const destination = join(__dirname, '../src/ui/icons');
-  await mkdir(destination, {recursive: true});
+  await mkdir(join(destination, 'svg'), {recursive: true});
+  const sources = {};
+  const tabSources = {};
+  const rasterSource = async svg => ({uri: `data:image/png;base64,${(await sharp(Buffer.from(svg)).png().toBuffer()).toString('base64')}`});
+  for (const name of Object.keys(icons)) {
+    // Preserve the approved viewBox and padding; trimming would shift or stretch it.
+    sources[name] = await rasterSource(svgFor(name, 264));
+    await writeFile(join(destination, 'svg', `${name}.svg`), '<!-- Generated from scripts/icon-artwork.cjs. -->\n' + svgFor(name) + '\n');
+  }
+  for (const [name, art] of Object.entries(tabArtwork)) {
+    tabSources[name] = {};
+    for (const layer of ['fill', 'outline', 'details']) {
+      if (art[layer]) tabSources[name][layer] = await rasterSource(tabLayerSvgFor(name, layer, 264));
+    }
+  }
+  for (const obsolete of ['plusSelected', 'userSelected']) {
+    await unlink(join(destination, 'svg', `${obsolete}.svg`)).catch(error => {if (error.code !== 'ENOENT') throw error;});
+  }
   await writeFile(join(destination, 'sources.ts'),
-    '// Generated by scripts/generate-navigation-icons.cjs. Edit the paths there.\n' +
-    `export const navigationIconSizes = ${JSON.stringify(sizes, null, 2)} as const;\n` +
-    `export const navigationIconSources = ${JSON.stringify(sources, null, 2)} as const;\n`);
+    '// Generated by scripts/generate-navigation-icons.cjs. Artwork: scripts/icon-artwork.cjs.\n' +
+    `export const navigationIconSources = ${JSON.stringify(sources, null, 2)} as const;\n` +
+    `export const tabIconSources = ${JSON.stringify(tabSources, null, 2)} as const;\n`);
+
+  // A review sheet uses the same vectors on both shared palette backgrounds.
+  const previewHeight = 150 + Math.ceil(Object.keys(icons).length / 5) * 132;
+  let preview = `<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="${previewHeight}" viewBox="0 0 1160 ${previewHeight}"><rect width="580" height="${previewHeight}" fill="#FFFFFF"/><rect x="580" width="580" height="${previewHeight}" fill="#101010"/>`;
+  for (const [theme, offset, foreground] of [['light', 0, '#101010'], ['dark', 580, '#F5F5F5']]) {
+    preview += `<g font-family="Arial,sans-serif" fill="${foreground}"><text x="${offset + 30}" y="48" font-size="28" font-weight="700">Promlive Icons</text><text x="${offset + 30}" y="82" font-size="14" fill="#777777">${theme.toUpperCase()} / Original SVG family</text></g>`;
+    Object.keys(icons).forEach((name, index) => {
+      const x = offset + 20 + (index % 5) * 108;
+      const y = 124 + Math.floor(index / 5) * 132;
+      const artwork = svgFor(name, 52).replace('<svg ', `<svg x="${x + 27}" y="${y}" color="${foreground}" `)
+        .replaceAll('id="', `id="${theme}-`).replaceAll('url(#', `url(#${theme}-`);
+      preview += artwork + `<text x="${x + 53}" y="${y + 86}" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="${foreground}">${name}</text>`;
+    });
+  }
+  preview += `<text x="30" y="${previewHeight - 22}" font-family="Arial,sans-serif" font-size="12" fill="#777777">32-unit grid / optically balanced round strokes / 44-unit shared frame</text></svg>`;
+  const previewDirectory = join(__dirname, '../docs/icons');
+  await mkdir(previewDirectory, {recursive: true});
+  await writeFile(join(previewDirectory, 'preview.svg'), preview + '\n');
+  await sharp(Buffer.from(preview)).png().toFile(join(previewDirectory, 'preview.png'));
 })().catch(error => {console.error(error); process.exitCode = 1;});

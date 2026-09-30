@@ -12,8 +12,6 @@ export const navigation = {
   titleOffsetY: -2,
   tabHeight: 83,
   separatorHeight: 1,
-  avatarSize: 44,
-  avatarRingSize: 52,
 } as const;
 
 /** Existing chat/creation list text, also used by the flat settings list (dp/sp). */
@@ -40,19 +38,12 @@ const neutral = {
   lightSurface: '#F2F2F2',
   lightSeparator: '#EDEDED',
   lightBorder: '#D8DCDE',
-  avatar: '#89919B',
   secondary: '#777777',
   controlText: '#5B5B5B',
   darkBorder: '#3A3A3A',
   darkSurface: '#1E1E1E',
   charcoal: '#191919',
   black: '#101010',
-} as const;
-
-const avatarColors = {
-  avatarBackground: neutral.lightSurface,
-  avatarBorder: neutral.lightBorder,
-  avatarForeground: neutral.avatar,
 } as const;
 
 export const colorPalettes = {
@@ -67,7 +58,6 @@ export const colorPalettes = {
     selectedBackground: neutral.charcoal,
     selectedForeground: neutral.white,
     error: '#B32323',
-    ...avatarColors,
   },
   dark: {
     background: neutral.black,
@@ -81,7 +71,6 @@ export const colorPalettes = {
     selectedBackground: neutral.nearWhite,
     selectedForeground: neutral.black,
     error: '#FF8A8A',
-    ...avatarColors,
   },
 } as const;
 

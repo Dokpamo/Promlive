@@ -1,5 +1,6 @@
 import {Platform, Pressable, Text, View} from 'react-native';
 import {Icon, type IconName} from './Icon';
+import {TabIcon} from './TabIcon';
 import {colors, navigation as m} from './tokens';
 
 export const tabs = ['library', 'chats', 'create', 'settings'] as const;
@@ -39,27 +40,12 @@ export function TabBar({tab, onChange, scale: s, bottomInset}: {tab: Tab; onChan
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: m.separatorHeight * s, backgroundColor: colors.separator}}/>
     <View style={{flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', flexDirection: 'row'}}>
       {tabs.map(item => <Pressable key={item} testID={`ui-tab-${item}`} accessibilityRole="tab" accessibilityLabel={tabLabels[item]}
-        accessibilityState={{selected: item === tab}} aria-selected={item === tab} onPress={() => onChange(item)}
-        style={({pressed}) => ({flex: 1, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.55 : 1})}>
-        <TabIcon tab={item} selected={item === tab} scale={s}/>
+        accessibilityState={{selected: item === tab}} aria-selected={item === tab}
+        {...(Platform.OS === 'web' ? {delayPressIn: 0} : {unstable_pressDelay: 0})}
+        onPressIn={() => onChange(item)} onPress={() => onChange(item)}
+        style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+        <TabIcon name={item} selected={item === tab} size={m.iconSize * s}/>
       </Pressable>)}
-    </View>
-  </View>;
-}
-
-function TabIcon({tab, selected, scale: s}: {tab: Tab; selected: boolean; scale: number}) {
-  if (tab !== 'settings') {
-    const name = tab === 'library' ? (selected ? 'librarySelected' : 'library') : tab === 'chats' ? (selected ? 'chatsSelected' : 'chats') : (selected ? 'plusSelected' : 'plus');
-    return <Icon name={name} size={m.iconSize * s}/>;
-  }
-  const avatar = m.avatarSize * s;
-  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none"
-    style={{width: m.avatarRingSize * s, height: m.avatarRingSize * s, borderRadius: m.avatarRingSize * s / 2, borderWidth: 2.5 * s,
-      borderColor: selected ? colors.foreground : 'transparent', alignItems: 'center', justifyContent: 'center'}}>
-    <View style={{width: avatar, height: avatar, borderRadius: avatar / 2, backgroundColor: colors.avatarBackground, overflow: 'hidden', alignItems: 'center'}}>
-      <View style={{position: 'absolute', top: avatar * 9 / 44, width: avatar * 18 / 44, height: avatar * 18 / 44, borderRadius: avatar, backgroundColor: colors.avatarForeground}}/>
-      <View style={{position: 'absolute', top: avatar * 30 / 44, width: avatar * 40 / 44, height: avatar * 34 / 44, borderRadius: avatar / 2, backgroundColor: colors.avatarForeground}}/>
-      <View style={{position: 'absolute', inset: 0, borderRadius: avatar / 2, borderWidth: s, borderColor: colors.avatarBorder}}/>
     </View>
   </View>;
 }
