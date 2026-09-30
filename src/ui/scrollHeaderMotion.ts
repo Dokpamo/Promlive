@@ -15,14 +15,13 @@ export function advanceHeaderScroll(position: HeaderScrollPosition, offset: numb
     hidden: limit <= position.height ? 0 : clamp(position.hidden + nextOffset - position.offset, 0, position.height)};
 }
 
-export type HeaderSettleTarget = {kind: 'scroll'; offset: number} | {kind: 'header'; hidden: number};
+export type HeaderSettleTarget = {offset: number};
 
-/** Near the bottom, finish only the header so releasing a drag never rewinds the list. */
+/** Finish through the list's offset so the header and content always travel together. */
 export function headerSettleTarget({offset, hidden, height, maxOffset}: HeaderScrollPosition): HeaderSettleTarget | null {
   if (height <= 0 || hidden < 0.5 || height - hidden < 0.5) return null;
   const hide = hidden >= height / 2;
-  if (maxOffset - offset <= height) return {kind: 'header', hidden: hide ? height : 0};
   const target = hide ? offset + height - hidden : offset - hidden;
   const nextOffset = clamp(target, 0, maxOffset);
-  return Math.abs(nextOffset - offset) < 0.5 ? null : {kind: 'scroll', offset: nextOffset};
+  return Math.abs(nextOffset - offset) < 0.5 ? null : {offset: nextOffset};
 }
