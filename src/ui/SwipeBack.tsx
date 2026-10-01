@@ -8,8 +8,9 @@ import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
 
 /** The previous route stays mounted underneath, including its exact scroll position. */
-export function SwipeBack({children, identity, enabled = true, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor: background}: {
+export function SwipeBack({children, identity, enabled = true, dismiss = false, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor: background}: {
   children: ReactNode; identity: string; enabled?: boolean; onBack: () => void;
+  dismiss?: boolean;
   blockers?: GestureBlockRef[];
   transition: BackTransition;
   drawBehindStatusBar?: boolean;
@@ -19,12 +20,14 @@ export function SwipeBack({children, identity, enabled = true, onBack, blockers,
   const backgroundColor = background ?? colors.background;
   const {width} = useWindowDimensions();
   const safe = useSafeAreaInsets();
-  const motion = useSwipeMotion({identity, width, previous: true, next: false, enabled, onStep: onBack,
+  const motion = useSwipeMotion({identity, width, previous: true, next: false, enabled, dismiss, onStep: onBack,
     source: transition.translation, release: 'back', entrance: transition});
   return <HorizontalGesture translation={motion.translation} enabled={motion.enabled} rightOnly
     {...(blockers ? {blockers} : {})}
     onStart={motion.onStart} onRelease={motion.onRelease} testID="ui-back-swipe">
-    <Animated.View testID="ui-back-motion" style={[styles.frame, {transform: [{translateX: motion.translateX}]}]}>
+    <Animated.View testID="ui-back-motion" pointerEvents={dismiss ? 'none' : 'auto'}
+      {...(Platform.OS === 'web' ? {inert: dismiss} : {})}
+      style={[styles.frame, {transform: [{translateX: motion.translateX}]}]}>
       <Animated.View pointerEvents="none" accessible={false} testID="ui-back-shadow"
         style={[StyleSheet.absoluteFillObject, styles.shadow, transition.corners, {backgroundColor, opacity: transition.shadowOpacity}]}/>
       <Animated.View testID="ui-back-page" style={[styles.page, transition.corners, {backgroundColor}]}>

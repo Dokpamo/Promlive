@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
-import {Animated} from 'react-native';
+import {AccessibilityInfo, Animated} from 'react-native';
 import {afterEach, expect, it, vi} from 'vitest';
 import {useSwipeMotion} from '../src/ui/useSwipeMotion';
+import {createBackTransition} from '../src/ui/backTransition';
 
 vi.mock('react-native', () => vi.importActual('react-native-web'));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
@@ -65,4 +66,42 @@ it('keeps the mounted native transform connected when switching between end tabs
     }
   }
   expect(onStep).not.toHaveBeenCalled();
+});
+
+it('reverses an unfinished entrance and continues closing when keyboard focus enables the gesture', async () => {
+  vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  const source = new Animated.Value(0);
+  const transition = createBackTransition(source, 412, {topLeft: 30, topRight: 30, bottomLeft: 30, bottomRight: 30});
+  transition.prepareOpen();
+  const position = () => (source as unknown as {__getValue(): number}).__getValue();
+  const springs: Array<{from: number; to: unknown; finish: () => void}> = [];
+  vi.spyOn(Animated, 'spring').mockImplementation((_value, config) => ({
+    start: done => {springs.push({from: position(), to: config.toValue, finish: () => done?.({finished: true})});},
+    stop: () => {}, reset: () => {},
+  }));
+  let motion!: ReturnType<typeof useSwipeMotion>;
+  const onStep = vi.fn();
+  function Host({dismiss = false, enabled = false}: {dismiss?: boolean; enabled?: boolean}) {
+    motion = useSwipeMotion({identity: 'settings-choice', width: 412, previous: true, next: false,
+      source, entrance: transition, release: 'back', dismiss, enabled, onStep});
+    return null;
+  }
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<Host/>));
+  expect(springs[0]).toMatchObject({from: 412, to: 0});
+  await act(async () => source.setValue(160));
+  await act(async () => root!.render(<Host dismiss/>));
+  expect(springs[1]).toMatchObject({from: 160, to: 412});
+  await act(async () => springs[0]!.finish());
+  expect(position()).toBe(160);
+  expect(onStep).not.toHaveBeenCalled();
+
+  await act(async () => source.setValue(280));
+  await act(async () => root!.render(<Host dismiss enabled/>));
+  expect(springs[2]).toMatchObject({from: 280, to: 412});
+  expect(motion.enabled).toBe(false);
+  await act(async () => springs[1]!.finish());
+  expect(onStep).not.toHaveBeenCalled();
+  await act(async () => springs[2]!.finish());
+  expect(onStep).toHaveBeenCalledExactlyOnceWith(-1);
 });

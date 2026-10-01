@@ -1,6 +1,7 @@
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import {Text} from 'react-native';
 import {usePalette} from '../Theme';
+import {settingsDetailLayout} from '../tokens';
 import {themeLabels, type SettingsServices, type ThemeMode} from './SettingsServices';
 import type {SummaryExtensions} from '../../extensions/SummaryExtensions';
 import {ChoicePage, choicesFrom, Field, Note, Section, SettingRow, SettingsPage, TextAction, type SettingsNavigation} from './controls';
@@ -10,7 +11,7 @@ export function OtherSettings({page, services, nav}: {page: SettingsDestination;
   const colors = usePalette();
   const titles: Partial<Record<SettingsDestination, string>> = {prompt: '프롬프트', theme: '테마', language: '언어', plugins: '플러그인', info: '정보'};
   if (page === 'language') return <ChoicePage nav={nav} title="언어" value={state.language} choices={['한국어', 'English', '日本語'].map(value => ({value, label: value}))}
-    onChoose={language => services.general.update({language})} detail="선호 언어를 저장해요. 앱 전체 번역은 준비 중이에요."/>;
+    onChoose={language => services.general.update({language})}/>;
   return <SettingsPage title={titles[page] ?? '설정'} nav={nav} testID={`ui-settings-${page}`}>
     {!!state.error && <><Note error>{state.error}</Note><TextAction label="저장 다시 시도" onPress={() => services.general.update({})}/></>}
     {page === 'theme' && <SettingRow testID="ui-theme-mode" label="화면 색상" value={themeLabels[state.theme]} onPress={() => nav.push(child => <ChoicePage nav={child} title="화면 색상"
@@ -18,7 +19,7 @@ export function OtherSettings({page, services, nav}: {page: SettingsDestination;
     {page === 'prompt' && <><Field label="기본 프롬프트" testID="ui-settings-prompt-input" value={state.prompt} onChange={prompt => services.general.update({prompt})} multiline maxLength={4000} placeholder="원하는 말투와 응답 방식을 적어 주세요."/>
       <Note>기기에 자동 저장돼요. 대화에 적용하는 기능은 준비 중이에요.</Note></>}
     {page === 'plugins' && (services.extensions ? <PluginSettings extensions={services.extensions} nav={nav}/> : <Note>등록된 플러그인이 없어요.</Note>)}
-    {page === 'info' && <><Text style={{fontSize: 30, fontWeight: '700', color: colors.foreground, marginHorizontal: 18.67, marginVertical: 14}}>Promlive</Text>
+    {page === 'info' && <><Text style={{fontSize: 30, fontWeight: '700', color: colors.foreground, marginHorizontal: settingsDetailLayout.horizontalInset, marginVertical: 14}}>Promlive</Text>
       <Note>이야기가 시작되는 대화.</Note><SettingRow label="앱 버전" value="0.1.0"/></>}
   </SettingsPage>;
 }

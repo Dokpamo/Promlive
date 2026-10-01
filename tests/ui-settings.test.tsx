@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
-import {act, type ReactNode} from 'react';
+import {act, StrictMode, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
+import {AccessibilityInfo, Animated} from 'react-native';
 import {afterEach, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {createSettingsServices, SettingsServicesProvider, type SettingsServices} from '../src/ui/settings/SettingsServices';
 import {ThemeProvider, useTheme} from '../src/ui/Theme';
 import {aiPreferencesKey} from '../src/features/settings/aiSettingsPreferences';
+import * as modelCatalog from '../src/features/settings/aiModelCatalog';
+import {catalogScope} from '../src/features/settings/aiCatalogCache';
+import {aiServices, type AiModelPreview} from '../src/features/settings/aiSettingsModel';
+import {AnimatedModelRows} from '../src/ui/settings/AnimatedModelRows';
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 vi.mock('../src/adapters/profile/pickProfileImage', () => ({pickProfileImage: async () => null}));
@@ -34,6 +39,23 @@ async function type(id: string, value: string) {
     el.dispatchEvent(new Event('input', {bubbles: true}));
   });
 }
+async function controlledModelAnimations() {
+  // RN Web's test mock completes parallel() immediately, even while its children are pending.
+  const real = await vi.importActual<{default: {parallel: typeof Animated.parallel}}>(
+    'react-native-web/dist/vendor/react-native/Animated/AnimatedImplementation',
+  );
+  vi.spyOn(Animated, 'parallel').mockImplementation(real.default.parallel);
+  vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  const pending: Array<{delay: number; to: number; finish: () => void}> = [];
+  vi.spyOn(Animated, 'timing').mockImplementation((value, config) => {
+    let stopped = false;
+    return {start: done => pending.push({delay: config.delay ?? 0, to: config.toValue as number, finish: () => {
+      if (!stopped) (value as Animated.Value).setValue(config.toValue as number);
+      done?.({finished: true});
+    }}), stop: () => {stopped = true;}, reset: () => {}};
+  });
+  return pending;
+}
 async function fixture() {
   const values = new Map<string, string>(), secrets = new Map<string, string>();
   const repo = {getSetting: async (key: string) => values.get(key), setSetting: async (key: string, value: string) => {values.set(key, value);}};
@@ -46,7 +68,7 @@ async function fixture() {
   await render(services);
   return {services, repo, credentials, values, secrets, render, container, memory};
 }
-it('opens full pages, renders only back/visibility icons in AI details, and stores keys outside ordinary preferences', async () => {
+it('opens full pages, separates keys, and restores xAI and Anthropic settings after switching and restarting', async () => {
   const {services, values, secrets, repo, credentials} = await fixture();
   await click('ui-settings-row-ai');
   expect(visible('[role="dialog"]')).toHaveLength(0);
@@ -57,16 +79,51 @@ it('opens full pages, renders only back/visibility icons in AI details, and stor
   await type('ui-ai-api-key', 'test-only-not-a-real-api-key');
   await click('ui-api-key-visibility'); expect(input.type).toBe('text');
   await click('ui-api-key-visibility'); expect(input.type).toBe('password');
+  await type('ui-ai-maxTokens', '2500');
+  await click('ui-ai-tool-web');
+  const xai = structuredClone(services.ai.snapshot().value.connections.xai);
   await act(() => services.ai.flush());
   expect([...secrets.values()]).toContain('test-only-not-a-real-api-key');
   expect(values.get(aiPreferencesKey)).not.toContain('test-only-not-a-real-api-key');
-  await click('ui-ai-provider'); await click('ui-choice-google');
+  await click('ui-ai-provider'); await click('ui-choice-anthropic');
+  expect(get('ui-settings-choice-page')).toBeTruthy();
+  await click('ui-settings-back');
   expect((get('ui-ai-api-key') as HTMLInputElement).value).toBe('');
+  await type('ui-ai-api-key', 'test-only-anthropic-key');
+  await type('ui-ai-maxTokens', '8000');
+  const anthropic = structuredClone(services.ai.snapshot().value.connections.anthropic);
   await click('ui-ai-provider'); await click('ui-choice-xai');
+  await click('ui-settings-back');
   expect((get('ui-ai-api-key') as HTMLInputElement).value).toBe('test-only-not-a-real-api-key');
+  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('2,500');
+  expect(get('ui-ai-tool-web').getAttribute('aria-checked')).toBe('true');
+  expect(services.ai.snapshot().value.connections.xai).toEqual(xai);
+  expect(services.ai.snapshot().value.connections.anthropic).toEqual(anthropic);
   await act(() => services.ai.flush());
+  expect(values.get(aiPreferencesKey)).not.toContain('test-only-anthropic-key');
   const restarted = createSettingsServices(repo, credentials); await restarted.load();
-  expect(restarted.ai.snapshot().value.connections.xai.key).toBe('test-only-not-a-real-api-key');
+  expect(restarted.ai.snapshot().value.service).toBe('xai');
+  expect(restarted.ai.snapshot().value.connections.xai).toEqual(xai);
+  expect(restarted.ai.snapshot().value.connections.anthropic).toEqual(anthropic);
+});
+it('groups the token count for display and keeps focused edits and persisted values free of separators', async () => {
+  const {services, values} = await fixture();
+  await click('ui-settings-row-ai');
+  const input = get('ui-ai-maxTokens') as HTMLInputElement;
+  expect(input.value).toBe('10,000');
+  await act(async () => input.focus());
+  expect(input.value).toBe('10000');
+  await type('ui-ai-maxTokens', '');
+  expect(input.value).toBe('');
+  await type('ui-ai-maxTokens', '8,192');
+  expect(input.value).toBe('8192');
+  const connection = services.ai.snapshot().value.connections.xai;
+  expect(connection.modelPresets[connection.model]?.maxTokens).toBe('8192');
+  await act(async () => input.blur());
+  expect(input.value).toBe('8,192');
+  await services.ai.flush();
+  const saved = JSON.parse(values.get(aiPreferencesKey)!);
+  expect(saved.connections.xai.modelPresets[connection.model].maxTokens).toBe('8192');
 });
 it('keeps model settings isolated and preserves the page and scroll while choosing', async () => {
   const {services} = await fixture();
@@ -77,17 +134,36 @@ it('keeps model settings isolated and preserves the page and scroll while choosi
   expect(get('ui-ai-tool-web').getAttribute('aria-checked')).toBe('true');
   const original = services.ai.snapshot().value.connections.xai.model;
   await click('ui-ai-model');
-  const other = visible('[data-testid^="ui-model-"]').find(el => el.getAttribute('data-testid') !== `ui-model-${original}` && el.getAttribute('role') === 'button') as HTMLElement;
+  const modelPage = get('ui-model-selection'), modelScroll = get('ui-settings-detail-content');
+  await type('ui-model-search', 'grok'); modelScroll.scrollTop = 150;
+  const other = visible('[data-testid="ui-model-list"] [role="button"]').find(el => el.getAttribute('data-testid') !== `ui-model-${original}`) as HTMLElement;
   expect(other).toBeTruthy(); await act(async () => other.click());
+  const otherModel = services.ai.snapshot().value.connections.xai.model;
+  expect(otherModel).not.toBe(original);
+  expect(get('ui-model-selection')).toBe(modelPage);
+  expect(modelScroll.scrollTop).toBe(150);
+  expect((get('ui-model-search') as HTMLInputElement).value).toBe('grok');
+  expect(other.querySelectorAll('img')).toHaveLength(1);
+  await click(`ui-model-${original}`);
+  expect(services.ai.snapshot().value.connections.xai.model).toBe(original);
+  expect(get(`ui-model-${original}`).querySelectorAll('img')).toHaveLength(1);
+  expect(other.querySelector('img')).toBeNull();
+  await click(`ui-model-${otherModel}`);
+  expect(get('ui-model-selection')).toBe(modelPage);
+  expect(modelScroll.scrollTop).toBe(150);
+  await click('ui-settings-back');
   expect(get('ui-ai-settings')).toBe(page); expect(scroll.scrollTop).toBe(225);
-  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('10000');
+  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('10,000');
   await click('ui-ai-model'); await click(`ui-model-${original}`);
-  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('2500');
+  await click('ui-settings-back');
+  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('2,500');
   expect(get('ui-ai-tool-web').getAttribute('aria-checked')).toBe('true');
   await click('ui-ai-route'); await click('ui-choice-oauth');
+  await click('ui-settings-back');
   expect(get('ui-ai-api-key')).toBeUndefined();
   await click('ui-ai-route'); await click('ui-choice-api');
-  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('2500');
+  await click('ui-settings-back');
+  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('2,500');
 });
 it('creates, edits, duplicates, searches and moves personas using the existing persisted collection', async () => {
   const {services, repo, credentials} = await fixture();
@@ -101,6 +177,8 @@ it('creates, edits, duplicates, searches and moves personas using the existing p
   const folder = services.personas.snapshot().value.folders[0]!;
   await button('관리'); await click(`ui-persona-${id}`); await button('이동'); await click(`ui-choice-${folder.id}`);
   expect(services.personas.snapshot().value.items.find(item => item.id === id)?.folderId).toBe(folder.id);
+  expect(get('ui-settings-choice-page')).toBeTruthy();
+  await click('ui-settings-back');
   await type('ui-persona-search', '기록하는'); expect(get(`ui-persona-${id}`)).toBeTruthy();
   const reopened = createSettingsServices(repo, credentials); await reopened.load();
   expect(reopened.personas.snapshot().value.items.find(item => item.id === id)?.description).toBe('별을 기록하는 여행자');
@@ -109,6 +187,14 @@ it('creates, edits, duplicates, searches and moves personas using the existing p
 it('applies the shared dark palette to settings, library, chips and chat when returning from theme selection', async () => {
   const {services, values} = await fixture();
   await click('ui-settings-row-theme'); await click('ui-theme-mode'); await click('ui-choice-dark');
+  const choicePage = get('ui-settings-choice-page');
+  expect(choicePage.style.backgroundColor).toBe('rgb(16, 16, 16)');
+  await click('ui-choice-light');
+  expect(get('ui-settings-choice-page')).toBe(choicePage);
+  expect(get('ui-choice-light').querySelectorAll('img')).toHaveLength(1);
+  await click('ui-choice-dark');
+  expect(get('ui-settings-choice-page')).toBe(choicePage);
+  await click('ui-settings-back');
   expect(get('ui-settings-theme').style.backgroundColor).toBe('rgb(16, 16, 16)');
   await click('ui-settings-back'); await click('ui-tab-library');
   expect(getComputedStyle(get('ui-library-grid')).backgroundColor).toBe('rgb(16, 16, 16)');
@@ -124,6 +210,176 @@ it('uses the system back action to cancel a choice without changing its value', 
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})));
   expect(get('ui-ai-settings')).toBeTruthy(); expect(services.ai.snapshot().value.service).toBe('xai');
   await click('ui-settings-back'); expect(get('ui-tab-bar')).toBeTruthy();
+});
+it('keeps repeated choices on the same page and returns only after explicit back and its motion finish', async () => {
+  const {services} = await fixture();
+  await click('ui-settings-row-ai');
+  const page = get('ui-ai-settings'), scroll = get('ui-settings-detail-content');
+  scroll.scrollTop = 120;
+  await click('ui-ai-provider');
+  const choicePage = get('ui-settings-choice-page'), choiceScroll = get('ui-settings-detail-content');
+  choiceScroll.scrollTop = 80;
+  vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  const completions: Array<() => void> = [];
+  const spring = vi.spyOn(Animated, 'spring').mockImplementation((_value, config) => {
+    expect(config.toValue).toBe(412);
+    return {start: done => {completions.push(() => done?.({finished: true}));}, stop: () => {}, reset: () => {}};
+  });
+  await click('ui-choice-anthropic');
+  expect(services.ai.snapshot().value.service).toBe('anthropic');
+  expect(page.isConnected).toBe(true);
+  expect(page.querySelector('[data-testid="ui-ai-provider"]')?.getAttribute('aria-label')).toBe('프로바이더, Anthropic');
+  expect(scroll.scrollTop).toBe(120);
+  expect(get('ui-settings-choice-page')).toBe(choicePage);
+  expect(get('ui-choice-anthropic').querySelectorAll('img')).toHaveLength(1);
+  expect(get('ui-choice-xai').querySelector('img')).toBeNull();
+  expect((document.querySelector('[data-testid="ui-settings-layer-0"]') as HTMLElement).style.opacity).toBe('1');
+
+  await click('ui-choice-openai');
+  expect(services.ai.snapshot().value.service).toBe('openai');
+  expect(get('ui-settings-choice-page')).toBe(choicePage);
+  expect(choiceScroll.scrollTop).toBe(80);
+  expect(get('ui-choice-openai').querySelectorAll('img')).toHaveLength(1);
+  expect(get('ui-choice-anthropic').querySelector('img')).toBeNull();
+  expect(page.querySelector('[data-testid="ui-ai-provider"]')?.getAttribute('aria-label')).toBe('프로바이더, OpenAI');
+  expect(spring).not.toHaveBeenCalled();
+
+  // Explicit back animates once; a repeated system back must not pop two pages.
+  await click('ui-settings-back');
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})));
+  expect(services.ai.snapshot().value.service).toBe('openai');
+  expect(spring).toHaveBeenCalledTimes(1);
+  expect(get('ui-settings-choice-page')).toBeTruthy();
+  await act(async () => completions[0]!());
+  expect(get('ui-settings-choice-page')).toBeUndefined();
+  expect(get('ui-ai-settings')).toBe(page);
+  expect(scroll.scrollTop).toBe(120);
+  expect(get('ui-tab-bar')).toBeUndefined();
+});
+it('shows the cached models first, refreshes automatically and preserves surviving rows and scroll', async () => {
+  const {services} = await fixture();
+  await act(async () => services.ai.update(old => ({...old, connections: {...old.connections, xai: {...old.connections.xai, key: 'test-only-catalog-key'}}})));
+  const service = aiServices.find(item => item.id === 'xai')!, connection = services.ai.snapshot().value.connections.xai;
+  const scope = catalogScope(service, connection, 'chat');
+  const cached = modelCatalog.defaultCatalog(service, connection, 'chat').slice(0, 3);
+  await services.catalogs.refresh(scope, async () => cached, new AbortController().signal);
+  let finish!: (models: AiModelPreview[]) => void;
+  const loader = vi.spyOn(modelCatalog, 'loadAiModels').mockImplementation(() => new Promise(resolve => {finish = resolve;}));
+  await click('ui-settings-row-ai'); await click('ui-ai-model');
+  const page = get('ui-model-selection'), scroll = get('ui-settings-detail-content'), retained = get(`ui-model-${cached[0]!.id}`);
+  scroll.scrollTop = 90;
+  expect(loader).toHaveBeenCalledTimes(1);
+  expect(retained).toBeTruthy();
+  expect(page.textContent).not.toMatch(/새로고침|갱신 중|갱신하지 못/);
+  const added = {...cached[0]!, id: 'test-new-model', name: '새 대화 모델'};
+  await act(async () => finish([cached[1]!, {...cached[0]!, name: '이름이 갱신된 모델'}, added]));
+  expect(get('ui-model-selection')).toBe(page);
+  expect(get(`ui-model-${cached[0]!.id}`)).toBe(retained);
+  expect(retained.textContent).toContain('이름이 갱신된 모델');
+  expect(get('ui-model-test-new-model')).toBeTruthy();
+  expect(get(`ui-model-${cached[2]!.id}`)).toBeUndefined();
+  expect(scroll.scrollTop).toBe(90);
+  expect(services.catalogs.get(scope)?.models[0]?.id).toBe(added.id);
+});
+it('keeps a failed refresh quiet and preserves the catalog and selection when reopening', async () => {
+  const {services} = await fixture();
+  await act(async () => services.ai.update(old => ({...old, connections: {...old.connections, xai: {...old.connections.xai, key: 'test-only-catalog-key'}}})));
+  const service = aiServices.find(item => item.id === 'xai')!, connection = services.ai.snapshot().value.connections.xai;
+  const scope = catalogScope(service, connection, 'chat'), cached = modelCatalog.defaultCatalog(service, connection, 'chat');
+  await services.catalogs.refresh(scope, async () => cached, new AbortController().signal);
+  const loader = vi.spyOn(modelCatalog, 'loadAiModels').mockRejectedValue(new Error('offline'));
+  await click('ui-settings-row-ai'); await click('ui-ai-model');
+  await click('ui-model-grok-4.3');
+  const page = get('ui-model-selection'), selection = structuredClone(services.ai.snapshot().value);
+  expect(page.textContent).not.toMatch(/새로고침|갱신|실패|실행|복원/);
+  expect(get(`ui-model-${cached[0]!.id}`)).toBeTruthy();
+  expect(visible('[data-testid="ui-model-list"] [role="button"]').map(row => row.textContent)).toEqual(cached.map(model => model.name));
+  expect(get('ui-model-grok-4.3').querySelectorAll('img')).toHaveLength(1);
+  expect(services.catalogs.get(scope)?.models).toEqual(cached);
+  expect(loader).toHaveBeenCalledTimes(1);
+  await click('ui-settings-back'); await click('ui-ai-model');
+  expect(loader).toHaveBeenCalledTimes(2);
+  expect(services.ai.snapshot().value).toEqual(selection);
+  expect(services.catalogs.get(scope)?.models).toEqual(cached);
+  expect(get('ui-model-grok-4.3').querySelectorAll('img')).toHaveLength(1);
+});
+it('animates arrivals after an interrupted mount and reverses removal without replacing surviving rows', async () => {
+  const motions = await controlledModelAnimations();
+  const [first, second] = aiServices.find(item => item.id === 'xai')!.models;
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  const render = async (models: AiModelPreview[]) => act(async () => root!.render(<StrictMode>
+    <AnimatedModelRows models={models} selected={first!.id} onChoose={() => {}}/>
+  </StrictMode>));
+  await render([first!]);
+  const retained = get(`ui-model-${first!.id}`);
+  expect(motions).toHaveLength(0);
+  await render([first!, second!]);
+  expect(motions.at(-1)?.to).toBe(1);
+  await act(async () => motions.splice(0).forEach(motion => motion.finish()));
+  await render([first!]);
+  const departure = motions.splice(0);
+  expect(departure.at(-1)?.to).toBe(0);
+  expect(get(`ui-model-${second!.id}`)).toBeUndefined();
+  await render([first!, second!]);
+  const arrival = motions.splice(0);
+  expect(arrival.at(-1)?.to).toBe(1);
+  await act(async () => {departure.forEach(motion => motion.finish()); arrival.forEach(motion => motion.finish());});
+  expect(get(`ui-model-${first!.id}`)).toBe(retained);
+  expect(get(`ui-model-${second!.id}`)).toBeTruthy();
+});
+it('makes space for a batch of arrivals, preserves whole rows, and ignores a cancelled batch completion', async () => {
+  const pending = await controlledModelAnimations();
+  const seed = aiServices.find(item => item.id === 'xai')!.models[0]!;
+  const original = Array.from({length: 7}, (_,i) => ({...seed, id: `row-${i}`, name: `Model ${i}`}));
+  const added = Array.from({length: 3}, (_,i) => ({...seed, id: `new-${i}`, name: `New ${i}`}));
+  const changed = [added[0]!, original[0]!, original[2]!, added[1]!, original[4]!, original[6]!, added[2]!];
+  const onChoose = vi.fn();
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  const render = (models: AiModelPreview[]) => act(async () => root!.render(<StrictMode>
+    <AnimatedModelRows models={models} selected="row-2" onChoose={onChoose}/>
+  </StrictMode>));
+  await render(original);
+  const retained = get('ui-model-row-2'), departing = get('ui-model-row-1');
+  expect(pending).toHaveLength(0);
+  await render(changed);
+  const batch = pending.splice(0);
+  expect(get('ui-model-row-2')).toBe(retained);
+  expect(retained.querySelectorAll('img')).toHaveLength(1);
+  expect(departing.isConnected).toBe(true);
+  expect(departing.getAttribute('aria-disabled')).toBe('true');
+  await act(async () => departing.click());
+  expect(onChoose).not.toHaveBeenCalled();
+  expect(get('ui-model-new-0')).toBeUndefined();
+  const arriving = document.querySelector('[data-testid="ui-model-position-new-0"]') as HTMLElement;
+  expect(arriving.style.opacity).toBe('0');
+  expect(arriving.style.height).toBe('');
+  expect(batch.filter(motion => motion.to === 1 && motion.delay > 0)).toHaveLength(3);
+  // A metadata/measurement update must not reveal a waiting row before its space is ready.
+  await render(changed.map(model => model.id === 'new-0' ? {...model, name: 'New name'} : model));
+  const renamed = pending.splice(0);
+  await act(async () => batch.forEach(motion => motion.finish()));
+  expect(get('ui-model-new-0')).toBeUndefined();
+  expect(arriving.style.opacity).toBe('0');
+  await act(async () => renamed.forEach(motion => motion.finish()));
+  expect(visible('[data-testid="ui-model-list"] [role="button"]')).toHaveLength(7);
+  expect(get('ui-model-new-0')).toBeTruthy();
+  expect(get('ui-model-new-0').textContent).toBe('New name');
+  expect(arriving.style.opacity).toBe('1');
+  expect(arriving.style.transform).toContain('translateY(0px)');
+  expect(departing.isConnected).toBe(false);
+
+  await render(original);
+  const cancelled = pending.splice(0);
+  await render(changed);
+  const replacement = pending.splice(0);
+  await act(async () => cancelled.forEach(motion => motion.finish()));
+  expect(get('ui-model-row-2')).toBe(retained);
+  expect(get('ui-model-new-0')).toBeTruthy();
+  await act(async () => replacement.forEach(motion => motion.finish()));
+  expect(visible('[data-testid="ui-model-list"] [role="button"]')).toHaveLength(7);
+  expect(get('ui-model-row-1')).toBeUndefined();
+  expect(get('ui-model-new-2')).toBeTruthy();
+  expect(get('ui-model-row-2')).toBe(retained);
 });
 it('paints the cached theme while storage is loading, then reconciles the saved preference', async () => {
   let finish!: () => void;

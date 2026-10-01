@@ -15,12 +15,27 @@ export function SettingsNavigator({initial, transition, onClose, scale, bottomIn
   const {width} = useWindowDimensions(), corners = useScreenCorners();
   const nextId = useRef(0);
   const [stack, setStack] = useState<Entry[]>(() => [{id: 0, transition, render: nav => <Destination page={initial} nav={nav}/>}]);
+  const [closing, setClosing] = useState<number | null>(null);
+  const closingRef = useRef<number | null>(null);
+  const completedRef = useRef<number | null>(null);
   const back = useCallback(() => {
+    if (closingRef.current !== null) return;
+    const id = stack.at(-1)!.id;
+    closingRef.current = id;
     Keyboard.dismiss();
+    setClosing(id);
+  }, [stack]);
+  const completeBack = useCallback((id: number) => {
+    const entry = stack.at(-1);
+    if (entry?.id !== id || completedRef.current === id) return;
+    completedRef.current = id;
+    entry.transition.finish();
+    closingRef.current = null; setClosing(null);
     if (stack.length === 1) {onClose(); return;}
-    stack.at(-1)!.transition.finish(); setStack(old => old.slice(0, -1));
+    setStack(old => old.at(-1)?.id === id ? old.slice(0, -1) : old);
   }, [stack, onClose]);
   const push = useCallback((render: SettingsRender) => {
+    if (closingRef.current !== null) return;
     Keyboard.dismiss();
     const motion = createBackTransition(new Animated.Value(0), width, corners); motion.prepareOpen();
     setStack(old => [...old, {id: ++nextId.current, render, transition: motion}]);
@@ -35,13 +50,14 @@ export function SettingsNavigator({initial, transition, onClose, scale, bottomIn
     }
   }, [back]);
   return <>{stack.map((entry, index) => <ScreenLayer key={entry.id} testID={`ui-settings-layer-${entry.id}`} hidden={index !== stack.length - 1} prepared={index === stack.length - 2} backTransition={stack[index + 1]?.transition}>
-    <SettingsEntry entry={entry} active={index === stack.length - 1} nav={{back, push, scale, bottomInset}}/>
+    <SettingsEntry entry={entry} active={index === stack.length - 1} dismiss={closing === entry.id}
+      onBack={() => completeBack(entry.id)} nav={{back, push, scale, bottomInset}}/>
   </ScreenLayer>)}</>;
 }
-function SettingsEntry({entry, active, nav}: {entry: Entry; active: boolean; nav: SettingsNavigation}) {
+function SettingsEntry({entry, active, dismiss, onBack, nav}: {entry: Entry; active: boolean; dismiss: boolean; onBack: () => void; nav: SettingsNavigation}) {
   const [focused, setFocused] = useState(false);
   useEffect(() => {if (!active) setFocused(false);}, [active]);
-  return <SettingsFocusContext.Provider value={setFocused}><SwipeBack identity={`settings-${entry.id}`} transition={entry.transition} enabled={active && !focused} onBack={nav.back}>
+  return <SettingsFocusContext.Provider value={setFocused}><SwipeBack identity={`settings-${entry.id}`} transition={entry.transition} enabled={active && !focused} dismiss={dismiss} onBack={onBack}>
     {entry.render(nav)}
   </SwipeBack></SettingsFocusContext.Provider>;
 }

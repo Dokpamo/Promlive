@@ -23,6 +23,13 @@ export const listTypography = {
   includeFontPadding: false,
 } as const;
 
+/** Provider names use a larger reading size on their dedicated selection page. */
+export const providerNameTypography = {
+  ...listTypography,
+  fontSize: 18,
+  lineHeight: 24,
+} as const;
+
 /** Settings-only spacing in reference units; shared sizes come from other tokens. */
 export const settingsLayout = {
   iconGap: 32,
@@ -31,6 +38,17 @@ export const settingsLayout = {
   userTextGap: 12,
   rowHeight: 83,
   rowVerticalInset: 18,
+} as const;
+
+/** Detail settings use fixed logical units, without the root list's icon column. */
+export const settingsDetailLayout = {
+  horizontalInset: 24,
+  topInset: 12,
+  // Leave room between the search surface and the first row's selection background.
+  searchListGap: 28,
+  inputInset: 14,
+  textActionInset: 12,
+  selectionIconSize: 24,
 } as const;
 
 /** Shared neutral ramp. Components consume roles below, never separate grays. */

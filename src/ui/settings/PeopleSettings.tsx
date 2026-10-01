@@ -4,6 +4,7 @@ import {canMovePersonaFolders, libraryPersonas, personaFolderPath, type PersonaF
 import {pickProfileImage} from '../../adapters/profile/pickProfileImage';
 import {cropProfileImage} from '../../adapters/profile/cropProfileImage';
 import {usePalette} from '../Theme';
+import {settingsDetailLayout} from '../tokens';
 import type {SettingsServices} from './SettingsServices';
 import {ChoicePage, Field, Note, SettingRow, SettingsPage, TextAction, type SettingsNavigation} from './controls';
 
@@ -28,7 +29,7 @@ function PhotoField({image, name, onChange}: {image: string | null; name: string
     } catch {setError('사진을 불러오지 못했어요. 다시 선택해 주세요.');}
     finally {selecting.current = false; setBusy(false);}
   };
-  return <><View style={{paddingHorizontal: 18.67, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 12}}>
+  return <><View style={{paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 12}}>
     <Avatar image={image} name={name} size={76}/><TextAction label={busy ? '불러오는 중' : '사진 변경'} disabled={busy} onPress={() => {void pick();}}/>
     {!!image && <TextAction label="사진 제거" onPress={() => onChange(null)}/>}</View>{!!error && <Note error>{error}</Note>}</>;
 }
@@ -63,20 +64,20 @@ export function PersonasSettings({services, nav, folderId = null}: {services: Se
     onChoose={id => {void mutate(() => services.personas.move(selectedPeople, id || null, selectedFolders));}}/>);
   return <SettingsPage title={title} nav={nav} testID="ui-personas-settings" action={<TextAction label={managing ? '완료' : '추가'} disabled={!ready} onPress={() => managing ? (setManaging(false), setSelected([])) : nav.push(child => <PersonaEditor services={services} nav={child} folderId={folderId}/>)}/>}>
     {!!error && <Note error>{error}</Note>}{!!notice && <Note error>{notice}</Note>}
-    <Field label="페르소나 검색" testID="ui-persona-search" value={query} onChange={setQuery} placeholder="이름 또는 설명"/>
-    <View style={{flexDirection: 'row', paddingHorizontal: 6}}>
+    <Field label="페르소나 검색" search testID="ui-persona-search" value={query} onChange={setQuery} placeholder="이름 또는 설명"/>
+    <View style={{flexDirection: 'row', paddingHorizontal: settingsDetailLayout.horizontalInset - settingsDetailLayout.textActionInset}}>
       <TextAction label="폴더 만들기" disabled={!ready} onPress={() => nav.push(child => <FolderEditor services={services} nav={child} parentId={folderId}/>)}/>
       {!!folderId && <TextAction label="폴더 이름" onPress={() => nav.push(child => <FolderEditor services={services} nav={child} parentId={folderId} rename/>)}/>}
       <TextAction label={managing ? '선택 취소' : '관리'} onPress={() => {setManaging(!managing); setSelected([]);}}/>
     </View>
-    {managing && <View style={{flexDirection: 'row', paddingHorizontal: 6}}><TextAction label="이동" disabled={!selected.length} onPress={move}/>
+    {managing && <View style={{flexDirection: 'row', paddingHorizontal: settingsDetailLayout.horizontalInset - settingsDetailLayout.textActionInset}}><TextAction label="이동" disabled={!selected.length} onPress={move}/>
       <TextAction label="삭제" danger disabled={!selected.length} onPress={() => nav.push(child => <ConfirmDelete nav={child} onDelete={async () => {await services.personas.removeMany(selectedPeople, selectedFolders); setSelected([]); setManaging(false);}}/>)}/></View>}
     {folders.map(folder => <SettingRow key={folder.id} testID={`ui-persona-folder-${folder.id}`} label={folder.name} value={managing ? selected.includes(`f:${folder.id}`) ? '선택됨' : '선택' : '폴더'}
       onPress={() => managing ? toggle(`f:${folder.id}`) : nav.push(child => <PersonasSettings services={services} nav={child} folderId={folder.id}/>)}/>)}
     {entries.map(persona => <Pressable key={persona.id} testID={`ui-persona-${persona.id}`} accessibilityRole={managing ? 'checkbox' : 'button'} accessibilityLabel={persona.name}
       accessibilityState={managing ? {checked: selected.includes(`p:${persona.id}`)} : {}}
       onPress={() => managing ? toggle(`p:${persona.id}`) : nav.push(child => <PersonaEditor services={services} nav={child} id={persona.id} folderId={persona.folderId}/>)}
-      style={({pressed}) => ({paddingHorizontal: 18.67, paddingVertical: 14, minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 16, opacity: pressed ? .55 : 1})}>
+      style={({pressed}) => ({paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 16, opacity: pressed ? .55 : 1})}>
       <Avatar image={persona.image} name={persona.name}/><View style={{flex: 1, gap: 4}}><Text numberOfLines={1} style={{fontSize: 16, lineHeight: 22, color: colors.foreground}}>{persona.name}</Text>
         <Text numberOfLines={1} style={{fontSize: 14, lineHeight: 20, color: colors.secondaryForeground}}>{persona.description || '설명을 추가해 보세요.'}</Text></View>
       {managing && <Text style={{fontSize: 14, color: colors.secondaryForeground}}>{selected.includes(`p:${persona.id}`) ? '선택됨' : '선택'}</Text>}

@@ -5,8 +5,9 @@ import {pageSpring, type BackTransition} from './backTransition';
 import {createSwipeTranslation} from './swipeTranslation';
 import {animationBatch} from './animationBatch';
 
-export function useSwipeMotion({identity, width, previous, next, enabled = true, onStep, source, release = 'slide', entrance, prepareReset}: {
+export function useSwipeMotion({identity, width, previous, next, enabled = true, dismiss = false, onStep, source, release = 'slide', entrance, prepareReset}: {
   identity: string; width: number; previous: boolean; next: boolean; enabled?: boolean;
+  dismiss?: boolean;
   onStep: (direction: SwipeDirection) => void;
   source?: Animated.Value;
   release?: 'slide' | 'back';
@@ -35,22 +36,28 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
     const opening = entry.current;
     translation.stopAnimation();
     setMoving(false); setSettling(false);
-    // Paging or zooming may disable the back gesture; route entrance still runs.
-    // Updating an offscreen native transform before its first attachment can
-    // leave the new page outside the viewport on iOS.
-    if (opening?.isOpening()) {
-      translation.setValue(width);
+    const settlePage = (destination: number, completed: () => void) => {
       setSettling(true);
-      // Respect Reduce Motion before starting; the previous screen stays painted.
       void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then(reduced => {
         if (id !== revision.current) return;
         reduceMotion.current = reduced;
-        const arrived = () => {opening.arrive(); setSettling(false);};
-        if (reduced) {arrived(); return;}
-        pageSpring(translation, 0, width).start(({finished}) => {
-          if (finished && id === revision.current) arrived();
+        if (reduced) {translation.setValue(destination); completed(); return;}
+        pageSpring(translation, destination, width).start(({finished}) => {
+          if (finished && id === revision.current) completed();
         });
       });
+    };
+    // Paging or zooming may disable the back gesture; route entrance still runs.
+    // Updating an offscreen native transform before its first attachment can
+    // leave the new page outside the viewport on iOS.
+    if (dismiss) {
+      // Keep both pages mounted while returning. This takes precedence over an
+      // unfinished entrance or a gesture-enable change when the keyboard closes.
+      settlePage(width, () => current.current.onStep(-1));
+    } else if (opening?.isOpening()) {
+      translation.setValue(width);
+      // Respect Reduce Motion before starting; the previous screen stays painted.
+      settlePage(0, () => {opening.arrive(); setSettling(false);});
     } else if (opening) opening.arrive();
     else animationBatch(() => {
       // Commit destination slots and clear travel in the same native batch.
@@ -59,7 +66,7 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
       translation.setValue(0);
     });
     return () => {revision.current++; gestureRevision.current = null; translation.stopAnimation();};
-  }, [identity, width, enabled, translation]);
+  }, [identity, width, enabled, dismiss, translation]);
   const onStart = useCallback(() => {gestureRevision.current = revision.current; setMoving(true); Keyboard.dismiss();}, []);
   const onRelease = useCallback((x: number, velocity: number, cancelled: boolean) => {
     // A tab/filter press can replace this page before the native finger-up arrives.
@@ -86,5 +93,5 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
   const travel = useMemo(() => createSwipeTranslation(translation, width, previous, next), [translation, width]);
   useLayoutEffect(() => {travel.setDirections(previous, next);}, [travel, previous, next]);
   return {translation, translateX: travel.translateX, moving, settling,
-    enabled: enabled && !settling && (previous || next), onStart, onRelease};
+    enabled: enabled && !dismiss && !settling && (previous || next), onStart, onRelease};
 }
