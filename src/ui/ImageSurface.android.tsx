@@ -1,0 +1,1 @@
+export {ImageSurface} from './NativeImageSurface';

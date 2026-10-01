@@ -14,6 +14,7 @@ export type ScreenView = {
   creationFilter: CreationFilter;
   openedCardId: string | null;
   detailCardId: string | null;
+  coverOpen: boolean;
 };
 export type ScrollMemory = {offset: number; hidden: number; height: number; maxOffset: number};
 export type ScrollScope = Tab | 'editor' | 'detail' | `library:${LibraryFilter}` | `create:${CreationFilter}`;
@@ -23,7 +24,7 @@ export type ScreenState = {data: ScreenData; view: ScreenView; saveError: boolea
 export function initialScreenData(): ScreenData { return {cards: createPreviewWorkspace(), chats: chatPreviewRows}; }
 export function initialScreenView(): ScreenView {
   return {tab: 'library', searches: {library: {open: false, query: ''}, chats: {open: false, query: ''}, create: {open: false, query: ''}},
-    libraryFilter: 'all', creationFilter: 'all', openedCardId: null, detailCardId: null};
+    libraryFilter: 'all', creationFilter: 'all', openedCardId: null, detailCardId: null, coverOpen: false};
 }
 export const emptyScrollMemory: ScrollMemory = {offset: 0, hidden: 0, height: 0, maxOffset: 0};
 
@@ -59,6 +60,7 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     if (choice(saved.creationFilter, ['all', 'draft', 'ready', 'mine', 'external'])) view.creationFilter = saved.creationFilter;
     if (typeof saved.openedCardId === 'string' && value.data.cards.some(card => card.id === saved.openedCardId)) view.openedCardId = saved.openedCardId;
     if (typeof saved.detailCardId === 'string' && value.data.cards.some(card => card.id === saved.detailCardId && card.published)) view.detailCardId = saved.detailCardId;
+    view.coverOpen = saved.coverOpen === true && !!view.detailCardId && !view.openedCardId;
     if (object(saved.searches)) for (const scope of ['library', 'chats', 'create'] as const) {
       const search = saved.searches[scope];
       if (object(search) && typeof search.open === 'boolean' && text(search.query)) view.searches[scope] = {open: search.open, query: search.query};

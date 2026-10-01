@@ -167,3 +167,17 @@ it('restores detail state and scroll while accepting older snapshots and rejecti
     cards: reopened.getSnapshot().data.cards.filter(card => card.id !== 'night-library')}));
   expect(reopened.getSnapshot().view.detailCardId).toBeNull();
 });
+
+it('restores the image viewer only above a valid published detail and closes it if that card disappears', async () => {
+  const saved = snapshot(); saved.view.detailCardId = 'night-library'; saved.view.coverOpen = true;
+  const disk = storage(JSON.stringify(saved));
+  const memory = new ScreenMemory(disk);
+  expect(memory.getSnapshot().view.coverOpen).toBe(true);
+  for (const detailCardId of [null, 'draft-1', 'missing']) {
+    expect(decodeScreenSnapshot(JSON.stringify({...saved, view: {...saved.view, detailCardId}}))?.view.coverOpen).toBe(false);
+  }
+  expect(decodeScreenSnapshot(JSON.stringify({...saved, view: {...saved.view, openedCardId: 'draft-1'}}))?.view.coverOpen).toBe(false);
+  await memory.refresh(async () => ({...saved.data, cards: saved.data.cards.filter(card => card.id !== 'night-library')}));
+  expect(memory.getSnapshot().view.coverOpen).toBe(false);
+  expect(memory.getSnapshot().view.detailCardId).toBeNull();
+});

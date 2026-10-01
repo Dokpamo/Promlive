@@ -12,9 +12,9 @@ import {SwipeBack} from './SwipeBack';
 import type {BackTransition} from './backTransition';
 
 /** Published content only; independent controls leave the original cover unobstructed. */
-export function CardDetail({card, width, scale, bottomInset, active, memory, onClose, onEdit, backTransition}: {
+export function CardDetail({card, width, scale, bottomInset, active, memory, onClose, onEdit, onViewImage, backTransition}: {
   card: LibraryCard; width: number; scale: number; bottomInset: number; active: boolean;
-  memory: ScreenMemory; onClose: () => void; onEdit: () => void;
+  memory: ScreenMemory; onClose: () => void; onEdit: () => void; onViewImage: () => void;
   backTransition: BackTransition;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,10 +38,10 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
     <ScrollView ref={scroll} {...scrolling} testID="ui-card-detail-content" style={styles.content}
       contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}
       bounces overScrollMode="auto" showsVerticalScrollIndicator={false}>
-      <View testID="ui-card-detail-cover" accessible accessibilityRole="image" accessibilityLabel={`${card.title} 표지`}
+      <Pressable testID="ui-card-detail-cover" accessibilityRole="button" accessibilityLabel={`${card.title} 대표 이미지 크게 보기`} onPress={onViewImage}
         style={{width, height: width / previewArtworkRatio(card.tile), overflow: 'hidden', backgroundColor: colors.surface}}>
         <PreviewArtwork tile={card.tile} width={width} height={width / previewArtworkRatio(card.tile)} fullImage/>
-      </View>
+      </Pressable>
       <View style={{paddingHorizontal: inset, paddingTop: 20}}>
         <Text testID="ui-card-detail-title" accessibilityRole="header" style={{...styles.title,
           fontSize: navigation.titleSize * scale, lineHeight: navigation.titleLineHeight * scale}}>{card.title}</Text>

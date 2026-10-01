@@ -127,6 +127,53 @@ it('opens immediately when the system requests reduced motion', async () => {
   expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('0px');
 });
 
+it('opens a cover-only viewer, pans only when zoomed and returns to the same detail position', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await clickControl('ui-bot-card-night-library');
+  const detail = query('[data-testid="ui-card-detail-content"]')!;
+  detail.scrollTop = 145;
+  await clickControl('ui-card-detail-cover');
+  expect(query('[data-testid="ui-image-viewer"]')).not.toBeNull();
+  expect(query('[data-testid="ui-card-detail-title"]')).toBeNull();
+  expect(query('[data-testid="ui-tab-bar"]')).toBeNull();
+  const artwork = query('[data-testid="ui-image-artwork"]') as HTMLElement;
+  expect(parseFloat(artwork.style.width)).toBe(412);
+  expect(parseFloat(artwork.style.height)).toBeCloseTo(412 * 4 / 3);
+  await clickControl('ui-image-viewer-zoom');
+  expect(query('[data-testid="ui-image-viewer-zoom"]')?.getAttribute('aria-expanded')).toBe('true');
+  const transform = query('[data-testid="ui-image-transform"]') as HTMLElement;
+  expect(transform.style.transform).toContain('scale(2.5)');
+  await dragBody('ui-image-surface', 80, 270);
+  expect(memory.getSnapshot().view.coverOpen).toBe(true);
+  expect(transform.style.transform).not.toContain('translateX(0px)');
+  await clickControl('ui-image-viewer-zoom');
+  expect(transform.style.transform).toContain('scale(1)');
+  await dragBody('ui-back-swipe', 60, 350);
+  expect(memory.getSnapshot().view.coverOpen).toBe(false);
+  expect(query('[data-testid="ui-card-detail-content"]')).toBe(detail);
+  expect(detail.scrollTop).toBe(145);
+  await clickControl('ui-card-detail-back');
+  expect(query('[data-testid="ui-library-grid"]')).not.toBeNull();
+}, 10000);
+
+it('restores an open image viewer immediately and closes to its detail before the library', async () => {
+  const disk = createScreenStorage(), memory = new ScreenMemory(disk);
+  memory.updateView(view => ({...view, detailCardId: 'forest-post', coverOpen: true}));
+  await memory.flush();
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={new ScreenMemory(disk)}/>));
+  const artwork = query('[data-testid="ui-image-artwork"]') as HTMLElement;
+  expect(artwork.style.width).toBe(artwork.style.height);
+  expect((query('[data-testid="ui-back-motion"]') as HTMLElement).style.transform).toBe('translateX(0px)');
+  await clickControl('ui-image-viewer-back');
+  expect(query('[data-testid="ui-card-detail-title"]')?.textContent).toBe('숲의 마지막 우체국에서');
+  expect(query('[data-testid="ui-image-viewer"]')).toBeNull();
+  await clickControl('ui-card-detail-back');
+  expect(query('[data-testid="ui-library-grid"]')).not.toBeNull();
+});
+
 it('keeps both bars fixed while adjacent filter bodies travel together without a blank frame or fade', async () => {
   const memory = new ScreenMemory(createScreenStorage());
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);

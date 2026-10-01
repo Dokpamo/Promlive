@@ -9,6 +9,7 @@ import {Creation} from './Creation';
 import {Settings} from './Settings';
 import {CardEditor} from './CardEditor';
 import {CardDetail} from './CardDetail';
+import {ImageViewer} from './ImageViewer';
 import {GestureRoot} from './GestureRoot';
 import {SwipeSurface} from './SwipeSurface';
 import {createBackTransition, createBackUnderlay, type BackTransition, type BackUnderlaySource} from './backTransition';
@@ -27,7 +28,6 @@ export default function App({memory: provided}: {memory?: ScreenMemory} = {}) {
   const [memory] = useState(() => provided ?? new ScreenMemory(createScreenStorage()));
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    NativeModules.PromliveSystemBars?.setDarkIcons(uiAppearance === 'light');
     const frame = requestAnimationFrame(() => NativeModules.PromliveStartup?.ready(uiAppearance));
     return () => cancelAnimationFrame(frame);
   }, []);
@@ -61,10 +61,14 @@ function ScreenLayer({hidden = false, prepared = false, children, backTransition
 function Shell({memory}: {memory: ScreenMemory}) {
   const {data, view, saveError} = useSyncExternalStore(memory.subscribe, memory.getSnapshot);
   useScreenMemory(memory);
-  const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId} = view;
+  const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId, coverOpen} = view;
   const {cards, chats} = data;
   const openedCard = cards.find(card => card.id === openedCardId);
   const detailCard = useMemo(() => publishedLibraryCards(cards).find(card => card.id === detailCardId), [cards, detailCardId]);
+  const viewingCover = coverOpen && !!detailCard && !openedCard;
+  useEffect(() => {
+    if (Platform.OS === 'android') NativeModules.PromliveSystemBars?.setDarkIcons(!viewingCover && uiAppearance === 'light');
+  }, [viewingCover]);
   const nextCardNumber = useRef(0);
   const safe = useSafeAreaInsets();
   const {width} = useWindowDimensions();
@@ -72,8 +76,10 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const corners = useScreenCorners();
   const detailBackX = useRef(new Animated.Value(0)).current;
   const editorBackX = useRef(new Animated.Value(0)).current;
+  const imageBackX = useRef(new Animated.Value(0)).current;
   const detailBack = useMemo(() => createBackTransition(detailBackX, width, corners), [detailBackX, width, corners]);
   const editorBack = useMemo(() => createBackTransition(editorBackX, width, corners), [editorBackX, width, corners]);
+  const imageBack = useMemo(() => createBackTransition(imageBackX, width, corners), [imageBackX, width, corners]);
   const scale = navigationScale(contentWidth);
   const search = useCallback((scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => {
     memory.updateView(current => ({...current, searches: {...current.searches, [scope]: {...current.searches[scope], ...change}}}));
@@ -91,18 +97,25 @@ function Shell({memory}: {memory: ScreenMemory}) {
     memory.updateView(current => ({...current, openedCardId: null}));
   }, [editorBack, memory]);
   const closeDetail = useCallback(() => {
-    detailBack.finish(); memory.updateView(current => ({...current, detailCardId: null}));
+    detailBack.finish(); memory.updateView(current => ({...current, detailCardId: null, coverOpen: false}));
   }, [detailBack, memory]);
   const openDetail = useCallback((id: string) => {
     detailBack.prepareOpen();
     Keyboard.dismiss(); memory.resetScroll('detail');
-    memory.updateView(current => ({...current, detailCardId: id}));
+    memory.updateView(current => ({...current, detailCardId: id, coverOpen: false}));
   }, [detailBack, memory]);
   const openCard = useCallback((id: string) => {
     editorBack.prepareOpen();
     Keyboard.dismiss(); memory.resetScroll('editor');
-    memory.updateView(current => ({...current, openedCardId: id}));
+    memory.updateView(current => ({...current, openedCardId: id, coverOpen: false}));
   }, [editorBack, memory]);
+  const openImage = useCallback(() => {
+    imageBack.prepareOpen(); Keyboard.dismiss();
+    memory.updateView(current => ({...current, coverOpen: true}));
+  }, [imageBack, memory]);
+  const closeImage = useCallback(() => {
+    imageBack.finish(); memory.updateView(current => ({...current, coverOpen: false}));
+  }, [imageBack, memory]);
   const createCard = useCallback(() => {
     const id = `created-${Date.now()}-${++nextCardNumber.current}`;
     memory.dispatchCard({type: 'create', id, now: Date.now()}); openCard(id);
@@ -134,7 +147,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
     <SwipeSurface testID="ui-settings-swipe"><Settings scale={scale} memory={memory}/></SwipeSurface></>, [scale, memory]);
   return <View testID="ui-shell" style={{flex: 1, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
-      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard} prepared={!openedCard || !detailCard}
+      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard} prepared={!viewingCover && (!openedCard || !detailCard)}
         backTransition={detailBack} alternateTransition={editorBack} useAlternate={!detailCard}>
         <View testID="ui-root-safe-content" style={{flex: 1, minHeight: 0, backgroundColor: colors.background,
           paddingTop: safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>
@@ -143,14 +156,17 @@ function Shell({memory}: {memory: ScreenMemory}) {
         <TabBar tab={tab} onChange={changeTab} scale={scale} bottomInset={safe.bottom}/>
         </View>
       </ScreenLayer>
-      {detailCard && <ScreenLayer testID="ui-detail-screen" hidden={!!openedCard} prepared backTransition={editorBack}>
+      {detailCard && <ScreenLayer testID="ui-detail-screen" hidden={!!openedCard || viewingCover} prepared backTransition={editorBack} alternateTransition={imageBack} useAlternate={viewingCover}>
         <CardDetail key={detailCard.id} card={detailCard} width={contentWidth} scale={scale} bottomInset={safe.bottom}
-          active={!openedCard} memory={memory} onClose={closeDetail} onEdit={() => openCard(detailCard.id)} backTransition={detailBack}/>
+          active={!openedCard && !viewingCover} memory={memory} onClose={closeDetail} onEdit={() => openCard(detailCard.id)} onViewImage={openImage} backTransition={detailBack}/>
       </ScreenLayer>}
       {openedCard && <ScreenLayer testID="ui-editor-screen">
         <CardEditor card={openedCard} scale={scale} memory={memory} topInset={safe.top} bottomInset={safe.bottom} onClose={closeEditor} backTransition={editorBack}
           onChange={(field, value) => memory.dispatchCard({type: 'edit', id: openedCard.id, field, value, now: Date.now()})}
           onComplete={() => {memory.dispatchCard({type: 'complete', id: openedCard.id, now: Date.now()}); closeEditor();}}/>
+      </ScreenLayer>}
+      {viewingCover && detailCard && <ScreenLayer testID="ui-image-screen">
+        <ImageViewer card={detailCard} width={contentWidth} scale={scale} onClose={closeImage} transition={imageBack}/>
       </ScreenLayer>}
     </View>
     {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.flush();}}

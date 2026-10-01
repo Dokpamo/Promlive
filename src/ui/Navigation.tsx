@@ -11,9 +11,9 @@ const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   settings: {icon: 'compose', label: '프로필 편집'},
 };
 
-export function NavigationButton({icon, label, scale, onPress, expanded, testID, style}: {
+export function NavigationButton({icon, label, scale, onPress, expanded, testID, style, color}: {
   icon: IconName; label: string; scale: number; onPress?: (() => void) | undefined; expanded?: boolean;
-  testID?: string; style?: StyleProp<ViewStyle>;
+  testID?: string; style?: StyleProp<ViewStyle>; color?: string;
 }) {
   const {size, iconSize} = navigationActionMetrics(scale);
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
@@ -21,7 +21,7 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
     disabled={!onPress} onPress={onPress}
     style={({pressed}) => [{width: size, height: size, flexShrink: 0, alignItems: 'center', justifyContent: 'center'},
       style, {opacity: pressed ? 0.55 : 1}]}>
-    <Icon name={icon} size={iconSize}/>
+    <Icon name={icon} size={iconSize} color={color}/>
   </Pressable>;
 }
 

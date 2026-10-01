@@ -8,11 +8,12 @@ import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
 
 /** The previous route stays mounted underneath, including its exact scroll position. */
-export function SwipeBack({children, identity, enabled = true, onBack, blockers, transition, drawBehindStatusBar = false}: {
+export function SwipeBack({children, identity, enabled = true, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor = colors.background}: {
   children: ReactNode; identity: string; enabled?: boolean; onBack: () => void;
   blockers?: GestureBlockRef[];
   transition: BackTransition;
   drawBehindStatusBar?: boolean;
+  backgroundColor?: string;
 }) {
   const {width} = useWindowDimensions();
   const safe = useSafeAreaInsets();
@@ -23,8 +24,8 @@ export function SwipeBack({children, identity, enabled = true, onBack, blockers,
     onStart={motion.onStart} onRelease={motion.onRelease} testID="ui-back-swipe">
     <Animated.View testID="ui-back-motion" style={[styles.frame, {transform: [{translateX: motion.translateX}]}]}>
       <Animated.View pointerEvents="none" accessible={false} testID="ui-back-shadow"
-        style={[StyleSheet.absoluteFillObject, styles.shadow, transition.corners, {opacity: transition.shadowOpacity}]}/>
-      <Animated.View testID="ui-back-page" style={[styles.page, transition.corners]}>
+        style={[StyleSheet.absoluteFillObject, styles.shadow, transition.corners, {backgroundColor, opacity: transition.shadowOpacity}]}/>
+      <Animated.View testID="ui-back-page" style={[styles.page, transition.corners, {backgroundColor}]}>
         <View testID="ui-back-safe-content" style={{flex: 1, minHeight: 0,
           paddingTop: drawBehindStatusBar ? 0 : safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>{children}</View>
       </Animated.View>

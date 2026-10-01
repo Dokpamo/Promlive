@@ -92,7 +92,7 @@ export class ScreenMemory {
         if (data === this.state.data) return;
         let view = this.state.view;
         if (view.openedCardId && !data.cards.some(card => card.id === view.openedCardId)) view = {...view, openedCardId: null};
-        if (view.detailCardId && !data.cards.some(card => card.id === view.detailCardId && card.published)) view = {...view, detailCardId: null};
+        if (view.detailCardId && !data.cards.some(card => card.id === view.detailCardId && card.published)) view = {...view, detailCardId: null, coverOpen: false};
         this.state = {...this.state, data, view};
         this.dataRevision++; this.changed();
       } catch { /* Keep the last usable screen on refresh/network failure. */ }
