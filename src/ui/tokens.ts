@@ -33,17 +33,18 @@ export const providerNameTypography = {
 /** Settings-only spacing in reference units; shared sizes come from other tokens. */
 export const settingsLayout = {
   iconGap: 32,
-  userHeight: 162,
-  userTopInset: 20,
-  userTextGap: 12,
-  rowHeight: 83,
   rowVerticalInset: 18,
+} as const;
+
+/** Root and detail settings share vertical spacing in logical units. */
+export const settingsListLayout = {
+  topInset: 12,
+  rowHeight: 56,
 } as const;
 
 /** Detail settings use fixed logical units, without the root list's icon column. */
 export const settingsDetailLayout = {
   horizontalInset: 24,
-  topInset: 12,
   // Leave room between the search surface and the first row's selection background.
   searchListGap: 28,
   inputInset: 14,

@@ -9,7 +9,7 @@ export function HorizontalGesture(props: HorizontalGestureProps) {
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponderCapture: event => {
       const target = event.target as unknown as {closest?: (selector: string) => unknown};
-      rejected.current = !!target.closest?.('input, textarea, [contenteditable="true"]');
+      rejected.current = !!target.closest?.('input, textarea, [contenteditable="true"], [data-horizontal-scroll="true"]');
       return false;
     },
     onMoveShouldSetPanResponderCapture: (_event, gesture) => {

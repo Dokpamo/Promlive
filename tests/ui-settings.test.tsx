@@ -14,8 +14,9 @@ import {aiServices, type AiModelPreview} from '../src/features/settings/aiSettin
 import {AnimatedModelRows} from '../src/ui/settings/AnimatedModelRows';
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
-vi.mock('../src/adapters/profile/pickProfileImage', () => ({pickProfileImage: async () => null}));
-vi.mock('../src/adapters/profile/cropProfileImage', () => ({cropProfileImage: async () => ''}));
+const photos = vi.hoisted(() => ({pick: vi.fn(), crop: vi.fn()}));
+vi.mock('../src/adapters/profile/pickProfileImage', () => ({pickProfileImage: photos.pick}));
+vi.mock('../src/adapters/profile/cropProfileImage', () => ({cropProfileImage: photos.crop}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native, AccessibilityInfo: {...native.AccessibilityInfo, isReduceMotionEnabled: async () => true},
@@ -24,10 +25,18 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-safe-area-context', () => ({SafeAreaProvider: ({children}: {children: ReactNode}) => <>{children}</>, useSafeAreaInsets: () => ({top: 24, right: 0, bottom: 24, left: 0})}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks(); photos.pick.mockReset(); photos.crop.mockReset();});
 const visible = (selector: string) => [...document.querySelectorAll(selector)].filter(el => !el.closest('[aria-hidden="true"]'));
 const get = (id: string) => visible(`[data-testid="${id}"]`)[0] as HTMLElement;
 async function click(id: string) {expect(get(id), id).toBeTruthy(); await act(async () => get(id).click());}
+async function longPress(id: string) {
+  const target = get(id); expect(target, id).toBeTruthy();
+  await act(async () => {
+    target.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, buttons: 1}));
+    await new Promise(resolve => setTimeout(resolve, 650));
+  });
+  await act(async () => get(id).dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, buttons: 0})));
+}
 async function button(label: string) {
   const el = visible('[role="button"]').find(el => el.getAttribute('aria-label') === label) as HTMLElement;
   expect(el, label).toBeTruthy(); await act(async () => el.click());
@@ -68,6 +77,70 @@ async function fixture() {
   await render(services);
   return {services, repo, credentials, values, secrets, render, container, memory};
 }
+it('keeps the user row consistent and automatically saves the name without a profile completion action', async () => {
+  const {services} = await fixture();
+  const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3eoAAAAASUVORK5CYII=';
+  await act(() => services.profile.save({name: '별 여행자', image}));
+  const row = get('ui-settings-user');
+  expect(row.textContent).toBe('사용자');
+  expect(row.querySelector('img')?.getAttribute('src')).not.toBe(image);
+  expect(get('ui-profile-name')).toBeUndefined();
+  await click('ui-settings-user');
+  expect((get('ui-profile-name') as HTMLInputElement).value).toBe('별 여행자');
+  expect(get('ui-profile-settings').querySelector(`img[src="${image}"]`)).toBeTruthy();
+  const actions = visible('[role="button"]').map(el => el.getAttribute('aria-label'));
+  for (const label of ['완료', '사진 변경', '사진 제거']) expect(actions).not.toContain(label);
+  await type('ui-profile-name', '달 여행자');
+  expect(services.profile.snapshot().value.name).toBe('달 여행자');
+  await click('ui-settings-back');
+  expect(get('ui-settings-user').textContent).toBe('사용자');
+  await click('ui-settings-user');
+  expect((get('ui-profile-name') as HTMLInputElement).value).toBe('달 여행자');
+});
+it('keeps a failed name draft for retry and does not persist a blank name', async () => {
+  const {services} = await fixture(); await click('ui-settings-user');
+  vi.spyOn(services.profile, 'update').mockRejectedValueOnce(new Error('disk full'));
+  await type('ui-profile-name', '별 여행자');
+  expect((get('ui-profile-name') as HTMLInputElement).value).toBe('별 여행자');
+  expect(services.profile.snapshot().value.name).toBe('사용자');
+  await button('이름 저장 다시 시도');
+  expect(services.profile.snapshot().value.name).toBe('별 여행자');
+  await type('ui-profile-name', '');
+  await click('ui-settings-back'); await click('ui-settings-user');
+  expect((get('ui-profile-name') as HTMLInputElement).value).toBe('별 여행자');
+});
+it('opens a crop preview after picking and cancels without changing the saved photo', async () => {
+  const {services} = await fixture(); await click('ui-settings-user');
+  const original = services.profile.snapshot().value;
+  photos.pick.mockResolvedValue({uri: 'file:///test-photo.jpg', width: 800, height: 1200});
+  await click('ui-profile-photo-edit');
+  expect(get('ui-profile-photo-editor')).toBeTruthy();
+  expect(photos.crop).not.toHaveBeenCalled();
+  expect(services.profile.snapshot().value).toEqual(original);
+  // Photo drags are never interpreted as the settings page's swipe-to-go-back.
+  const swipe = get('ui-back-swipe');
+  for (const [type, x, buttons] of [['mousedown', 40, 1], ['mousemove', 180, 1], ['mousemove', 370, 1], ['mouseup', 370, 0]] as const) {
+    await act(async () => swipe.dispatchEvent(new MouseEvent(type, {bubbles: true, clientX: x, clientY: 200, button: 0, buttons})));
+  }
+  expect(get('ui-profile-photo-editor')).toBeTruthy();
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})));
+  expect(get('ui-profile-settings')).toBeTruthy();
+  expect(services.profile.snapshot().value).toEqual(original);
+  expect(photos.crop).not.toHaveBeenCalled();
+});
+it('ignores picker cancellation and a late picker result after leaving the profile', async () => {
+  await fixture(); await click('ui-settings-user');
+  photos.pick.mockResolvedValueOnce(null);
+  await click('ui-profile-photo-edit');
+  expect(get('ui-profile-settings')).toBeTruthy(); expect(get('ui-profile-photo-editor')).toBeUndefined();
+  let resolve!: (photo: {uri: string; width: number; height: number}) => void;
+  photos.pick.mockImplementationOnce(() => new Promise(done => {resolve = done;}));
+  await click('ui-profile-photo-edit'); await click('ui-profile-photo-edit');
+  expect(photos.pick).toHaveBeenCalledTimes(2);
+  await click('ui-settings-back');
+  await act(async () => resolve({uri: 'file:///late.jpg', width: 800, height: 600}));
+  expect(get('ui-profile-photo-editor')).toBeUndefined(); expect(get('ui-tab-bar')).toBeTruthy();
+});
 it('opens full pages, separates keys, and restores xAI and Anthropic settings after switching and restarting', async () => {
   const {services, values, secrets, repo, credentials} = await fixture();
   await click('ui-settings-row-ai');
@@ -167,7 +240,7 @@ it('keeps model settings isolated and preserves the page and scroll while choosi
 });
 it('creates, edits, duplicates, searches and moves personas using the existing persisted collection', async () => {
   const {services, repo, credentials} = await fixture();
-  await click('ui-settings-row-personas'); await button('추가');
+  await click('ui-settings-row-personas'); await click('ui-persona-add');
   await type('ui-persona-name', '도서관 방문자'); await type('ui-persona-description', '별을 좋아하는 여행자'); await click('ui-persona-save');
   const id = services.personas.snapshot().value.items.find(item => item.name === '도서관 방문자')!.id;
   await click(`ui-persona-${id}`); await type('ui-persona-description', '별을 기록하는 여행자'); await click('ui-persona-save');
@@ -175,14 +248,98 @@ it('creates, edits, duplicates, searches and moves personas using the existing p
   expect(services.personas.snapshot().value.items.some(item => item.name === '도서관 방문자 사본')).toBe(true);
   await button('폴더 만들기'); await type('ui-persona-folder-name', '여행'); await button('완료');
   const folder = services.personas.snapshot().value.folders[0]!;
-  await button('관리'); await click(`ui-persona-${id}`); await button('이동'); await click(`ui-choice-${folder.id}`);
+  await longPress(`ui-persona-${id}`); await button('이동'); await click(`ui-choice-${folder.id}`);
   expect(services.personas.snapshot().value.items.find(item => item.id === id)?.folderId).toBe(folder.id);
   expect(get('ui-settings-choice-page')).toBeTruthy();
   await click('ui-settings-back');
-  await type('ui-persona-search', '기록하는'); expect(get(`ui-persona-${id}`)).toBeTruthy();
+  await click('ui-persona-search-button'); await type('ui-persona-search', '기록하는'); expect(get(`ui-persona-${id}`)).toBeTruthy();
   const reopened = createSettingsServices(repo, credentials); await reopened.load();
   expect(reopened.personas.snapshot().value.items.find(item => item.id === id)?.description).toBe('별을 기록하는 여행자');
   expect(reopened.personas.snapshot().value.items.find(item => item.id === id)?.folderId).toBe(folder.id);
+});
+it('filters personas with one folder chip row and creates inside the selected nested folder without replacing the page', async () => {
+  const {services} = await fixture();
+  const parent = await act(() => services.personas.createFolder('여행'));
+  const guide = await act(() => services.personas.create({name: '길잡이', description: '별을 따라가는 여행자', image: null}, parent.id));
+  await click('ui-settings-row-personas');
+  const page = get('ui-personas-settings');
+  expect(get('ui-persona-add').querySelectorAll('img')).toHaveLength(1);
+  expect(get('ui-persona-search')).toBeUndefined();
+  expect(visible('[role="button"][aria-label="관리"]')).toHaveLength(0);
+  const addFolder = get('ui-persona-folder-add');
+  expect(addFolder.closest('[data-horizontal-scroll]')).toBe(get('ui-personas-filters'));
+  expect(addFolder.parentElement!.lastElementChild).toBe(addFolder);
+  await click(`ui-personas-filter-${parent.id}`);
+  expect(get('ui-personas-settings')).toBe(page);
+  expect(get('ui-persona-default')).toBeUndefined();
+  expect(get(`ui-personas-filter-${parent.id}`).getAttribute('aria-pressed')).toBe('true');
+  await button('폴더 만들기'); await type('ui-persona-folder-name', '별 관측'); await button('완료');
+  const child = services.personas.snapshot().value.folders.find(folder => folder.name === '별 관측')!;
+  expect(child.parentId).toBe(parent.id);
+  const chip = get(`ui-personas-filter-${child.id}`);
+  expect(chip.textContent).toBe('여행 / 별 관측');
+  await click(`ui-personas-filter-${child.id}`);
+  await click('ui-persona-add'); await type('ui-persona-name', '관측자'); await type('ui-persona-description', '별을 기록해요.'); await click('ui-persona-save');
+  const created = services.personas.snapshot().value.items.find(persona => persona.name === '관측자')!;
+  expect(created.folderId).toBe(child.id);
+  expect(get('ui-personas-settings')).toBe(page);
+  expect(get(`ui-persona-${created.id}`)).toBeTruthy();
+  await click('ui-persona-search-button'); await type('ui-persona-search', '없는 검색');
+  expect(get(`ui-persona-${created.id}`)).toBeUndefined();
+  expect(get(`ui-personas-filter-${child.id}`)).toBe(chip);
+  await type('ui-persona-search', '별'); await click('ui-personas-filter-all');
+  expect(get(`ui-persona-${guide.id}`)).toBeTruthy();
+  expect(get(`ui-persona-${created.id}`)).toBeTruthy();
+  expect(get('ui-persona-default')).toBeUndefined();
+  await click('ui-persona-search-button');
+  expect(get('ui-persona-search')).toBeUndefined();
+  expect(get('ui-persona-default')).toBeTruthy();
+  expect(get(`ui-persona-${created.id}`)).toBeTruthy();
+  await click('ui-settings-back'); expect(get('ui-tab-bar')).toBeTruthy();
+}, 10000);
+it('renames, moves and deletes folders through managed chips while preserving nested personas', async () => {
+  const {services, repo, credentials} = await fixture();
+  const parent = await act(() => services.personas.createFolder('여행'));
+  const child = await act(() => services.personas.createFolder('별', [], parent.id));
+  const destination = await act(() => services.personas.createFolder('보관'));
+  const persona = await act(() => services.personas.create({name: '관측자', description: '', image: null}, child.id));
+  await click('ui-settings-row-personas'); await longPress(`ui-personas-filter-${parent.id}`);
+  expect(get(`ui-personas-filter-${parent.id}`).getAttribute('aria-checked')).toBe('true');
+  await button('폴더 이름'); await type('ui-persona-folder-name', '탐험'); await button('완료');
+  expect(get(`ui-personas-filter-${child.id}`).textContent).toBe('탐험 / 별');
+  await click(`ui-personas-filter-${child.id}`); await button('이동');
+  expect(get(`ui-choice-${parent.id}`)).toBeUndefined();
+  expect(get(`ui-choice-${child.id}`)).toBeUndefined();
+  await click(`ui-choice-${destination.id}`); await click('ui-settings-back');
+  expect(services.personas.snapshot().value.folders.find(folder => folder.id === parent.id)?.parentId).toBe(destination.id);
+  expect(get(`ui-personas-filter-${child.id}`).textContent).toBe('보관 / 탐험 / 별');
+  await click(`ui-personas-filter-${child.id}`);
+  expect(get(`ui-persona-${persona.id}`)).toBeTruthy();
+  await longPress(`ui-personas-filter-${child.id}`); await button('삭제'); await button('삭제');
+  expect(get(`ui-personas-filter-${child.id}`)).toBeUndefined();
+  expect(get('ui-personas-filter-all').getAttribute('aria-pressed')).toBe('true');
+  expect(get(`ui-persona-${persona.id}`)).toBeTruthy();
+  const reopened = createSettingsServices(repo, credentials); await reopened.load();
+  expect(reopened.personas.snapshot().value.items.find(item => item.id === persona.id)?.folderId).toBe(parent.id);
+  expect(reopened.personas.snapshot().value.folders.some(folder => folder.id === child.id)).toBe(false);
+}, 10000);
+it('keeps horizontal folder drags on the persona page while body drags still go back', async () => {
+  await fixture(); await click('ui-settings-row-personas');
+  const page = get('ui-personas-settings');
+  const drag = async (target: HTMLElement) => {
+    for (const [type, x, buttons] of [['mousedown', 70, 1], ['mousemove', 120, 1], ['mousemove', 350, 1], ['mouseup', 350, 0]] as const) {
+      await act(async () => {
+        target.dispatchEvent(new MouseEvent(type, {bubbles: true, clientX: x, clientY: 150, button: 0, buttons}));
+        await new Promise(resolve => setTimeout(resolve, 20));
+      });
+    }
+  };
+  await drag(get('ui-personas-filter-all'));
+  expect(get('ui-personas-settings')).toBe(page);
+  expect(get('ui-back-motion').style.transform).toBe('translateX(0px)');
+  await drag(get('ui-back-swipe'));
+  expect(get('ui-personas-settings')).toBeUndefined();
+  expect(get('ui-tab-bar')).toBeTruthy();
 });
 it('applies the shared dark palette to settings, library, chips and chat when returning from theme selection', async () => {
   const {services, values} = await fixture();

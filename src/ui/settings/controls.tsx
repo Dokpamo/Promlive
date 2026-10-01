@@ -4,13 +4,30 @@ import {NavigationButton} from '../Navigation';
 import {Icon} from '../Icon';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardPage} from '../KeyboardPage';
-import {listTypography, navigation, settingsDetailLayout} from '../tokens';
+import {listTypography, navigation, settingsDetailLayout, settingsListLayout} from '../tokens';
 import {usePalette} from '../Theme';
 import {ToggleIndicator} from './ToggleIndicator';
+import type {GestureBlockRef} from '../HorizontalGesture.types';
 export const SettingsFocusContext = createContext((_focused: boolean) => {});
 export type Choice = {value: string; label: string; detail?: string};
-export type SettingsNavigation = {back: () => void; push: (page: SettingsRender) => void; scale: number; bottomInset: number};
+export type SettingsPageOptions = {swipeBack?: boolean};
+export type SettingsNavigation = {
+  back: () => void; push: (page: SettingsRender, options?: SettingsPageOptions) => void;
+  scale: number; bottomInset: number; scrollBlocker?: GestureBlockRef;
+  closing?: boolean; blockBack?: (blocked: boolean) => void;
+};
 export type SettingsRender = (nav: SettingsNavigation) => ReactNode;
+
+export function SettingsHeader({title, nav, action, backDisabled = false}: {title: string; nav: SettingsNavigation; action?: ReactNode; backDisabled?: boolean}) {
+  const colors = usePalette();
+  return <View testID="ui-settings-detail-header" style={{height: navigation.headerHeight * nav.scale, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: navigation.backInset, paddingRight: navigation.actionInset * nav.scale}}>
+    <NavigationButton testID="ui-settings-back" icon="back" label="뒤로" scale={nav.scale} onPress={backDisabled ? undefined : nav.back}/>
+    <Text accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, marginLeft: 12, color: colors.foreground,
+      fontSize: navigation.titleSize * nav.scale, lineHeight: navigation.titleLineHeight * nav.scale, fontWeight: '700', includeFontPadding: false,
+      fontFamily: Platform.OS === 'android' ? 'sans-serif' : undefined, transform: [{translateY: navigation.titleOffsetY * nav.scale}]}}>{title}</Text>
+    {action}
+  </View>;
+}
 
 export function SettingsPage({title, nav, children, action, testID}: {title: string; nav: SettingsNavigation; children: ReactNode; action?: ReactNode; testID?: string}) {
   const colors = usePalette();
@@ -18,14 +35,8 @@ export function SettingsPage({title, nav, children, action, testID}: {title: str
   return <KeyboardPage testID={testID}
     keyboardVerticalOffset={safe.top}
     style={{flex: 1, minHeight: 0, backgroundColor: colors.background, paddingBottom: nav.bottomInset}}>
-    <View testID="ui-settings-detail-header" style={{height: navigation.headerHeight * nav.scale, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: navigation.backInset, paddingRight: navigation.actionInset * nav.scale}}>
-      <NavigationButton testID="ui-settings-back" icon="back" label="뒤로" scale={nav.scale} onPress={nav.back}/>
-      <Text accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, marginLeft: 12, color: colors.foreground,
-        fontSize: navigation.titleSize * nav.scale, lineHeight: navigation.titleLineHeight * nav.scale, fontWeight: '700', includeFontPadding: false,
-        fontFamily: Platform.OS === 'android' ? 'sans-serif' : undefined, transform: [{translateY: navigation.titleOffsetY * nav.scale}]}}>{title}</Text>
-      {action}
-    </View>
-    <ScrollView testID="ui-settings-detail-content" style={{flex: 1, minHeight: 0}} contentContainerStyle={{paddingTop: settingsDetailLayout.topInset, paddingBottom: 32}}
+    <SettingsHeader title={title} nav={nav} action={action}/>
+    <ScrollView testID="ui-settings-detail-content" style={{flex: 1, minHeight: 0}} contentContainerStyle={{paddingTop: settingsListLayout.topInset, paddingBottom: 32}}
       bounces showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {children}
     </ScrollView>
@@ -38,7 +49,7 @@ export function SettingRow({label, value = '', onPress, detail, testID, selected
   const content = <><View style={{flex: 1, minWidth: 0, gap: 4}}><Text style={[{...listTypography, color: colors.foreground}, labelStyle]}>{label}</Text>
     {!!detail && <Text style={{fontSize: 14, lineHeight: 21, color: colors.secondaryForeground}}>{detail}</Text>}</View>
     {selected ? <Icon name="check" size={settingsDetailLayout.selectionIconSize}/> : !!value && <Text numberOfLines={1} ellipsizeMode="tail" style={{...listTypography, maxWidth: '52%', flexShrink: 1, color: colors.secondaryForeground}}>{value}</Text>}</>;
-  const style = {minHeight: 56, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 16,
+  const style = {minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 16,
     backgroundColor: selected ? colors.surface : 'transparent'};
   return onPress ? <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={[label, value].filter(Boolean).join(', ')}
     accessibilityState={{selected, disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => [style, {opacity: disabled && dimDisabled ? .45 : pressed && !disabled ? .55 : 1}]}>{content}</Pressable>
@@ -47,7 +58,7 @@ export function SettingRow({label, value = '', onPress, detail, testID, selected
 export function SettingToggle({label, value, onChange, testID}: {label: string; value: boolean; onChange: (value: boolean) => void; testID?: string}) {
   const colors = usePalette();
   return <Pressable testID={testID} accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)}
-    style={{minHeight: 56, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16}}>
+    style={{minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16}}>
     <Text style={{...listTypography, flex: 1, color: colors.foreground}}>{label}</Text>
     <ToggleIndicator value={value}/>
   </Pressable>;

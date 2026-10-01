@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, View} from 'react-native';
 import type {AiModelPreview} from '../../features/settings/aiSettingsModel';
+import {settingsListLayout} from '../tokens';
 import {SettingRow} from './controls';
 
 type Row = {
@@ -8,7 +9,7 @@ type Row = {
   y: Animated.Value; opacity: Animated.Value;
 };
 type Frame = {rows: Row[]; height: number; animate: boolean; moveStart: number; moveDuration: number};
-const rowHeight = 56;
+const rowHeight = settingsListLayout.rowHeight;
 const smooth = (value: number) => value * value * (3 - 2 * value);
 
 function initialFrame(models: AiModelPreview[]): Frame {

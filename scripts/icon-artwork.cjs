@@ -52,6 +52,7 @@ const icons = {
     [`${name}Selected`, art.fill + art.outline],
   ])),
   plus: '<path d="M4 16H28M16 4V28"/>',
+  listPlus: '<path d="M4.5 7H27.5M4.5 15H17M4.5 23H13M24 17V29M18 23H30"/>',
   send: '<path d="M7 5.5C5.5 4.7 4.2 6.1 4.9 7.6L8.8 14.3H21.4C22.4 14.3 22.4 17.7 21.4 17.7H8.8L4.9 24.4C4.2 25.9 5.5 27.3 7 26.5L27 17.9C28.8 17.1 28.8 14.9 27 14.1Z" fill="currentColor" stroke="none"/>',
   search: '<circle cx="13.6" cy="13.6" r="9.7"/><path d="M20.7 20.7L28.4 28.4"/>',
   close: '<path d="M7.2 7.2L24.8 24.8M24.8 7.2L7.2 24.8"/>',

@@ -352,7 +352,7 @@ it('shows the four root screens with settings actions connected to new detail pa
       expect(headerButtons.map(button => button.getAttribute('aria-label'))).toEqual(['생성 검색', '새 카드 만들기']);
     } else {
       expect(page.querySelector('[data-testid="ui-settings-list"]')).not.toBeNull();
-      expect(page.querySelector('[data-testid="ui-settings-user"]')?.textContent).toBe('사용자이름과 프로필 이미지');
+      expect(page.querySelector('[data-testid="ui-settings-user"]')?.textContent).toBe('사용자');
       expect([...page.querySelectorAll('[data-testid^="ui-settings-row-"]')].map(row => row.textContent))
         .toEqual(['AI', '페르소나', '프롬프트', '테마', '언어', '플러그인', '정보']);
       expect(page.querySelector('[data-testid="ui-settings-list"]')?.querySelectorAll('[role="button"], input, textarea')).toHaveLength(8);
