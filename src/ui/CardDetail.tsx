@@ -12,9 +12,9 @@ import {SwipeBack} from './SwipeBack';
 import type {BackTransition} from './backTransition';
 
 /** Published content only; independent controls leave the original cover unobstructed. */
-export function CardDetail({card, width, scale, bottomInset, active, memory, onClose, onEdit, onViewImage, backTransition}: {
+export function CardDetail({card, width, scale, bottomInset, active, memory, onClose, onEdit, onViewImage, onStartChat, backTransition}: {
   card: LibraryCard; width: number; scale: number; bottomInset: number; active: boolean;
-  memory: ScreenMemory; onClose: () => void; onEdit: () => void; onViewImage: () => void;
+  memory: ScreenMemory; onClose: () => void; onEdit: () => void; onViewImage: (index?: number) => void; onStartChat: () => void;
   backTransition: BackTransition;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,7 +38,7 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
     <ScrollView ref={scroll} {...scrolling} testID="ui-card-detail-content" style={styles.content}
       contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}
       bounces overScrollMode="auto" showsVerticalScrollIndicator={false}>
-      <Pressable testID="ui-card-detail-cover" accessibilityRole="button" accessibilityLabel={`${card.title} 대표 이미지 크게 보기`} onPress={onViewImage}
+      <Pressable testID="ui-card-detail-cover" accessibilityRole="button" accessibilityLabel={`${card.title} 대표 이미지 크게 보기`} onPress={() => onViewImage()}
         style={{width, height: width / previewArtworkRatio(card.tile), overflow: 'hidden', backgroundColor: colors.surface}}>
         <PreviewArtwork tile={card.tile} width={width} height={width / previewArtworkRatio(card.tile)} fullImage/>
       </Pressable>
@@ -46,20 +46,36 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
         <Text testID="ui-card-detail-title" accessibilityRole="header" style={{...styles.title,
           fontSize: navigation.titleSize * scale, lineHeight: navigation.titleLineHeight * scale}}>{card.title}</Text>
         <Text style={styles.creator}>제작자 <Text style={styles.creatorName}>{card.creator}</Text></Text>
+        <View testID="ui-card-detail-tags" style={styles.tags}>{card.tags.map((tag, index) =>
+          <View key={`${tag}-${index}`} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>)}</View>
         {!!card.summary && <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>소개</Text>
           <Text testID="ui-card-detail-summary" style={styles.paragraph}>{card.summary}</Text>
         </View>}
+        {!!card.gallery.length && <View style={styles.section}>
+          <View style={styles.sectionHeading}><Text accessibilityRole="header" style={styles.sectionTitle}>갤러리</Text>
+            <Text style={styles.count}>{card.gallery.length}장</Text></View>
+          <View testID="ui-card-detail-gallery" style={styles.gallery}>
+            {card.gallery.map((picture, index) => <Pressable key={picture.id} testID={`ui-card-gallery-${index}`}
+              accessibilityRole="button" accessibilityLabel={`${picture.title}, ${index + 1}/${card.gallery.length}, 크게 보기`}
+              onPress={() => onViewImage(index)} style={{width: '33.333%', aspectRatio: 1, borderWidth: 1, borderColor: colors.background, overflow: 'hidden', backgroundColor: colors.surface}}>
+              <PreviewArtwork tile={picture.tile} width={(width - inset * 2) / 3 - 2} height={(width - inset * 2) / 3 - 2}/>
+            </Pressable>)}
+          </View>
+        </View>}
         {!!card.introduction && <View style={styles.section}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>시작 장면</Text>
-          <Text style={styles.paragraph}>{card.introduction}</Text>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>인트로</Text>
+          <Text testID="ui-card-detail-introduction" style={styles.paragraph}>{card.introduction}</Text>
+        </View>}
+        {!!card.guide && <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>가이드</Text>
+          <Text testID="ui-card-detail-guide" style={styles.paragraph}>{card.guide}</Text>
         </View>}
       </View>
     </ScrollView>
     <View style={[styles.footer, {paddingHorizontal: inset, paddingBottom: bottomInset + 22}]}>
-      {/* The new UI has no conversation screen/service yet. Do not reconnect legacy UI. */}
       <Pressable testID="ui-card-detail-start" accessibilityRole="button" accessibilityLabel="대화 시작"
-        accessibilityState={{disabled: true}} disabled style={styles.start}>
+        onPress={onStartChat} style={({pressed}) => [styles.start, {minHeight: 90 * scale, borderRadius: 32 * scale, opacity: pressed ? 0.6 : 1}]}>
         <Text style={styles.startText}>대화 시작</Text>
       </Pressable>
     </View>
@@ -87,11 +103,17 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? {fontFamily: 'sans-serif'} : {})},
   creator: {marginTop: 10, fontSize: 14, lineHeight: 22, color: colors.secondaryForeground},
   creatorName: {color: colors.foreground},
+  tags: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16},
+  tag: {paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.surface},
+  tagText: {fontSize: 13, color: colors.controlForeground},
+  sectionHeading: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline'},
+  count: {fontSize: 14, color: colors.secondaryForeground},
+  gallery: {flexDirection: 'row', flexWrap: 'wrap', borderRadius: 12, overflow: 'hidden'},
   section: {marginTop: 28},
   sectionTitle: {...listTypography, fontWeight: '700', color: colors.foreground, marginBottom: 10},
   paragraph: {...listTypography, lineHeight: 27, color: colors.foreground},
   footer: {paddingTop: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator, backgroundColor: colors.background},
-  start: {minHeight: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedBackground},
+  start: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedBackground},
   startText: {...listTypography, fontWeight: '700', color: colors.selectedForeground},
   floatingButton: {position: 'absolute', zIndex: 2, backgroundColor: colors.background},
   menuDismiss: {...StyleSheet.absoluteFillObject, zIndex: 1},

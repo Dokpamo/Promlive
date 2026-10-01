@@ -10,6 +10,7 @@ import {Settings} from './Settings';
 import {CardEditor} from './CardEditor';
 import {CardDetail} from './CardDetail';
 import {ImageViewer} from './ImageViewer';
+import {ChatRoom} from './ChatRoom';
 import {GestureRoot} from './GestureRoot';
 import {SwipeSurface} from './SwipeSurface';
 import {createBackTransition, createBackUnderlay, type BackTransition, type BackUnderlaySource} from './backTransition';
@@ -61,11 +62,12 @@ function ScreenLayer({hidden = false, prepared = false, children, backTransition
 function Shell({memory}: {memory: ScreenMemory}) {
   const {data, view, saveError} = useSyncExternalStore(memory.subscribe, memory.getSnapshot);
   useScreenMemory(memory);
-  const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId, coverOpen} = view;
+  const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId, coverOpen, galleryIndex, chatId} = view;
   const {cards, chats} = data;
   const openedCard = cards.find(card => card.id === openedCardId);
+  const openedChat = chats.find(chat => chat.id === chatId);
   const detailCard = useMemo(() => publishedLibraryCards(cards).find(card => card.id === detailCardId), [cards, detailCardId]);
-  const viewingCover = coverOpen && !!detailCard && !openedCard;
+  const viewingCover = coverOpen && !!detailCard && !openedCard && !openedChat;
   useEffect(() => {
     if (Platform.OS === 'android') NativeModules.PromliveSystemBars?.setDarkIcons(!viewingCover && uiAppearance === 'light');
   }, [viewingCover]);
@@ -102,20 +104,28 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const openDetail = useCallback((id: string) => {
     detailBack.prepareOpen();
     Keyboard.dismiss(); memory.resetScroll('detail');
-    memory.updateView(current => ({...current, detailCardId: id, coverOpen: false}));
+    memory.updateView(current => ({...current, detailCardId: id, coverOpen: false, galleryIndex: null, chatId: null}));
   }, [detailBack, memory]);
   const openCard = useCallback((id: string) => {
     editorBack.prepareOpen();
     Keyboard.dismiss(); memory.resetScroll('editor');
-    memory.updateView(current => ({...current, openedCardId: id, coverOpen: false}));
+    memory.updateView(current => ({...current, openedCardId: id, coverOpen: false, chatId: null}));
   }, [editorBack, memory]);
-  const openImage = useCallback(() => {
+  const openImage = useCallback((index?: number) => {
     imageBack.prepareOpen(); Keyboard.dismiss();
-    memory.updateView(current => ({...current, coverOpen: true}));
+    memory.updateView(current => ({...current, coverOpen: true, galleryIndex: index ?? null}));
   }, [imageBack, memory]);
   const closeImage = useCallback(() => {
-    imageBack.finish(); memory.updateView(current => ({...current, coverOpen: false}));
+    imageBack.finish(); memory.updateView(current => ({...current, coverOpen: false, galleryIndex: null}));
   }, [imageBack, memory]);
+  const openChat = useCallback((id: string) => {
+    editorBack.prepareOpen(); Keyboard.dismiss();
+    memory.updateView(current => ({...current, chatId: id, openedCardId: null, coverOpen: false, galleryIndex: null}));
+  }, [editorBack, memory]);
+  const closeChat = useCallback(() => {
+    editorBack.finish(); Keyboard.dismiss();
+    memory.updateView(current => ({...current, chatId: null}));
+  }, [editorBack, memory]);
   const createCard = useCallback(() => {
     const id = `created-${Date.now()}-${++nextCardNumber.current}`;
     memory.dispatchCard({type: 'create', id, now: Date.now()}); openCard(id);
@@ -135,8 +145,8 @@ function Shell({memory}: {memory: ScreenMemory}) {
     [cards, contentWidth, scale, memory, libraryFilter, setLibraryFilter, searches.library, search, setQuery, closeSearch, openDetail]);
   const chatsPage = useMemo(() => <Chats items={chats} width={contentWidth} scale={scale} memory={memory}
       header={<Header tab="chats" scale={scale} onSearch={() => searches.chats.open ? closeChatSearch() : search('chats', {open: true})} searchOpen={searches.chats.open}/>}
-      searchOpen={searches.chats.open} query={searches.chats.query} onQueryChange={setChatQuery} onCloseSearch={closeChatSearch}/>,
-    [chats, contentWidth, scale, memory, searches.chats, search, setChatQuery, closeChatSearch]);
+      searchOpen={searches.chats.open} query={searches.chats.query} onQueryChange={setChatQuery} onCloseSearch={closeChatSearch} onOpen={openChat}/>,
+    [chats, contentWidth, scale, memory, searches.chats, search, setChatQuery, closeChatSearch, openChat]);
   const creationPages = useMemo(() => Object.fromEntries(creationFilters.map(({id}) => [`create:${id}`, <Creation key={id}
       cards={cards} width={contentWidth} scale={scale} memory={memory}
       filter={id} selected={creationFilter === id} onFilterChange={setCreationFilter}
@@ -147,26 +157,33 @@ function Shell({memory}: {memory: ScreenMemory}) {
     <SwipeSurface testID="ui-settings-swipe"><Settings scale={scale} memory={memory}/></SwipeSurface></>, [scale, memory]);
   return <View testID="ui-shell" style={{flex: 1, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
-      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard} prepared={!viewingCover && (!openedCard || !detailCard)}
+      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard || !!openedChat} prepared={!viewingCover && (!(openedCard || openedChat) || !detailCard)}
         backTransition={detailBack} alternateTransition={editorBack} useAlternate={!detailCard}>
         <View testID="ui-root-safe-content" style={{flex: 1, minHeight: 0, backgroundColor: colors.background,
           paddingTop: safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>
-        <TabPages view={view} width={contentWidth} enabled={!openedCard && !detailCard} onStep={stepPage}
+        <TabPages view={view} width={contentWidth} enabled={!openedCard && !detailCard && !openedChat} onStep={stepPage}
           pages={{...libraryPages, ...creationPages, chats: chatsPage, settings: settingsPage} as Record<RootPageKey, ReactNode>}/>
         <TabBar tab={tab} onChange={changeTab} scale={scale} bottomInset={safe.bottom}/>
         </View>
       </ScreenLayer>
-      {detailCard && <ScreenLayer testID="ui-detail-screen" hidden={!!openedCard || viewingCover} prepared backTransition={editorBack} alternateTransition={imageBack} useAlternate={viewingCover}>
+      {detailCard && <ScreenLayer testID="ui-detail-screen" hidden={!!openedCard || !!openedChat || viewingCover} prepared backTransition={editorBack} alternateTransition={imageBack} useAlternate={viewingCover}>
         <CardDetail key={detailCard.id} card={detailCard} width={contentWidth} scale={scale} bottomInset={safe.bottom}
-          active={!openedCard && !viewingCover} memory={memory} onClose={closeDetail} onEdit={() => openCard(detailCard.id)} onViewImage={openImage} backTransition={detailBack}/>
+          active={!openedCard && !openedChat && !viewingCover} memory={memory} onClose={closeDetail} onEdit={() => openCard(detailCard.id)} onViewImage={openImage}
+          onStartChat={() => {memory.ensureChat(detailCard); openChat(detailCard.id);}} backTransition={detailBack}/>
       </ScreenLayer>}
       {openedCard && <ScreenLayer testID="ui-editor-screen">
         <CardEditor card={openedCard} scale={scale} memory={memory} topInset={safe.top} bottomInset={safe.bottom} onClose={closeEditor} backTransition={editorBack}
           onChange={(field, value) => memory.dispatchCard({type: 'edit', id: openedCard.id, field, value, now: Date.now()})}
+          onGalleryChange={images => memory.dispatchCard({type: 'gallery', id: openedCard.id, images, now: Date.now()})}
           onComplete={() => {memory.dispatchCard({type: 'complete', id: openedCard.id, now: Date.now()}); closeEditor();}}/>
       </ScreenLayer>}
       {viewingCover && detailCard && <ScreenLayer testID="ui-image-screen">
-        <ImageViewer card={detailCard} width={contentWidth} scale={scale} onClose={closeImage} transition={imageBack}/>
+        <ImageViewer card={detailCard} width={contentWidth} scale={scale} onClose={closeImage} transition={imageBack} galleryIndex={galleryIndex}
+          onSelectImage={index => memory.updateView(current => ({...current, galleryIndex: index}))}/>
+      </ScreenLayer>}
+      {openedChat && <ScreenLayer testID="ui-conversation-screen">
+        <ChatRoom key={openedChat.id} chat={openedChat} gallery={cards.find(card => card.id === openedChat.id)?.published?.gallery ?? [{id: 'cover', tile: openedChat.tile, title: openedChat.title}]}
+          memory={memory} scale={scale} onClose={closeChat} transition={editorBack}/>
       </ScreenLayer>}
     </View>
     {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.flush();}}

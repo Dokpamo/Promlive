@@ -13,7 +13,7 @@ export const ImageSurface = forwardRef<ImageSurfaceHandle, ImageSurfaceProps>((p
   const [pinching, setPinching] = useState(false);
   const pinch = useRef(new Animated.Value(1)).current;
   const panX = useRef(new Animated.Value(0)).current, panY = useRef(new Animated.Value(0)).current;
-  useLayoutEffect(() => {setZoomed(false); setPinching(false); pinch.setValue(1); panX.setValue(0); panY.setValue(0);}, [props.tile, props.width, props.height, pinch, panX, panY]);
+  useLayoutEffect(() => {setZoomed(false); setPinching(false); pinch.setValue(1); panX.setValue(0); panY.setValue(0);}, [props.tile, props.width, props.height, props.resetKey, pinch, panX, panY]);
   const scale = useMemo(() => Animated.multiply(image.scale, pinch).interpolate({inputRange: [1, 4], outputRange: [1, 4], extrapolate: 'clamp'}), [image.scale, pinch]);
   const x = useMemo(() => Animated.add(image.x, panX), [image.x, panX]);
   const y = useMemo(() => Animated.add(image.y, panY), [image.y, panY]);

@@ -353,6 +353,19 @@ class KeyboardControlModule(context: ReactApplicationContext) : ReactContextBase
     }
   }
 
+  /** A removed editor can leave RN's JS focus registry empty while the IME is open. */
+  @ReactMethod
+  fun dismiss() {
+    UiThreadUtil.runOnUiThread {
+      // Cancel an outstanding served-view retry before leaving the conversation.
+      showRequest++
+      expansionReady?.invoke()
+      val activity = reactApplicationContext.currentActivity ?: return@runOnUiThread
+      activity.currentFocus?.clearFocus()
+      SoftwareKeyboardControllerCompat(activity.window.decorView).hide()
+    }
+  }
+
   override fun invalidate() {
     UiThreadUtil.runOnUiThread { showRequest++; expansionReady?.invoke() }
     super.invalidate()

@@ -19,10 +19,10 @@ type Props = {
   query: string;
   onQueryChange: (query: string) => void;
   onCloseSearch: () => void;
+  onOpen: (id: string) => void;
 };
 
-/** New chat-list presentation only; opening a real conversation is a separate step. */
-export function Chats({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory}: Props) {
+export function Chats({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, onOpen}: Props) {
   const restoringSearch = useRef(true);
   useEffect(() => {restoringSearch.current = false;}, []);
   const [now, setNow] = useState(Date.now);
@@ -52,7 +52,7 @@ export function Chats({items, width, scale, header, searchOpen, query, onQueryCh
     renderItem={({item}) => {
       const timestamp = formatChatTimestamp(item.lastChatAt, now);
       return <ContentRow scope="chat" id={item.id} title={item.title} subtitle={item.lastAssistantMessage}
-        timestamp={timestamp} tile={item.tile} accessibilityLabel={`${item.title}, 마지막 대화 ${timestamp}, ${item.lastAssistantMessage}`}/>;
+        timestamp={timestamp} tile={item.tile} accessibilityLabel={`${item.title}, 마지막 대화 ${timestamp}, ${item.lastAssistantMessage}`} onPress={() => onOpen(item.id)}/>;
     }}
     ListEmptyComponent={<View testID="ui-chats-no-results" style={styles.empty}>
       <Text style={styles.emptyTitle}>검색 결과가 없어요</Text>

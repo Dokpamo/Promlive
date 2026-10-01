@@ -52,6 +52,7 @@ export const colorPalettes = {
   light: {
     background: neutral.white,
     surface: neutral.lightSurface,
+    inputSurface: neutral.nearWhite,
     foreground: neutral.black,
     secondaryForeground: neutral.secondary,
     controlForeground: neutral.controlText,
@@ -64,6 +65,7 @@ export const colorPalettes = {
   dark: {
     background: neutral.black,
     surface: neutral.darkSurface,
+    inputSurface: neutral.darkSurface,
     foreground: neutral.nearWhite,
     secondaryForeground: neutral.secondary,
     controlForeground: neutral.nearWhite,

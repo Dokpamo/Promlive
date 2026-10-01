@@ -1,7 +1,7 @@
 import {Animated} from 'react-native';
 
 /** A native graph splits one gesture into either page travel or body-only travel. */
-export function createRootSwipeAnimation(translation: Animated.AnimatedInterpolation<number>, width: number,
+export function createRootSwipeAnimation(translation: Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>, width: number,
   previousIsTab: boolean, nextIsTab: boolean) {
   const previousTab = new Animated.Value(previousIsTab ? 1 : 0);
   const nextTab = new Animated.Value(nextIsTab ? 1 : 0);

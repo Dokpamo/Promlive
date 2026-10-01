@@ -8,6 +8,7 @@ import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {createScreenStorage} from '../src/ui/screenStorage.web';
 
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
+vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
@@ -183,7 +184,9 @@ it('keeps both bars fixed while adjacent filter bodies travel together without a
   const bar = query('[data-testid="ui-tab-bar"]') as HTMLElement;
   const headerPosition = header.style.transform, barPosition = bar.style.transform;
   const release = await beginDrag('ui-library-swipe', 350, 60);
-  expect(page.style.transform).toBe('translateX(0px)');
+  // Visibility belongs to the static wrapper; only its inner layer can move.
+  expect(page.style.transform).toBe('');
+  expect((page.firstElementChild as HTMLElement).style.transform).toBe('translateX(0px)');
   expect(header.style.transform).toBe(headerPosition);
   expect(bar.style.transform).toBe(barPosition);
   const body = query('[data-testid="ui-library-moving-body"]') as HTMLElement;
@@ -192,8 +195,9 @@ it('keeps both bars fixed while adjacent filter bodies travel together without a
   const incomingBody = prepared.querySelector('[data-testid="ui-library-moving-body"]') as HTMLElement;
   expect(getComputedStyle(prepared).display).not.toBe('none');
   expect(prepared.style.opacity).toBe('1');
-  expect((prepared.querySelector('[data-testid="ui-library-scroll-header"]') as HTMLElement).style.opacity).toBe('0');
-  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
+  expect((prepared.querySelector('[data-testid="ui-library-header-visibility"]') as HTMLElement).style.opacity).toBe('0');
+  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1])
+    + parseFloat(element.parentElement!.style.left);
   expect(x(incomingBody) - x(body)).toBeCloseTo(412);
   expect(x(incomingBody)).toBeGreaterThan(0);
   expect(x(incomingBody)).toBeLessThan(412);
@@ -356,7 +360,7 @@ it('shows all four new root screens while leaving legacy actions disconnected', 
     if (id !== 'create') await act(async () => action.click());
     expect(query(`[data-testid="ui-page-${id}"]`)).toBe(page);
     expect(queryAll('input, textarea, [role="dialog"]')).toHaveLength(0);
-    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 17 : id === 'chats' ? 2 : 1);
+    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 17 : id === 'chats' ? 14 : 1);
     expect(queryAll('[data-testid^="ui-page-"]')).toHaveLength(1);
   }
 });
@@ -387,6 +391,64 @@ it('switches on press down and keeps inactive pages ready without exposing their
   expect(query('[data-testid="ui-library-grid"]')).toBe(grid);
   expect(grid.scrollTop).toBe(240);
   expect(query('[data-testid="ui-library-filter-recent"]')?.getAttribute('aria-pressed')).toBe('true');
+});
+
+it('keeps creation visible when a settings swipe finishes after a newer tab selection', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  memory.updateView(view => ({...view, tab: 'create', creationFilter: 'external'}));
+  const completions: (() => void)[] = [];
+  vi.spyOn(Animated, 'timing').mockImplementation(() => ({
+    start: callback => {completions.push(() => callback?.({finished: true}));},
+    stop: () => {}, reset: () => {},
+  }));
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  const release = await beginDrag('ui-create-swipe', 350, 60);
+  await release();
+  expect(completions).toHaveLength(1);
+  await clickControl('ui-tab-settings');
+  await clickControl('ui-tab-create');
+  await act(async () => completions[0]!());
+  expect(memory.getSnapshot().view.tab).toBe('create');
+  expect(query('[data-testid="ui-tab-create"]')?.getAttribute('aria-selected')).toBe('true');
+  expect(query('[data-testid="ui-title"]')?.textContent).toBe('생성');
+  expect(query('[data-testid="ui-create-list"]')).not.toBeNull();
+  expect(query('[data-testid="ui-settings-list"]')).toBeNull();
+  const page = query('[data-testid="ui-page-create"]') as HTMLElement;
+  expect((page.firstElementChild as HTMLElement).style.transform).toBe('translateX(0px)');
+});
+
+it('keeps adjacent tab headers a screen apart through refreshes and interrupted transitions', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  memory.updateView(view => ({...view, tab: 'create', creationFilter: 'external'}));
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  const creation = document.querySelector('[data-testid="ui-page-create"]') as HTMLElement;
+  const settings = document.querySelector('[data-testid="ui-page-settings"]') as HTMLElement;
+  const assertSeparate = (active: 'create' | 'settings') => {
+    // Native animation cleanup can reset travel, but cannot erase these React-owned slots.
+    expect(parseFloat(settings.style.left) - parseFloat(creation.style.left)).toBe(412);
+    expect((active === 'create' ? creation : settings).style.left).toBe('0px');
+    expect((creation.firstElementChild as HTMLElement).style.transform)
+      .toBe((settings.firstElementChild as HTMLElement).style.transform);
+    expect(getComputedStyle(creation).overflowX).toBe('visible');
+    expect(queryAll('[data-testid="ui-title"]').map(title => title.textContent))
+      .toEqual([active === 'create' ? '생성' : '설정']);
+  };
+  assertSeparate('create');
+  await clickControl('ui-tab-settings');
+  assertSeparate('settings');
+  const data = memory.getSnapshot().data;
+  await act(async () => memory.refresh(async () => ({...data,
+    chats: data.chats.map((chat, index) => index ? chat : {...chat, lastAssistantMessage: '새로 도착한 내용'})})));
+  assertSeparate('settings');
+  const release = await beginDrag('ui-settings-swipe', 60, 240);
+  assertSeparate('settings');
+  await clickControl('ui-tab-create');
+  await release();
+  assertSeparate('create');
+  await clickControl('ui-tab-settings');
+  assertSeparate('settings');
 });
 
 it('opens published card details without a header, preserves the library, and publishes edits only on completion', async () => {
@@ -604,7 +666,7 @@ it('groups external cards for editing while preserving their published versions 
   expect(query('[data-testid="ui-bot-card-night-library"]')!.textContent).toContain('외부 카드 편집본');
 });
 
-it('starts new drafts from the plus button and requires a title to complete them', async () => {
+it('starts new drafts from the plus button and requires the public sections before completion', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App/>));
   await clickControl('ui-tab-create');
@@ -622,6 +684,88 @@ it('starts new drafts from the plus button and requires a title to complete them
   await act(async () => newRow.click());
   expect((query('[data-testid="ui-card-editor-summary"]') as HTMLTextAreaElement).value).toBe('작성한 소개');
   await clickControl('ui-card-editor-complete');
+  expect(query('[role="alert"]')?.textContent).toContain('갤러리');
+  await enterText('ui-card-editor-introduction', '새로운 시작 장면');
+  await enterText('ui-card-editor-tags', '일상, 판타지');
+  await clickControl('ui-card-editor-photo-0');
+  await clickControl('ui-card-editor-complete');
   await clickControl('ui-tab-library');
   expect(query('[data-testid^="ui-bot-card-created-"]')?.textContent).toContain('플러스로 만든 카드');
 });
+
+it('shows all story sections and opens a gallery image with a selectable filmstrip, preserving detail scroll', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await clickControl('ui-bot-card-night-library');
+  for (const id of ['tags', 'summary', 'gallery', 'introduction', 'guide']) expect(query(`[data-testid="ui-card-detail-${id}"]`)).not.toBeNull();
+  const detail = query('[data-testid="ui-card-detail-content"]')!; detail.scrollTop = 700;
+  await clickControl('ui-card-gallery-1');
+  expect(query('[data-testid="ui-gallery-counter"]')?.textContent).toBe('2 / 3');
+  await clickControl('ui-gallery-thumb-2');
+  expect(query('[data-testid="ui-gallery-counter"]')?.textContent).toBe('3 / 3');
+  await memory.flush();
+  expect(new ScreenMemory(createScreenStorage()).getSnapshot().view.galleryIndex).toBe(2);
+  await clickControl('ui-image-viewer-back');
+  expect(query('[data-testid="ui-card-detail-content"]')).toBe(detail);
+  expect(detail.scrollTop).toBe(700);
+});
+
+it('animates gallery entrance even while horizontal photo paging disables swipe back', async () => {
+  const entries: {source: Animated.Value; complete: () => void}[] = [];
+  vi.spyOn(Animated, 'spring').mockImplementation(source => ({
+    start: callback => entries.push({source: source as Animated.Value, complete: () => callback?.({finished: true})}),
+    stop: () => {}, reset: () => {},
+  }));
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  await clickControl('ui-bot-card-night-library', false);
+  await act(async () => {entries[0]!.source.setValue(0); entries[0]!.complete();});
+  await clickControl('ui-card-gallery-1', false);
+  expect(entries).toHaveLength(2);
+  const motion = query('[data-testid="ui-back-motion"]') as HTMLElement;
+  expect(motion.style.transform).toBe('translateX(412px)');
+  await act(async () => {entries[1]!.source.setValue(0); entries[1]!.complete();});
+  expect(motion.style.transform).toBe('translateX(0px)');
+  expect(query('[data-testid="ui-gallery-counter"]')?.textContent).toBe('2 / 3');
+  await dragBody('ui-back-swipe', 60, 350);
+  expect(query('[data-testid="ui-image-viewer"]')).not.toBeNull();
+  await clickControl('ui-image-viewer-back');
+  expect(query('[data-testid="ui-card-detail"]')).not.toBeNull();
+});
+
+it('opens a conversation from detail and the chat list, sends local messages and retains drafts across a restart', async () => {
+  const disk = createScreenStorage(), memory = new ScreenMemory(disk);
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App memory={memory}/>));
+  await clickControl('ui-bot-card-night-library');
+  await clickControl('ui-card-detail-start');
+  expect(query('[data-testid="ui-chat-room"]')).not.toBeNull();
+  expect(query('[data-testid="ui-tab-bar"]')).toBeNull();
+  expect(query('[data-testid="ui-chat-send"]')?.getAttribute('aria-disabled')).toBe('true');
+  const before = memory.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!;
+  await enterText('ui-chat-input', '오늘은 여기서 쉬어도 돼?');
+  const send = query('[data-testid="ui-chat-send"]') as HTMLElement;
+  expect(send.style.width).toBe(send.style.height);
+  await clickControl('ui-chat-send');
+  const after = memory.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!;
+  expect(after.messages).toHaveLength(before.messages.length + 1);
+  expect(after.messages.at(-1)!.role).toBe('user');
+  expect(after.lastAssistantMessage).toBe(before.lastAssistantMessage);
+  await clickControl('ui-chat-plus');
+  await clickControl('ui-chat-attach-reading');
+  await enterText('ui-chat-input', '다음에 보낼 내용');
+  await memory.flush();
+  await act(async () => root!.unmount()); root = createRoot(container);
+  await act(async () => root!.render(<App memory={new ScreenMemory(disk)}/>));
+  expect((query('[data-testid="ui-chat-input"]') as HTMLTextAreaElement).value).toBe('다음에 보낼 내용');
+  expect(query('[data-testid="ui-chat-remove-image"]')).not.toBeNull();
+  await clickControl('ui-chat-room-back');
+  expect(query('[data-testid="ui-card-detail"]')).not.toBeNull();
+  await clickControl('ui-card-detail-back');
+  await clickControl('ui-tab-chats');
+  await clickControl('ui-chat-row-night-library');
+  expect(query('[data-testid="ui-chat-room"]')).not.toBeNull();
+  await clickControl('ui-chat-room-back');
+  expect(query('[data-testid="ui-chats-list"]')).not.toBeNull();
+}, 10000);

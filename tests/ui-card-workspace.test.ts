@@ -11,10 +11,31 @@ it('keeps new drafts out of the library until completion, without duplicating re
   cards = reduce(cards, {type: 'edit', id: 'new-card', field: 'title', value: '  새로운 이야기  ', now: 3});
   expect(publishedLibraryCards(cards)).toEqual(before);
   cards = reduce(cards, {type: 'complete', id: 'new-card', now: 4});
+  expect(publishedLibraryCards(cards)).toEqual(before);
+  for (const field of ['summary', 'introduction', 'tags'] as const) cards = reduce(cards, {type: 'edit', id: 'new-card', field, value: '새로운 이야기', now: 4});
+  cards = reduce(cards, {type: 'gallery', id: 'new-card', images: [{id: 'cover', tile: 0, title: '대표 이미지'}], now: 4});
+  cards = reduce(cards, {type: 'complete', id: 'new-card', now: 4});
   cards = reduce(cards, {type: 'complete', id: 'new-card', now: 5});
   expect(publishedLibraryCards(cards)).toHaveLength(13);
   expect(publishedLibraryCards(cards).find(card => card.id === 'new-card')?.title).toBe('새로운 이야기');
   expect(filteredWorkCards(cards, 'ready', '').some(card => card.id === 'new-card')).toBe(true);
+});
+
+it('requires every public section except the guide and keeps invalid edits out of the published snapshot', () => {
+  for (const field of ['title', 'creator', 'summary', 'introduction', 'tags'] as const) {
+    const before = createPreviewWorkspace();
+    let cards = reduce(before, {type: 'edit', id: 'night-library', field, value: '  ', now: 1});
+    cards = reduce(cards, {type: 'complete', id: 'night-library', now: 2});
+    expect(cards.find(card => card.id === 'night-library')!.published).toEqual(before.find(card => card.id === 'night-library')!.published);
+    expect(cards.find(card => card.id === 'night-library')!.working).toBe(true);
+  }
+  let cards = reduce(createPreviewWorkspace(), {type: 'gallery', id: 'night-library', images: [], now: 1});
+  cards = reduce(cards, {type: 'complete', id: 'night-library', now: 2});
+  expect(cards.find(card => card.id === 'night-library')!.working).toBe(true);
+  cards = reduce(createPreviewWorkspace(), {type: 'edit', id: 'night-library', field: 'guide', value: '', now: 1});
+  cards = reduce(cards, {type: 'complete', id: 'night-library', now: 2});
+  expect(cards.find(card => card.id === 'night-library')!.published!.guide).toBe('');
+  expect(cards.find(card => card.id === 'night-library')!.working).toBe(false);
 });
 
 it('leaves the imported library version unchanged while its editing draft changes', () => {

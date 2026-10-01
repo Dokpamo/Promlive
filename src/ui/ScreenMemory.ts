@@ -1,4 +1,5 @@
-import {cardWorkspaceReducer, type CardAction} from './cardWorkspace';
+import {cardWorkspaceReducer, type CardAction, type LibraryCard} from './cardWorkspace';
+import type {GalleryImage} from './cardDetails';
 import type {ScreenStorage} from './screenPersistence';
 import {decodeScreenSnapshot, emptyScrollMemory, initialScreenData, initialScreenView, reconcileScreenData, validScreenData,
   type ScreenData, type ScreenSnapshot, type ScreenState, type ScreenView, type ScrollMemory, type ScrollScope} from './screenState';
@@ -43,6 +44,36 @@ export class ScreenMemory {
   dispatchCard(action: CardAction) {
     const cards = cardWorkspaceReducer(this.state.data.cards, action);
     this.state = {...this.state, data: {...this.state.data, cards}};
+    this.dataRevision++; this.changed();
+  }
+  ensureChat(card: LibraryCard) {
+    if (this.state.data.chats.some(chat => chat.id === card.id)) return;
+    const at = Date.now();
+    const chat = {id: card.id, title: card.title, character: card.character, tile: card.tile,
+      lastChatAt: at, lastAssistantMessage: card.introduction.replace(/\s+/g, ' ').trim(), draft: '', draftImage: null,
+      messages: [{id: `${card.id}-intro`, role: 'assistant' as const, text: card.introduction, sentAt: at}]};
+    this.state = {...this.state, data: {...this.state.data, chats: [chat, ...this.state.data.chats]}};
+    this.dataRevision++; this.changed();
+  }
+  updateChatDraft(id: string, draft: string) {
+    const current = this.state.data.chats.find(chat => chat.id === id);
+    if (!current || current.draft === draft) return;
+    this.state = {...this.state, data: {...this.state.data, chats: this.state.data.chats.map(chat => chat.id === id ? {...chat, draft} : chat)}};
+    this.dataRevision++; this.changed();
+  }
+  sendChat(id: string, image?: GalleryImage) {
+    const current = this.state.data.chats.find(chat => chat.id === id);
+    image = image ?? current?.draftImage ?? undefined;
+    if (!current || (!current.draft.trim() && !image)) return;
+    const at = Date.now();
+    const message = {id: `${id}-${at}-${this.revision}`, role: 'user' as const, text: current.draft.trim(), sentAt: at, ...(image ? {image} : {})};
+    const updated = {...current, draft: '', draftImage: null, lastChatAt: at, messages: [...current.messages, message]};
+    this.state = {...this.state, data: {...this.state.data, chats: [updated, ...this.state.data.chats.filter(chat => chat.id !== id)]}};
+    this.dataRevision++; this.changed();
+  }
+  updateChatImage(id: string, image: GalleryImage | null) {
+    if (!this.state.data.chats.some(chat => chat.id === id)) return;
+    this.state = {...this.state, data: {...this.state.data, chats: this.state.data.chats.map(chat => chat.id === id ? {...chat, draftImage: image} : chat)}};
     this.dataRevision++; this.changed();
   }
   getScroll = (scope: ScrollScope) => this.positions[scope] ?? emptyScrollMemory;
@@ -93,6 +124,7 @@ export class ScreenMemory {
         let view = this.state.view;
         if (view.openedCardId && !data.cards.some(card => card.id === view.openedCardId)) view = {...view, openedCardId: null};
         if (view.detailCardId && !data.cards.some(card => card.id === view.detailCardId && card.published)) view = {...view, detailCardId: null, coverOpen: false};
+        if (view.chatId && !data.chats.some(chat => chat.id === view.chatId)) view = {...view, chatId: null};
         this.state = {...this.state, data, view};
         this.dataRevision++; this.changed();
       } catch { /* Keep the last usable screen on refresh/network failure. */ }

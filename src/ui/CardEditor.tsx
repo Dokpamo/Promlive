@@ -1,6 +1,8 @@
 import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type LayoutChangeEvent} from 'react-native';
 import type {EditableCardField, WorkCard} from './cardWorkspace';
+import {missingCardFields} from './cardWorkspace';
+import {nightLibraryDetails, type GalleryImage} from './cardDetails';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork} from './PreviewArtwork';
 import {colors, navigation} from './tokens';
@@ -12,20 +14,22 @@ import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
 
 /** Edits the new UI's draft. Only Complete updates the library's published snapshot. */
-export function CardEditor({card, scale, topInset, bottomInset, onChange, onComplete, onClose, memory, backTransition}: {
+export function CardEditor({card, scale, topInset, bottomInset, onChange, onGalleryChange, onComplete, onClose, memory, backTransition}: {
   card: WorkCard;
   scale: number;
   topInset: number;
   bottomInset: number;
   onChange: (field: EditableCardField, value: string) => void;
+  onGalleryChange: (images: GalleryImage[]) => void;
   onComplete: () => void;
   onClose: () => void;
   memory: ScreenMemory;
   backTransition: BackTransition;
 }) {
   const [titleError, setTitleError] = useState(false);
+  const [tagText, setTagText] = useState(card.draft.tags.join(', '));
   const titleInput = useRef<TextInput>(null);
-  const blockers = useMemo(() => Array.from({length: 4}, () => createRef() as GestureBlockRef), []);
+  const blockers = useMemo(() => Array.from({length: 7}, () => createRef() as GestureBlockRef), []);
   const scroll = useRef<ScrollView>(null);
   const scrolling = usePlainScrollMemory(memory, 'editor', scroll);
   const focusedField = useRef<EditableCardField | null>(null);
@@ -59,7 +63,7 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
     return () => subscription.remove();
   }, [onClose]);
   function complete() {
-    if (!card.draft.title.trim()) {setTitleError(true); titleInput.current?.focus(); return;}
+    if (missingCardFields(card.draft).length) {setTitleError(true); if (!card.draft.title.trim()) titleInput.current?.focus(); return;}
     Keyboard.dismiss();
     onComplete();
   }
@@ -92,7 +96,9 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
         {...inputEvents('title')}
         value={card.draft.title} onChangeText={value => {setTitleError(false); onChange('title', value);}}
         placeholder="카드 제목" placeholderTextColor={colors.secondaryForeground} style={styles.input} multiline underlineColorAndroid="transparent"/>
-      {titleError && <Text accessibilityRole="alert" style={styles.error}>완료하려면 제목을 입력해 주세요.</Text>}
+      {titleError && missingCardFields(card.draft).length > 0 && <Text accessibilityRole="alert" style={styles.error}>
+        완료하려면 {missingCardFields(card.draft).map(field => ({title: '제목', creator: '제작자', tags: '태그', summary: '소개', introduction: '인트로', gallery: '갤러리'}[field])).join(' · ')} 항목을 채워 주세요.
+      </Text>}
       <Text style={styles.label} nativeID="card-character-label">캐릭터 이름</Text>
       <EditorTextInput blockerRef={blockers[1]!} testID="ui-card-editor-character" accessibilityLabel="캐릭터 이름" aria-labelledby="card-character-label"
         {...inputEvents('character')}
@@ -103,11 +109,35 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onComp
         {...inputEvents('summary')}
         value={card.draft.summary} onChangeText={value => onChange('summary', value)} placeholder="어떤 이야기인지 소개해 주세요."
         placeholderTextColor={colors.secondaryForeground} style={[styles.input, styles.summary]} multiline textAlignVertical="top" underlineColorAndroid="transparent"/>
-      <Text style={styles.label} nativeID="card-introduction-label">시작 장면</Text>
+      <Text style={styles.label} nativeID="card-introduction-label">인트로</Text>
       <EditorTextInput blockerRef={blockers[3]!} testID="ui-card-editor-introduction" accessibilityLabel="시작 장면" aria-labelledby="card-introduction-label"
         {...inputEvents('introduction')}
         value={card.draft.introduction} onChangeText={value => onChange('introduction', value)} placeholder="첫 장면을 적어 주세요."
         placeholderTextColor={colors.secondaryForeground} style={[styles.input, styles.introduction]} multiline textAlignVertical="top" underlineColorAndroid="transparent"/>
+      <Text style={styles.label}>제작자</Text>
+      <EditorTextInput blockerRef={blockers[4]!} testID="ui-card-editor-creator" accessibilityLabel="제작자"
+        {...inputEvents('creator')} value={card.draft.creator} onChangeText={value => onChange('creator', value)} style={styles.input}/>
+      <Text style={styles.label}>태그</Text>
+      <EditorTextInput blockerRef={blockers[5]!} testID="ui-card-editor-tags" accessibilityLabel="태그, 쉼표로 구분"
+        {...inputEvents('tags')} value={tagText} onChangeText={value => {setTagText(value); onChange('tags', value);}}
+        placeholder="일상, 판타지, 도서관" placeholderTextColor={colors.secondaryForeground} style={styles.input}/>
+      <Text style={styles.label}>갤러리 · 최소 1장</Text>
+      <View testID="ui-card-editor-gallery" style={styles.gallery}>
+        {[...new Map([{id: 'cover', tile: card.draft.tile, title: '대표 이미지'}, ...nightLibraryDetails.gallery].map(picture => [picture.tile, picture])).values()].map(picture => {
+          const selected = card.draft.gallery.some(image => image.tile === picture.tile);
+          return <Pressable key={picture.tile} testID={`ui-card-editor-photo-${picture.tile}`} accessibilityRole="checkbox" accessibilityState={{checked: selected}}
+            accessibilityLabel={picture.title} onPress={() => onGalleryChange(selected ? card.draft.gallery.filter(image => image.tile !== picture.tile) : [...card.draft.gallery, picture])}
+            style={[styles.galleryImage, {borderColor: selected ? colors.foreground : 'transparent'}]}>
+            <PreviewArtwork tile={picture.tile} width={80} height={80}/>
+            {selected && <View style={styles.selectedPhoto}><Text style={{color: colors.selectedForeground}}>✓</Text></View>}
+          </Pressable>;
+        })}
+      </View>
+      <Text style={styles.label}>가이드 · 선택</Text>
+      <EditorTextInput blockerRef={blockers[6]!} testID="ui-card-editor-guide" accessibilityLabel="가이드, 선택 사항"
+        {...inputEvents('guide')} value={card.draft.guide} onChangeText={value => onChange('guide', value)}
+        placeholder="플레이 방법이나 권장 설정을 적어 주세요." placeholderTextColor={colors.secondaryForeground}
+        style={[styles.input, styles.introduction]} multiline textAlignVertical="top" underlineColorAndroid="transparent"/>
     </ScrollView>
   </KeyboardAvoidingView></SwipeBack>;
 }
@@ -132,4 +162,7 @@ const styles = StyleSheet.create({
   summary: {minHeight: 92},
   introduction: {minHeight: 150},
   error: {marginTop: 8, fontSize: 13, color: colors.error},
+  gallery: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
+  galleryImage: {width: 84, height: 84, overflow: 'hidden', borderRadius: 12, borderWidth: 2},
+  selectedPhoto: {position: 'absolute', bottom: 4, right: 4, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.selectedBackground},
 });

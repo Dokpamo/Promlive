@@ -55,23 +55,26 @@ export function TabPages({view, pages, width, enabled, onStep}: {
   </View></BodyMotionContext.Provider></SwipeContext.Provider>;
 }
 
-/** Keep each view attached to one native graph; move its base instead of swapping graphs. */
+/** React commits the page slot; the native graph only owns gesture travel. */
 function PageLayer({offset, translation, active, visible, interactive, testID, children}: {
   offset: number; translation: Animated.AnimatedAddition<number>; active: boolean; visible: boolean;
   interactive: boolean; testID: string; children: ReactNode;
 }) {
-  const base = useRef(new Animated.Value(offset)).current;
-  const translateX = useMemo(() => Animated.add(translation, base), [translation, base]);
-  useLayoutEffect(() => {base.setValue(offset);}, [base, offset]);
-  return <Animated.View testID={testID} aria-hidden={!active} {...(Platform.OS === 'web' ? {inert: !active} : {})}
+  // React alone owns visibility and interaction. A native animation cleanup
+  // must never restore another tab's old opacity or accessibility properties.
+  return <View testID={testID} aria-hidden={!active} {...(Platform.OS === 'web' ? {inert: !active} : {})}
     accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
     pointerEvents={interactive ? 'auto' : 'none'}
-    style={[styles.page, {opacity: visible ? 1 : 0, zIndex: active ? 1 : 0, transform: [{translateX}]},
-      Platform.OS === 'web' && !visible && styles.hidden]}>{children}</Animated.View>;
+    style={[styles.slot, {left: offset, right: -offset, opacity: visible ? 1 : 0, zIndex: active ? 1 : 0},
+      Platform.OS === 'web' && !visible && styles.hidden]}>
+    <Animated.View style={[styles.page, {transform: [{translateX: translation}]}]}>{children}</Animated.View>
+  </View>;
 }
 
 const styles = StyleSheet.create({
   frame: {flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.background},
+  // The moving page must be able to leave its offscreen slot during a swipe.
+  slot: {...StyleSheet.absoluteFillObject, overflow: 'visible'},
   page: {...StyleSheet.absoluteFillObject, overflow: 'hidden'},
   hidden: {display: 'none'},
 });

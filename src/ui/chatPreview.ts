@@ -1,6 +1,7 @@
 import {libraryPreviewCards} from './libraryPreview';
+import {previewConversation} from './chatConversation';
 
-/** Latest AI replies for local layout previews. No conversations are read or written. */
+/** Initial local conversations; ScreenMemory preserves later messages and drafts. */
 const assistantReplies: Record<typeof libraryPreviewCards[number]['id'], string> = {
   'night-library': '왔구나. 네가 찾던 책을 창가에 두었어.\n오늘은 어디까지 읽어볼까?',
   'forest-post': '편지를 받으러 온 거야? 마침 너에게 전해 줄 이야기가 있었어.',
@@ -44,4 +45,5 @@ export const chatPreviewRows = libraryPreviewCards.map(card => ({
   tile: card.tile,
   lastChatAt: lastChatTimes[card.id],
   lastAssistantMessage: assistantReplies[card.id].replace(/\s+/g, ' ').trim(),
+  ...previewConversation(card.id, assistantReplies[card.id], lastChatTimes[card.id]),
 }));
