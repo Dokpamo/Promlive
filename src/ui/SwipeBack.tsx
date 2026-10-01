@@ -3,18 +3,20 @@ import {Animated, Platform, StyleSheet, View, useWindowDimensions} from 'react-n
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HorizontalGesture} from './HorizontalGesture';
 import {useSwipeMotion} from './useSwipeMotion';
-import {colors} from './tokens';
+import {usePalette} from './Theme';
 import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
 
 /** The previous route stays mounted underneath, including its exact scroll position. */
-export function SwipeBack({children, identity, enabled = true, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor = colors.background}: {
+export function SwipeBack({children, identity, enabled = true, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor: background}: {
   children: ReactNode; identity: string; enabled?: boolean; onBack: () => void;
   blockers?: GestureBlockRef[];
   transition: BackTransition;
   drawBehindStatusBar?: boolean;
   backgroundColor?: string;
 }) {
+  const colors = usePalette();
+  const backgroundColor = background ?? colors.background;
   const {width} = useWindowDimensions();
   const safe = useSafeAreaInsets();
   const motion = useSwipeMotion({identity, width, previous: true, next: false, enabled, onStep: onBack,
@@ -35,8 +37,8 @@ export function SwipeBack({children, identity, enabled = true, onBack, blockers,
 const curve = Platform.OS === 'ios' ? {borderCurve: 'continuous' as const} : {};
 const styles = StyleSheet.create({
   frame: {flex: 1, minHeight: 0},
-  page: {flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.background, ...curve},
-  shadow: {backgroundColor: colors.background, ...curve,
+  page: {flex: 1, minHeight: 0, overflow: 'hidden', ...curve},
+  shadow: {...curve,
     ...Platform.select({ios: {shadowColor: '#000', shadowOffset: {width: -2, height: 0}, shadowRadius: 9, shadowOpacity: 0.1},
       default: {boxShadow: '-2px 0px 14px rgba(0, 0, 0, 0.1)'}})},
 });

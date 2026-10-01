@@ -1,3 +1,4 @@
+import {usePalette, themedStyles} from './Theme';
 import {useEffect, useRef, useState} from 'react';
 import {BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -6,7 +7,7 @@ import {Icon} from './Icon';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork, previewArtworkRatio} from './PreviewArtwork';
 import type {ScreenMemory} from './ScreenMemory';
-import {colors, listTypography, navigation, navigationActionMetrics} from './tokens';
+import {listTypography, navigation, navigationActionMetrics} from './tokens';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {SwipeBack} from './SwipeBack';
 import type {BackTransition} from './backTransition';
@@ -17,6 +18,8 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
   memory: ScreenMemory; onClose: () => void; onEdit: () => void; onViewImage: (index?: number) => void; onStartChat: () => void;
   backTransition: BackTransition;
 }) {
+  const colors = usePalette();
+  const styles = useStyles();
   const [menuOpen, setMenuOpen] = useState(false);
   const scroll = useRef<ScrollView>(null);
   const scrolling = usePlainScrollMemory(memory, 'detail', scroll);
@@ -95,7 +98,7 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
   </View></SwipeBack>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   screen: {flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.background},
   content: {flex: 1, minHeight: 0, overflow: 'hidden'},
   body: {paddingBottom: 32},
@@ -121,4 +124,4 @@ const styles = StyleSheet.create({
     borderColor: colors.border, backgroundColor: colors.background},
   menuItem: {minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14},
   menuText: {...listTypography, color: colors.foreground},
-});
+}));

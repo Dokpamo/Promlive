@@ -1,7 +1,8 @@
+import {usePalette} from './Theme';
 import {Platform, Pressable, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {Icon, type IconName} from './Icon';
 import {TabIcon} from './TabIcon';
-import {colors, navigation as m, navigationActionMetrics} from './tokens';
+import {navigation as m, navigationActionMetrics} from './tokens';
 import {tabs, tabLabels, type Tab} from './navigationRoutes';
 export {tabs, tabLabels, type Tab} from './navigationRoutes';
 const headerActions: Record<Tab, {icon: IconName; label: string}> = {
@@ -26,6 +27,7 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
 }
 
 export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean; onAction?: () => void}) {
+  const colors = usePalette();
   const action = headerActions[tab];
   return <View testID="ui-header" style={{height: m.headerHeight * s, flexShrink: 0, paddingLeft: m.titleInset * s,
     paddingRight: m.actionInset * s, flexDirection: 'row', alignItems: 'center'}}>
@@ -40,6 +42,7 @@ export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Ta
 }
 
 export function TabBar({tab, onChange, scale: s, bottomInset}: {tab: Tab; onChange: (tab: Tab) => void; scale: number; bottomInset: number}) {
+  const colors = usePalette();
   const height = Math.max(48, m.tabHeight * s);
   return <View testID="ui-tab-bar" accessibilityRole="tablist" style={{height: height + bottomInset, flexShrink: 0, paddingBottom: bottomInset, backgroundColor: colors.background}}>
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: m.separatorHeight * s, backgroundColor: colors.separator}}/>

@@ -1,8 +1,8 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {Animated, Keyboard, NativeModules, Platform, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Animated, Keyboard, NativeModules, Platform, Pressable, StatusBar, Text, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Header, TabBar, type Tab} from './Navigation';
-import {TabPages} from './TabPages';
+import {TabPages, type RootPageHandle} from './TabPages';
 import {Library} from './Library';
 import {Chats} from './Chats';
 import {Creation} from './Creation';
@@ -13,53 +13,43 @@ import {ImageViewer} from './ImageViewer';
 import {ChatRoom} from './ChatRoom';
 import {GestureRoot} from './GestureRoot';
 import {SwipeSurface} from './SwipeSurface';
-import {createBackTransition, createBackUnderlay, type BackTransition, type BackUnderlaySource} from './backTransition';
+import {createBackTransition} from './backTransition';
 import {useScreenCorners} from './useScreenCorners';
 import {libraryFilters, stepRootView, type RootPageKey, type SwipeDirection} from './swipeNavigation';
 import {publishedLibraryCards} from './cardWorkspace';
 import {ScreenMemory} from './ScreenMemory';
 import {createScreenStorage} from './screenStorage';
 import {useScreenMemory} from './useScreenMemory';
-import type {LibraryFilter} from './screenState';
+import type {LibraryFilter, ScreenView} from './screenState';
 import {creationFilters, type CreationFilter} from './creationPreview';
-import {colors, navigationScale, uiAppearance} from './tokens';
+import {navigationScale} from './tokens';
+import {ThemeProvider, useTheme} from './Theme';
+import {ScreenLayer} from './ScreenLayer';
+import {SettingsServicesProvider, type SettingsServices} from './settings/SettingsServices';
+import {SettingsNavigator} from './settings/SettingsNavigator';
+import type {SettingsDestination} from './settings/OtherSettings';
 
 /** First render uses the local snapshot; background refresh never replaces it with a loader. */
-export default function App({memory: provided}: {memory?: ScreenMemory} = {}) {
+export default function App({memory: provided, settingsServices}: {memory?: ScreenMemory; settingsServices?: SettingsServices} = {}) {
   const [memory] = useState(() => provided ?? new ScreenMemory(createScreenStorage()));
+  return <SettingsServicesProvider services={settingsServices}><ThemeProvider memory={memory}><AppFrame memory={memory}/></ThemeProvider></SettingsServicesProvider>;
+}
+function AppFrame({memory}: {memory: ScreenMemory}) {
+  const {colors, appearance: uiAppearance} = useTheme();
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const frame = requestAnimationFrame(() => NativeModules.PromliveStartup?.ready(uiAppearance));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [uiAppearance]);
   return <GestureRoot style={{flex: 1}}><SafeAreaProvider style={{flex: 1, backgroundColor: colors.background}}>
     <StatusBar barStyle={uiAppearance === 'light' ? 'dark-content' : 'light-content'}/>
     <Shell memory={memory}/>
   </SafeAreaProvider></GestureRoot>;
 }
 
-/** Native scroll views must keep their viewport while another screen covers them. */
-function ScreenLayer({hidden = false, prepared = false, children, backTransition, alternateTransition, useAlternate = false, testID}: {
-  hidden?: boolean; prepared?: boolean; children: ReactNode; backTransition?: BackTransition; testID: string;
-  alternateTransition?: BackTransition; useAlternate?: boolean;
-}) {
-  const source: BackUnderlaySource = hidden ? (useAlternate ? 1 : 0) : null;
-  // Route/visibility changes only update weights, never replace the attached graph.
-  const underlay = useMemo(() => createBackUnderlay(backTransition, alternateTransition, source), [backTransition, alternateTransition]);
-  useLayoutEffect(() => {underlay.select(source);}, [underlay, source]);
-  return <Animated.View testID={testID} collapsable={false} aria-hidden={hidden} accessibilityElementsHidden={hidden}
-    {...(Platform.OS === 'web' ? {inert: hidden} : {})}
-    importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'} pointerEvents={hidden ? 'none' : 'auto'}
-    style={[StyleSheet.absoluteFillObject, {opacity: hidden && !prepared ? 0 : 1,
-      zIndex: hidden ? 0 : 1, transform: [{translateX: underlay.translateX}]},
-      Platform.OS === 'web' && hidden && !prepared && {display: 'none'}]}>
-    {children}
-    <Animated.View testID={`${testID}-dim`} pointerEvents="none" accessible={false}
-      style={[StyleSheet.absoluteFillObject, {backgroundColor: '#000', opacity: underlay.dimOpacity}]}/>
-  </Animated.View>;
-}
-
 function Shell({memory}: {memory: ScreenMemory}) {
+  const {colors, appearance: uiAppearance} = useTheme();
+  const [settingsDetail, setSettingsDetail] = useState<SettingsDestination | null>(null);
   const {data, view, saveError} = useSyncExternalStore(memory.subscribe, memory.getSnapshot);
   useScreenMemory(memory);
   const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId, coverOpen, galleryIndex, chatId} = view;
@@ -70,8 +60,16 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const viewingCover = coverOpen && !!detailCard && !openedCard && !openedChat;
   useEffect(() => {
     if (Platform.OS === 'android') NativeModules.PromliveSystemBars?.setDarkIcons(!viewingCover && uiAppearance === 'light');
-  }, [viewingCover]);
+  }, [viewingCover, uiAppearance]);
   const nextCardNumber = useRef(0);
+  const rootPagesRef = useRef<RootPageHandle>(null);
+  const navigateRoot = useCallback((update: (current: ScreenView) => ScreenView) => {
+    memory.updateView(current => {
+      const next = update(current);
+      if (next !== current) rootPagesRef.current?.prepare(next);
+      return next;
+    });
+  }, [memory]);
   const safe = useSafeAreaInsets();
   const {width} = useWindowDimensions();
   const contentWidth = width - safe.left - safe.right;
@@ -83,6 +81,8 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const editorBack = useMemo(() => createBackTransition(editorBackX, width, corners), [editorBackX, width, corners]);
   const imageBack = useMemo(() => createBackTransition(imageBackX, width, corners), [imageBackX, width, corners]);
   const scale = navigationScale(contentWidth);
+  const openSettings = useCallback((page: SettingsDestination) => {editorBack.prepareOpen(); Keyboard.dismiss(); setSettingsDetail(page);}, [editorBack]);
+  const closeSettings = useCallback(() => {editorBack.finish(); Keyboard.dismiss(); setSettingsDetail(null);}, [editorBack]);
   const search = useCallback((scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => {
     memory.updateView(current => ({...current, searches: {...current.searches, [scope]: {...current.searches[scope], ...change}}}));
   }, [memory]);
@@ -92,8 +92,8 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const setQuery = useCallback((query: string) => search('library', {query}), [search]);
   const setChatQuery = useCallback((query: string) => search('chats', {query}), [search]);
   const setCreationQuery = useCallback((query: string) => search('create', {query}), [search]);
-  const setLibraryFilter = useCallback((filter: LibraryFilter) => memory.updateView(current => ({...current, libraryFilter: filter})), [memory]);
-  const setCreationFilter = useCallback((filter: CreationFilter) => memory.updateView(current => ({...current, creationFilter: filter})), [memory]);
+  const setLibraryFilter = useCallback((filter: LibraryFilter) => navigateRoot(current => current.libraryFilter === filter ? current : {...current, libraryFilter: filter}), [navigateRoot]);
+  const setCreationFilter = useCallback((filter: CreationFilter) => navigateRoot(current => current.creationFilter === filter ? current : {...current, creationFilter: filter}), [navigateRoot]);
   const closeEditor = useCallback(() => {
     editorBack.finish(); Keyboard.dismiss();
     memory.updateView(current => ({...current, openedCardId: null}));
@@ -132,10 +132,10 @@ function Shell({memory}: {memory: ScreenMemory}) {
   }, [memory, openCard]);
   function changeTab(next: Tab) {
     // onPress remains as a keyboard/accessibility fallback after onPressIn.
-    memory.updateView(current => current.tab === next ? current : {...current, tab: next});
+    navigateRoot(current => current.tab === next ? current : {...current, tab: next});
     if (next !== tab) Keyboard.dismiss();
   }
-  const stepPage = useCallback((direction: SwipeDirection) => memory.updateView(current => stepRootView(current, direction)), [memory]);
+  const stepPage = useCallback((direction: SwipeDirection) => navigateRoot(current => stepRootView(current, direction)), [navigateRoot]);
   // Stable elements let React skip the lists entirely during tab-only updates.
   const libraryPages = useMemo(() => Object.fromEntries(libraryFilters.map(({id}) => [`library:${id}`, <Library key={id}
       items={publishedLibraryCards(cards)} width={contentWidth} scale={scale} memory={memory}
@@ -153,15 +153,15 @@ function Shell({memory}: {memory: ScreenMemory}) {
       header={<Header tab="create" scale={scale} onSearch={() => searches.create.open ? closeCreationSearch() : search('create', {open: true})} searchOpen={searches.create.open} onAction={createCard}/>}
       searchOpen={searches.create.open} query={searches.create.query} onQueryChange={setCreationQuery} onCloseSearch={closeCreationSearch} onOpen={openCard}/>])),
     [cards, contentWidth, scale, memory, creationFilter, setCreationFilter, searches.create, search, setCreationQuery, closeCreationSearch, createCard, openCard]);
-  const settingsPage = useMemo(() => <><Header tab="settings" scale={scale} onSearch={() => {}} searchOpen={false}/>
-    <SwipeSurface testID="ui-settings-swipe"><Settings scale={scale} memory={memory}/></SwipeSurface></>, [scale, memory]);
+  const settingsPage = useMemo(() => <><Header tab="settings" scale={scale} onSearch={() => {}} searchOpen={false} onAction={() => openSettings('profile')}/>
+    <SwipeSurface testID="ui-settings-swipe"><Settings scale={scale} memory={memory} onOpen={openSettings}/></SwipeSurface></>, [scale, memory, openSettings]);
   return <View testID="ui-shell" style={{flex: 1, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
-      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard || !!openedChat} prepared={!viewingCover && (!(openedCard || openedChat) || !detailCard)}
+      <ScreenLayer testID="ui-root-screen" hidden={!!openedCard || !!detailCard || !!openedChat || !!settingsDetail} prepared={!viewingCover && (!(openedCard || openedChat) || !detailCard)}
         backTransition={detailBack} alternateTransition={editorBack} useAlternate={!detailCard}>
         <View testID="ui-root-safe-content" style={{flex: 1, minHeight: 0, backgroundColor: colors.background,
           paddingTop: safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>
-        <TabPages view={view} width={contentWidth} enabled={!openedCard && !detailCard && !openedChat} onStep={stepPage}
+        <TabPages ref={rootPagesRef} view={view} width={contentWidth} enabled={!openedCard && !detailCard && !openedChat && !settingsDetail} onStep={stepPage}
           pages={{...libraryPages, ...creationPages, chats: chatsPage, settings: settingsPage} as Record<RootPageKey, ReactNode>}/>
         <TabBar tab={tab} onChange={changeTab} scale={scale} bottomInset={safe.bottom}/>
         </View>
@@ -171,6 +171,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
           active={!openedCard && !openedChat && !viewingCover} memory={memory} onClose={closeDetail} onEdit={() => openCard(detailCard.id)} onViewImage={openImage}
           onStartChat={() => {memory.ensureChat(detailCard); openChat(detailCard.id);}} backTransition={detailBack}/>
       </ScreenLayer>}
+      {settingsDetail && <ScreenLayer testID="ui-settings-screen"><SettingsNavigator initial={settingsDetail} transition={editorBack} scale={scale} bottomInset={safe.bottom} onClose={closeSettings}/></ScreenLayer>}
       {openedCard && <ScreenLayer testID="ui-editor-screen">
         <CardEditor card={openedCard} scale={scale} memory={memory} topInset={safe.top} bottomInset={safe.bottom} onClose={closeEditor} backTransition={editorBack}
           onChange={(field, value) => memory.dispatchCard({type: 'edit', id: openedCard.id, field, value, now: Date.now()})}

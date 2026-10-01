@@ -3,11 +3,11 @@ import {dirname, resolve, sep} from 'node:path';
 import ts from 'typescript';
 import {expect, it} from 'vitest';
 
-it('keeps the production entry disconnected from every legacy UI and application service', () => {
+it('keeps the production entry disconnected from legacy screens while reusing data services', () => {
   const root = resolve(import.meta.dirname, '..');
   const uiRoot = resolve(root, 'src/ui') + sep;
   const visited = new Set<string>();
-  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context', '@op-engineering/op-sqlite', 'react-native-gesture-handler']);
+  const packages = new Set(['react', 'react-native', 'react-native-safe-area-context', '@op-engineering/op-sqlite', 'react-native-gesture-handler', 'react-native/src/private/animated/NativeAnimatedHelper', 'zod', '@noble/hashes/sha2.js', 'react-native-keychain', 'react-native-image-picker', '@react-native-community/image-editor', 'sql.js', 'sql.js/dist/sql-wasm.wasm?url']);
   function visit(file: string) {
     if (visited.has(file)) return;
     visited.add(file);
@@ -18,9 +18,11 @@ it('keeps the production entry disconnected from every legacy UI and application
         return;
       }
       const base = resolve(dirname(file), specifier);
+      if (base.endsWith('.json')) {expect(existsSync(base)).toBe(true); return;}
       const target = [base + '.ts', base + '.tsx', resolve(base, 'index.ts'), resolve(base, 'index.tsx')].find(existsSync);
       expect(target, `Missing dependency: ${file} → ${specifier}`).toBeDefined();
-      expect(target!.startsWith(uiRoot), `Legacy dependency reconnected: ${file} → ${target}`).toBe(true);
+      const dataService = target!.endsWith('.ts') && ['src/features/', 'src/adapters/', 'src/ports/', 'src/extensions/', 'src/creator-sdk/', 'src/app/runtime.ts'].some(path => target!.startsWith(resolve(root, path)));
+      expect(target!.startsWith(uiRoot) || dataService, `Legacy UI reconnected: ${file} → ${target}`).toBe(true);
       visit(target!);
       // Check native adapters too, rather than only the default desktop/web module.
       for (const platform of ['android', 'ios', 'web']) for (const extension of ['ts', 'tsx']) {

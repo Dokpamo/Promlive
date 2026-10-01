@@ -1,11 +1,12 @@
+import {themedStyles} from './Theme';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
-import {Animated, AppState, type FlatList, StyleSheet, Text, View} from 'react-native';
+import {Animated, AppState, type FlatList, Text, View} from 'react-native';
 import type {ChatRow} from './screenState';
 import type {ScreenMemory} from './ScreenMemory';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ContentRow} from './ContentRow';
 import {SearchField} from './SearchField';
-import {colors, navigation} from './tokens';
+import {navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
 
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export function Chats({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, onOpen}: Props) {
+  const styles = useStyles();
   const restoringSearch = useRef(true);
   useEffect(() => {restoringSearch.current = false;}, []);
   const [now, setNow] = useState(Date.now);
@@ -61,9 +63,9 @@ export function Chats({items, width, scale, header, searchOpen, query, onQueryCh
   </ScrollFrame>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   list: {flex: 1, backgroundColor: colors.background},
   empty: {alignItems: 'center', paddingHorizontal: 24, paddingVertical: 64},
   emptyTitle: {fontSize: 17, fontWeight: '600', color: colors.foreground},
   emptyHint: {marginTop: 8, fontSize: 14, color: colors.secondaryForeground},
-});
+}));

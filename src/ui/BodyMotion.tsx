@@ -3,8 +3,9 @@ import type {Animated} from 'react-native';
 import type {RootPageKey} from './swipeNavigation';
 
 export type HeaderMotion = {readHidden: () => number; adoptHidden: (hidden: number) => void};
-export const BodyPageContext = createContext<{key: RootPageKey; offset: number; headerVisible: boolean}>({
-  key: 'library:all', offset: 0, headerVisible: true,
+export const BodyPageContext = createContext<{key: RootPageKey; translateX?: Animated.AnimatedAddition<number>;
+  headerOpacity?: Animated.AnimatedAddition<number>; headerVisible: boolean}>({
+  key: 'library:all', headerVisible: true,
 });
 
 /** The active header is outside the two adjacent bodies' translation layers. */

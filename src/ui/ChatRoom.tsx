@@ -1,5 +1,6 @@
+import {usePalette, themedStyles} from './Theme';
 import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {BackHandler, Keyboard, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ChatRow} from './screenState';
 import type {ScreenMemory} from './ScreenMemory';
@@ -11,7 +12,7 @@ import {NavigationButton} from './Navigation';
 import {ChatInput} from './chat-input/ChatInput';
 import {ChatKeyboardProvider, dismissChatKeyboard, useChatKeyboard} from './chat-input/KeyboardDock';
 import {PreviewArtwork} from './PreviewArtwork';
-import {colors, navigation, navigationActionMetrics} from './tokens';
+import {navigation, navigationActionMetrics} from './tokens';
 import {inputLayout, inputMetrics} from './chat-input/geometry';
 import {groupedMessage} from './chatConversation';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
@@ -28,6 +29,8 @@ export function ChatRoom(p: Props) {
 function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPanelChange}: Props & {
   blocker: GestureBlockRef; onPanelChange: (value: boolean) => void;
 }) {
+  const colors = usePalette();
+  const styles = useStyles();
   const safe = useSafeAreaInsets(), actions = navigationActionMetrics(scale), window = useWindowDimensions(), keyboard = useChatKeyboard();
   const [attachments, setAttachments] = useState(false), [menu, setMenu] = useState(false);
   const geometry = inputMetrics(window.width, window.fontScale);
@@ -125,7 +128,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   screen: {flex: 1, minHeight: 0, backgroundColor: colors.background},
   header: {flexDirection: 'row', alignItems: 'center', flexShrink: 0, backgroundColor: colors.background},
   headerAvatar: {width: 36, height: 36, borderRadius: 18, overflow: 'hidden', marginLeft: 8, backgroundColor: colors.surface},
@@ -140,4 +143,4 @@ const styles = StyleSheet.create({
   attachmentPicture: {width: 88, height: 88, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface},
   menu: {position: 'absolute', padding: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background},
   menuItem: {padding: 14, minHeight: 48},
-});
+}));

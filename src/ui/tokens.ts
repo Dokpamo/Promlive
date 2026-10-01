@@ -78,7 +78,7 @@ export const colorPalettes = {
   },
 } as const;
 
-/** The new UI still opens in light mode; system appearance is not connected. */
+/** Default for isolated previews/tests. Live screens consume the shared Theme provider. */
 export const uiAppearance: keyof typeof colorPalettes = 'light';
 export const colors = colorPalettes[uiAppearance];
 

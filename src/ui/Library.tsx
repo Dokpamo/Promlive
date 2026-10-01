@@ -1,9 +1,10 @@
+import {usePalette, themedStyles} from './Theme';
 import {useEffect, useRef, type ReactNode} from 'react';
-import {Animated, type FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Animated, type FlatList, Pressable, Text, View} from 'react-native';
 import type {LibraryCard} from './cardWorkspace';
 import {PreviewArtwork} from './PreviewArtwork';
 import {SearchField} from './SearchField';
-import {colors, filterChipsHeight, navigation} from './tokens';
+import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
 import {FilterChips} from './FilterChips';
@@ -29,6 +30,8 @@ type Props = {
 
 /** Only completed snapshots open here; draft editing remains in the creation workspace. */
 export function Library({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, filter, onFilterChange, onOpen, selected = true}: Props) {
+  const colors = usePalette();
+  const styles = useStyles();
   const restoringSearch = useRef(true);
   useEffect(() => {restoringSearch.current = false;}, []);
   const list = useRef<FlatList<LibraryCard>>(null);
@@ -73,7 +76,7 @@ export function Library({items, width, scale, header, searchOpen, query, onQuery
   </ScrollFrame>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   list: {flex: 1, backgroundColor: colors.background},
   cover: {width: '100%', aspectRatio: 3 / 4, overflow: 'hidden', backgroundColor: colors.surface},
   caption: {paddingTop: 7, paddingHorizontal: 7, paddingBottom: 12},
@@ -82,4 +85,4 @@ const styles = StyleSheet.create({
   empty: {alignItems: 'center', paddingHorizontal: 24, paddingVertical: 64},
   emptyTitle: {fontSize: 17, fontWeight: '600', color: colors.foreground},
   emptyHint: {marginTop: 8, fontSize: 14, color: colors.secondaryForeground},
-});
+}));

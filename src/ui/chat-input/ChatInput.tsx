@@ -1,3 +1,4 @@
+import {usePalette} from '../Theme';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, Pressable, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -5,7 +6,6 @@ import type {GestureBlockRef} from '../HorizontalGesture.types';
 import type {GalleryImage} from '../cardDetails';
 import {Icon, type IconName} from '../Icon';
 import {PreviewArtwork} from '../PreviewArtwork';
-import {colors} from '../tokens';
 import {InputField} from './InputField';
 import {ChatKeyboardDock} from './KeyboardDock';
 import {inputLayout, inputMetrics, type InputMetrics} from './geometry';
@@ -15,6 +15,7 @@ type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRe
   onHeight: (height: number) => void; onFocus: () => void};
 
 export function ChatInput(p: Props) {
+  const colors = usePalette();
   const window = useWindowDimensions(), safe = useSafeAreaInsets(), m = inputMetrics(window.width, window.fontScale);
   const [measured, setMeasured] = useState(m.line);
   const reportHeight = useCallback((height: number) => setMeasured(old => Math.abs(old - height) > 0.5 ? height : old), []);
@@ -69,6 +70,7 @@ export function ChatInput(p: Props) {
 function InputAction({testID, label, icon, metrics: m, filled = false, disabled = false, onPress}: {
   testID: string; label: string; icon: IconName; metrics: InputMetrics; filled?: boolean; disabled?: boolean; onPress: () => void;
 }) {
+  const colors = usePalette();
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
     style={({pressed}) => ({width: m.actionSize, height: m.actionSize, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.25 : pressed ? 0.6 : 1})}>
     <View style={{width: m.circleSize, height: m.circleSize, borderRadius: m.circleSize / 2, alignItems: 'center', justifyContent: 'center',

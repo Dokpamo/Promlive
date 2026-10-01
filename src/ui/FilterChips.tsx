@@ -1,17 +1,19 @@
+import {useTheme} from './Theme';
 import {useCallback, useEffect, useRef} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {filterChipColors, filterChips as m, navigation, uiAppearance} from './tokens';
+import {filterChipColors, filterChips as m, navigation} from './tokens';
 
 /** Rounded filters share the same touch targets and header spacing across lists. */
-export function FilterChips<T extends string>({scope, items, selected, onChange, scale, appearance = uiAppearance}: {
-  scope: 'library' | 'create';
+export function FilterChips<T extends string>({scope, items, selected, onChange, scale, appearance}: {
+  scope: 'library' | 'create' | 'editor';
   items: readonly {id: T; label: string}[];
   selected: T;
   onChange: (id: T) => void;
   scale: number;
   appearance?: keyof typeof filterChipColors;
 }) {
-  const palette = filterChipColors[appearance];
+  const theme = useTheme();
+  const palette = filterChipColors[appearance ?? theme.appearance];
   const scroll = useRef<ScrollView>(null);
   const measurements = useRef({viewport: 0, content: 0, offset: 0, items: {} as Record<string, {x: number; width: number}>});
   const revealSelection = useCallback(() => {

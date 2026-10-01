@@ -3,13 +3,15 @@ import {AccessibilityInfo, Animated, Easing, Keyboard, Platform} from 'react-nat
 import {swipeDestination, type SwipeDirection} from './swipeNavigation';
 import {pageSpring, type BackTransition} from './backTransition';
 import {createSwipeTranslation} from './swipeTranslation';
+import {animationBatch} from './animationBatch';
 
-export function useSwipeMotion({identity, width, previous, next, enabled = true, onStep, source, release = 'slide', entrance}: {
+export function useSwipeMotion({identity, width, previous, next, enabled = true, onStep, source, release = 'slide', entrance, prepareReset}: {
   identity: string; width: number; previous: boolean; next: boolean; enabled?: boolean;
   onStep: (direction: SwipeDirection) => void;
   source?: Animated.Value;
   release?: 'slide' | 'back';
   entrance?: BackTransition;
+  prepareReset?: () => void;
 }) {
   const localTranslation = useRef(new Animated.Value(0)).current;
   const translation = source ?? localTranslation;
@@ -19,6 +21,7 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
   const gestureRevision = useRef<number | null>(null);
   const reduceMotion = useRef(false);
   const entry = useRef(entrance); entry.current = entrance;
+  const reset = useRef(prepareReset); reset.current = prepareReset;
   const current = useRef({width, previous, next, onStep}); current.current = {width, previous, next, onStep};
   useEffect(() => {
     let alive = true;
@@ -49,7 +52,12 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
         });
       });
     } else if (opening) opening.arrive();
-    else translation.setValue(0);
+    else animationBatch(() => {
+      // Commit destination slots and clear travel in the same native batch.
+      // A React layout commit can arrive a frame later than setValue(0).
+      reset.current?.();
+      translation.setValue(0);
+    });
     return () => {revision.current++; gestureRevision.current = null; translation.stopAnimation();};
   }, [identity, width, enabled, translation]);
   const onStart = useCallback(() => {gestureRevision.current = revision.current; setMoving(true); Keyboard.dismiss();}, []);

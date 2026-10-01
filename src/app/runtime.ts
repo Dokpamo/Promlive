@@ -30,6 +30,6 @@ export function initialize(): Promise<Runtime> {
       await extensions.load();
       return {repo, provider, creation: new CreationService(repo, coordinator), aiPreferences, extensions, authoring: new SqliteAuthoringStore(db)};
     } catch (error) { await db.close(); throw error; }
-  })();
+  })().catch(error => {boot = undefined; throw error;});
   return boot;
 }

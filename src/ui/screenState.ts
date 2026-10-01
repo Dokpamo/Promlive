@@ -11,6 +11,7 @@ export type ScreenData = {cards: WorkCard[]; chats: ChatRow[]};
 export type SearchState = {open: boolean; query: string};
 export type LibraryFilter = 'all' | 'recent' | 'idle';
 export type ScreenView = {
+  themeMode: 'light' | 'dark' | 'system';
   tab: Tab;
   searches: Record<'library' | 'chats' | 'create', SearchState>;
   libraryFilter: LibraryFilter;
@@ -28,7 +29,7 @@ export type ScreenState = {data: ScreenData; view: ScreenView; saveError: boolea
 
 export function initialScreenData(): ScreenData { return {cards: createPreviewWorkspace(), chats: chatPreviewRows}; }
 export function initialScreenView(): ScreenView {
-  return {tab: 'library', searches: {library: {open: false, query: ''}, chats: {open: false, query: ''}, create: {open: false, query: ''}},
+  return {themeMode: 'light', tab: 'library', searches: {library: {open: false, query: ''}, chats: {open: false, query: ''}, create: {open: false, query: ''}},
     libraryFilter: 'all', creationFilter: 'all', openedCardId: null, detailCardId: null, coverOpen: false, galleryIndex: null, chatId: null};
 }
 export const emptyScrollMemory: ScrollMemory = {offset: 0, hidden: 0, height: 0, maxOffset: 0};
@@ -87,6 +88,7 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     if (!data) return null;
     const view = initialScreenView();
     const saved = object(value.view) ? value.view : {};
+    if (choice(saved.themeMode, ['light', 'dark', 'system'])) view.themeMode = saved.themeMode;
     if (choice(saved.tab, ['library', 'chats', 'create', 'settings'])) view.tab = saved.tab;
     if (choice(saved.libraryFilter, ['all', 'recent', 'idle'])) view.libraryFilter = saved.libraryFilter;
     if (choice(saved.creationFilter, ['all', 'draft', 'ready', 'mine', 'external'])) view.creationFilter = saved.creationFilter;

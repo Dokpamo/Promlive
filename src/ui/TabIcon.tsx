@@ -1,12 +1,13 @@
+import {usePalette} from './Theme';
 import {Image, View, type ImageSourcePropType} from 'react-native';
 import {tabIconSources} from './icons/sources';
-import {colors} from './tokens';
 
 type TabIconName = keyof typeof tabIconSources;
 type Layers = {outline: ImageSourcePropType; fill: ImageSourcePropType; details?: ImageSourcePropType};
 
 /** Keep images mounted and update every layer in the same render as tab selection. */
 export function TabIcon({name, selected, size}: {name: TabIconName; selected: boolean; size: number}) {
+  const colors = usePalette();
   const tintColor = selected ? colors.foreground : colors.secondaryForeground;
   const layers: Layers = tabIconSources[name];
   const style = {position: 'absolute' as const, width: size, height: size};

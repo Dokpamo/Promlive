@@ -1,4 +1,5 @@
-import {useCallback, useLayoutEffect, useMemo, useRef, type ReactNode} from 'react';
+import {themedStyles} from './Theme';
+import {useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 'react';
 import {Animated, Platform, StyleSheet, View} from 'react-native';
 import type {ScreenView} from './screenState';
 import {rootPages, rootPageKey, stepRootView, type RootPageKey, type SwipeDirection} from './swipeNavigation';
@@ -6,13 +7,18 @@ import {SwipeContext} from './SwipeSurface';
 import {useSwipeMotion} from './useSwipeMotion';
 import {createRootSwipeAnimation} from './rootSwipeAnimation';
 import {BodyMotionContext, BodyPageContext, type HeaderMotion} from './BodyMotion';
-import {colors} from './tokens';
+import {createRootPageLayout} from './rootPageLayout';
+import {animationBatch} from './animationBatch';
+
+export type RootPageHandle = {prepare: (next: ScreenView) => void};
 
 /** Neighboring filter bodies travel together beneath the stationary active header. */
-export function TabPages({view, pages, width, enabled, onStep}: {
+export function TabPages({view, pages, width, enabled, onStep, ref}: {
   view: ScreenView; pages: Record<RootPageKey, ReactNode>; width: number; enabled: boolean;
   onStep: (direction: SwipeDirection) => void;
+  ref?: Ref<RootPageHandle>;
 }) {
+  const styles = useStyles();
   const key = rootPageKey(view);
   const previousView = stepRootView(view, -1), nextView = stepRootView(view, 1);
   const previous = rootPageKey(previousView), next = rootPageKey(nextView);
@@ -22,8 +28,29 @@ export function TabPages({view, pages, width, enabled, onStep}: {
     headers.set(page, header);
     return () => {if (headers.get(page) === header) headers.delete(page);};
   }, [headers]);
-  const motion = useSwipeMotion({identity: key, width, previous: previous !== key, next: next !== key, enabled, onStep});
+  const [layout] = useState(() => createRootPageLayout(view, width));
+  const motion = useSwipeMotion({identity: key, width, previous: previous !== key, next: next !== key, enabled, onStep,
+    prepareReset: () => layout.select(view, width)});
   const animation = useMemo(() => createRootSwipeAnimation(motion.translateX, width, previousIsTab, nextIsTab), [motion.translateX, width]);
+  useImperativeHandle(ref, () => ({prepare(nextView) {
+    motion.translation.stopAnimation();
+    animationBatch(() => {
+      layout.select(nextView, width);
+      motion.translation.setValue(0);
+    });
+    // This runs before notifying React: its next native props must contain the
+    // destination coordinates, never stale values from before a layout effect.
+  }}), [layout, width, motion.translation]);
+  const positions = useMemo(() => {
+    // The zero edge keeps visibility attached to the same native-driven graph.
+    const zero = Animated.multiply(motion.translateX, 0);
+    return Object.fromEntries(rootPages.map(item => {
+      const slot = layout.slots[item.key];
+      return [item.key, {page: Animated.add(slot.page, animation.pageX), body: Animated.add(slot.body, animation.bodyX),
+        visible: Animated.add(slot.visible, zero), header: Animated.add(slot.header, zero)}];
+    })) as Record<RootPageKey, {page: Animated.AnimatedAddition<number>; body: Animated.AnimatedAddition<number>;
+      visible: Animated.AnimatedAddition<number>; header: Animated.AnimatedAddition<number>}>;
+  }, [layout, animation, motion.translateX]);
   useLayoutEffect(() => {animation.setTabDirections(previousIsTab, nextIsTab);}, [animation, previousIsTab, nextIsTab]);
   const start = useCallback(() => {
     const hidden = headers.get(key)?.readHidden();
@@ -41,40 +68,37 @@ export function TabPages({view, pages, width, enabled, onStep}: {
     {rootPages.map(item => {
       const active = item.key === key;
       const neighbor = !active && (item.key === previous || item.key === next);
-      const filterNeighbor = neighbor && item.tab === view.tab;
       const visible = active || (neighbor && (Platform.OS !== 'web' || motion.moving));
-      const adjacentOffset = item.key === previous ? -width : width;
-      const offset = active || filterNeighbor ? 0 : adjacentOffset;
-      return <PageLayer key={item.key} offset={offset} translation={animation.pageX}
+      const position = positions[item.key];
+      return <PageLayer key={item.key} translation={position.page} opacity={position.visible}
         testID={item.key === rootPageKey(view, item.tab) ? `ui-page-${item.tab}` : `ui-prepared-${item.key}`}
         active={active} visible={visible} interactive={active && !motion.settling}>
-        <BodyPageContext.Provider value={{key: item.key, offset: filterNeighbor ? adjacentOffset : 0,
+        <BodyPageContext.Provider value={{key: item.key, translateX: position.body, headerOpacity: position.header,
           headerVisible: active || item.tab !== view.tab}}>{pages[item.key]}</BodyPageContext.Provider>
       </PageLayer>;
     })}
   </View></BodyMotionContext.Provider></SwipeContext.Provider>;
 }
 
-/** React commits the page slot; the native graph only owns gesture travel. */
-function PageLayer({offset, translation, active, visible, interactive, testID, children}: {
-  offset: number; translation: Animated.AnimatedAddition<number>; active: boolean; visible: boolean;
+/** React owns interaction; the stable native graph owns all painted geometry. */
+function PageLayer({translation, opacity, active, visible, interactive, testID, children}: {
+  translation: Animated.AnimatedAddition<number>; opacity: Animated.AnimatedAddition<number>; active: boolean; visible: boolean;
   interactive: boolean; testID: string; children: ReactNode;
 }) {
-  // React alone owns visibility and interaction. A native animation cleanup
-  // must never restore another tab's old opacity or accessibility properties.
+  const styles = useStyles();
   return <View testID={testID} aria-hidden={!active} {...(Platform.OS === 'web' ? {inert: !active} : {})}
     accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
     pointerEvents={interactive ? 'auto' : 'none'}
-    style={[styles.slot, {left: offset, right: -offset, opacity: visible ? 1 : 0, zIndex: active ? 1 : 0},
+    style={[styles.slot, {zIndex: active ? 1 : 0},
       Platform.OS === 'web' && !visible && styles.hidden]}>
-    <Animated.View style={[styles.page, {transform: [{translateX: translation}]}]}>{children}</Animated.View>
+    <Animated.View style={[styles.page, {opacity, transform: [{translateX: translation}]}]}>{children}</Animated.View>
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   frame: {flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.background},
   // The moving page must be able to leave its offscreen slot during a swipe.
   slot: {...StyleSheet.absoluteFillObject, overflow: 'visible'},
   page: {...StyleSheet.absoluteFillObject, overflow: 'hidden'},
   hidden: {display: 'none'},
-});
+}));

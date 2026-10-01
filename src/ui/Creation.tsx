@@ -1,5 +1,6 @@
+import {themedStyles} from './Theme';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
-import {Animated, AppState, type FlatList, StyleSheet, Text, View} from 'react-native';
+import {Animated, AppState, type FlatList, Text, View} from 'react-native';
 import {ContentRow} from './ContentRow';
 import {FilterChips} from './FilterChips';
 import {creationFilters, type CreationFilter} from './creationPreview';
@@ -7,7 +8,7 @@ import {filteredWorkCards, type WorkCard} from './cardWorkspace';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ScrollFrame} from './ScrollFrame';
 import {SearchField} from './SearchField';
-import {colors, filterChipsHeight, navigation} from './tokens';
+import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import type {ScreenMemory} from './ScreenMemory';
 
@@ -26,6 +27,7 @@ export function Creation({cards, width, scale, header, searchOpen, query, onQuer
   onFilterChange: (filter: CreationFilter) => void;
   selected?: boolean;
 }) {
+  const styles = useStyles();
   const restoringSearch = useRef(true);
   useEffect(() => {restoringSearch.current = false;}, []);
   const [now, setNow] = useState(Date.now);
@@ -66,9 +68,9 @@ export function Creation({cards, width, scale, header, searchOpen, query, onQuer
   </ScrollFrame>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   list: {flex: 1, backgroundColor: colors.background},
   empty: {alignItems: 'center', paddingHorizontal: 24, paddingVertical: 64},
   emptyTitle: {fontSize: 17, fontWeight: '600', color: colors.foreground},
   emptyHint: {marginTop: 8, fontSize: 14, color: colors.secondaryForeground},
-});
+}));

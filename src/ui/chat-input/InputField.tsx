@@ -1,11 +1,12 @@
+import {usePalette} from '../Theme';
 import {useMemo} from 'react';
 import {Text, TextInput, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import type {InputFieldProps} from './InputField.types';
-import {colors} from '../tokens';
 
 /** One native editor owns focus, selection and internal scrolling for its lifetime. */
 export function InputField(p: InputFieldProps) {
+  const colors = usePalette();
   const gesture = useMemo(() => Gesture.Native().shouldActivateOnStart(true).shouldCancelWhenOutside(false)
     .withRef(p.blocker as unknown as Parameters<ReturnType<typeof Gesture.Native>['withRef']>[0]), [p.blocker]);
   const typography = {fontSize: p.metrics.fontSize, lineHeight: p.metrics.lineHeight, includeFontPadding: false};

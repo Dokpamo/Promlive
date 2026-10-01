@@ -7,6 +7,7 @@ import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {createScreenStorage} from '../src/ui/screenStorage.web';
 
+vi.mock('../src/app/runtime', () => ({initialize: () => new Promise(() => {})}));
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 
@@ -51,6 +52,11 @@ async function clickControl(id: string, settle = true) {
   }
 }
 async function enterText(id: string, value: string) {
+  if (id.startsWith('ui-card-editor-')) {
+    const field = id.replace('ui-card-editor-', '');
+    const group = ['summary', 'introduction', 'guide'].includes(field) ? 'story' : 'basic';
+    await clickControl(`ui-editor-filter-${group}`);
+  }
   const element = query(`[data-testid="${id}"]`) as HTMLInputElement | HTMLTextAreaElement;
   const prototype = element.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   await act(async () => {
@@ -184,7 +190,7 @@ it('keeps both bars fixed while adjacent filter bodies travel together without a
   const bar = query('[data-testid="ui-tab-bar"]') as HTMLElement;
   const headerPosition = header.style.transform, barPosition = bar.style.transform;
   const release = await beginDrag('ui-library-swipe', 350, 60);
-  // Visibility belongs to the static wrapper; only its inner layer can move.
+  // Interaction belongs to React; the stable inner native graph owns geometry.
   expect(page.style.transform).toBe('');
   expect((page.firstElementChild as HTMLElement).style.transform).toBe('translateX(0px)');
   expect(header.style.transform).toBe(headerPosition);
@@ -194,10 +200,9 @@ it('keeps both bars fixed while adjacent filter bodies travel together without a
   const prepared = document.querySelector('[data-testid="ui-prepared-library:recent"]') as HTMLElement;
   const incomingBody = prepared.querySelector('[data-testid="ui-library-moving-body"]') as HTMLElement;
   expect(getComputedStyle(prepared).display).not.toBe('none');
-  expect(prepared.style.opacity).toBe('1');
+  expect((prepared.firstElementChild as HTMLElement).style.opacity).toBe('1');
   expect((prepared.querySelector('[data-testid="ui-library-header-visibility"]') as HTMLElement).style.opacity).toBe('0');
-  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1])
-    + parseFloat(element.parentElement!.style.left);
+  const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
   expect(x(incomingBody) - x(body)).toBeCloseTo(412);
   expect(x(incomingBody)).toBeGreaterThan(0);
   expect(x(incomingBody)).toBeLessThan(412);
@@ -319,7 +324,7 @@ it('swipes the body through filters before tabs and returns from details without
   expect(memory.getSnapshot().view.detailCardId).toBeNull();
 }, 10000);
 
-it('shows all four new root screens while leaving legacy actions disconnected', async () => {
+it('shows the four root screens with settings actions connected to new detail pages', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App/>));
   expect([...queryAll('[role="tab"]')].map(tab => tab.getAttribute('aria-label'))).toEqual(['서재', '채팅', '생성', '설정']);
@@ -350,17 +355,17 @@ it('shows all four new root screens while leaving legacy actions disconnected', 
       expect(page.querySelector('[data-testid="ui-settings-user"]')?.textContent).toBe('사용자이름과 프로필 이미지');
       expect([...page.querySelectorAll('[data-testid^="ui-settings-row-"]')].map(row => row.textContent))
         .toEqual(['AI', '페르소나', '프롬프트', '테마', '언어', '플러그인', '정보']);
-      expect(page.querySelector('[data-testid="ui-settings-list"]')?.querySelectorAll('[role="button"], input, textarea')).toHaveLength(0);
+      expect(page.querySelector('[data-testid="ui-settings-list"]')?.querySelectorAll('[role="button"], input, textarea')).toHaveLength(8);
       expect(page.textContent).not.toMatch(/버전|Meta|팔로우/);
       expect(query('[data-testid="ui-library-search-button"]')).toBeNull();
     }
     const action = query('[data-testid="ui-header-action"]') as HTMLElement;
-    if (id === 'create') expect(action.getAttribute('aria-disabled')).not.toBe('true');
+    if (id === 'create' || id === 'settings') expect(action.getAttribute('aria-disabled')).not.toBe('true');
     else expect(action.getAttribute('aria-disabled')).toBe('true');
-    if (id !== 'create') await act(async () => action.click());
+    if (id !== 'create' && id !== 'settings') await act(async () => action.click());
     expect(query(`[data-testid="ui-page-${id}"]`)).toBe(page);
     expect(queryAll('input, textarea, [role="dialog"]')).toHaveLength(0);
-    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 17 : id === 'chats' ? 14 : 1);
+    if (id !== 'create') expect(queryAll('[role="button"]')).toHaveLength(id === 'library' ? 17 : id === 'chats' ? 14 : 9);
     expect(queryAll('[data-testid^="ui-page-"]')).toHaveLength(1);
   }
 });
@@ -426,11 +431,9 @@ it('keeps adjacent tab headers a screen apart through refreshes and interrupted 
   const creation = document.querySelector('[data-testid="ui-page-create"]') as HTMLElement;
   const settings = document.querySelector('[data-testid="ui-page-settings"]') as HTMLElement;
   const assertSeparate = (active: 'create' | 'settings') => {
-    // Native animation cleanup can reset travel, but cannot erase these React-owned slots.
-    expect(parseFloat(settings.style.left) - parseFloat(creation.style.left)).toBe(412);
-    expect((active === 'create' ? creation : settings).style.left).toBe('0px');
-    expect((creation.firstElementChild as HTMLElement).style.transform)
-      .toBe((settings.firstElementChild as HTMLElement).style.transform);
+    const x = (page: HTMLElement) => Number((page.firstElementChild as HTMLElement).style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
+    // Slots and finger travel share one native batch, even before React commits selection.
+    expect(x(settings) - x(creation)).toBe(412);
     expect(getComputedStyle(creation).overflowX).toBe('visible');
     expect(queryAll('[data-testid="ui-title"]').map(title => title.textContent))
       .toEqual([active === 'create' ? '생성' : '설정']);
@@ -554,6 +557,7 @@ it('opens a saved editor on the first render after restart and restores each tab
   const reopened = new ScreenMemory(disk);
   await act(async () => root!.render(<App memory={reopened}/>));
   expect(query('[data-testid="ui-card-editor"]')).not.toBeNull();
+  await clickControl('ui-editor-filter-story');
   expect((query('[data-testid="ui-card-editor-summary"]') as HTMLTextAreaElement).value).toBe('앱을 꺼도 남아야 하는 내용');
   expect(document.activeElement?.tagName).not.toMatch(/INPUT|TEXTAREA/);
   await clickControl('ui-card-editor-back');
@@ -659,6 +663,7 @@ it('groups external cards for editing while preserving their published versions 
   await clickControl('ui-tab-create');
   await clickControl('ui-create-filter-external');
   await clickControl('ui-creation-row-night-library');
+  await clickControl('ui-editor-filter-story');
   expect((query('[data-testid="ui-card-editor-introduction"]') as HTMLTextAreaElement).value).toBe('새로운 시작 장면');
   await clickControl('ui-card-editor-complete');
   await clickControl('ui-tab-library');
@@ -682,11 +687,13 @@ it('starts new drafts from the plus button and requires the public sections befo
   await clickControl('ui-create-filter-mine');
   const newRow = query('[data-testid^="ui-creation-row-created-"]') as HTMLElement;
   await act(async () => newRow.click());
+  await clickControl('ui-editor-filter-story');
   expect((query('[data-testid="ui-card-editor-summary"]') as HTMLTextAreaElement).value).toBe('작성한 소개');
   await clickControl('ui-card-editor-complete');
   expect(query('[role="alert"]')?.textContent).toContain('갤러리');
   await enterText('ui-card-editor-introduction', '새로운 시작 장면');
   await enterText('ui-card-editor-tags', '일상, 판타지');
+  await clickControl('ui-editor-filter-images');
   await clickControl('ui-card-editor-photo-0');
   await clickControl('ui-card-editor-complete');
   await clickControl('ui-tab-library');

@@ -133,3 +133,21 @@ Android 실행 화면에서 생성과 설정의 제목이 같은 좌표에 동�
 - TypeScript와 웹 빌드, 관련 5개 파일의 41개 테스트 통과. 네이티브 드라이버의 실제 화면은 에뮬레이터 캡처로 별도 확인했다. 웹의 기존 큰 번들 경고는 유지된다.
 
 수정 전 자료: `/tmp/promlive-overlap-initial.png`, `/tmp/promlive-overlap-initial.xml`. 수정 후 자료: `/tmp/promlive-layout-qa/`의 XML과 `settings-final.png`, `filter-midpoint.png`, `tab-midpoint.png`.
+
+## 알약 도착 시 이전 목록이 다시 보이는 프레임 — 2026-10-01
+
+위의 정적 `left/right` 방식은 제목 겹침을 줄였지만 전환 완료 시점을 해결하지 못했다. Android 생성의 전체 → 작업 중을 연속 녹화하니, 작업 중 목록이 도착한 다음 전체 목록이 한 프레임 다시 나타났다. 네이티브 이동 값을 0으로 돌리는 작업과 React의 다음 페이지 배치가 서로 다른 프레임에 반영됐다. 중간 지점 스크린샷만으로는 발견하지 못했던 문제다.
+
+현재는 `rootPageLayout`이 탭 위치, 본문 위치, 표시 여부를 연결이 유지되는 네이티브 값으로 관리한다. 목적지 배치와 이동 값 초기화를 하나의 Animated 작업 묶음으로 보낸다. 또한 `App.navigateRoot`가 선택 상태를 구독자에게 알리기 **전에** `RootPageHandle.prepare`로 위치를 확정한다. 레이아웃 효과에서만 바꾸면 React가 이전 좌표를 네이티브 속성에 다시 기록할 수 있어, 직접 알약을 눌렀을 때 선택과 목록이 어긋나는 경우까지 확인하고 함께 막았다. 로딩 화면이나 페이드로 전환을 가리지 않는다.
+
+React는 접근성·터치·선택 표시를 관리하고, 네이티브 그래프는 그려지는 위치·표시 여부를 관리한다. 목록과 그래프는 계속 유지한다. 네이티브 묶음 처리는 설치된 RN 0.81의 `NativeAnimatedHelper.API`를 작은 Android/iOS 전용 어댑터로 격리했다. RN 업그레이드 시 이 내부 API와 실제 전환 녹화를 재검증해야 한다. 웹·데스크톱은 동기 값 갱신을 사용한다.
+
+검증:
+
+- Android 수정 전 `before.mp4`에서 이전 목록의 재등장을 확인했고, 최종 `final.mp4`의 전체 → 작업 중 → 완성 → 작업 중에서는 도착 전후 목적지 본문이 이어졌다. 알약 상단과 하단 탭바의 위치는 그대로다.
+- 생성의 전체·작업 중·완성·내 카드·외부 카드를 직접 반복 선택해 선택 상태와 실제 행을 대조했다. 내 카드에는 세 작업 중 카드, 외부 카드에는 가져온 카드가 표시된다. 생성↔설정 이동 및 짧은 밀기 취소도 확인했다.
+- 서재의 상단을 실제로 접은 뒤 알약을 이동했다. 네이티브 상단 경계가 전후 모두 `[0,63][1080,63]`으로 유지됐다. 캡처는 `collapse-proof-hidden.xml`, `collapse-proof-after.xml`이다.
+- iOS 26.5 / iPhone 17 Pro Compare 빌드·실행, 생성·설정 선택과 내 카드 직접 선택, 내 카드↔외부 카드 본문 스와이프 후 올바른 행을 확인했다. 녹화 도구가 파일 반환에 실패해 이번 iOS 전환의 연속 프레임 검증은 완료하지 못했다.
+- 기존 관련 41개 테스트와 추가 도착 프레임 회귀 테스트 1개, TypeScript, 웹 빌드 통과. 새 테스트는 React의 선택 반영을 지연시킨 상태에서도 처음 연결된 목적지 본문이 0 위치에 남는지 양방향과 비인접 알약 선택에서 확인한다. Android 현재 프로세스 오류 로그는 없다. 기존 웹 번들 크기 경고는 남아 있다.
+
+자료: `/tmp/promlive-flicker/`의 `before.mp4`, `final.mp4`, `final-handoff-0.jpg`~`final-handoff-2.jpg`; `/tmp/promlive-layout-qa/`의 `prepared-*.xml`, `prepared-final.png`, `final-settings.png`, `collapse-proof-*`.

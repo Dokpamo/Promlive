@@ -1,8 +1,9 @@
+import {usePalette} from '../Theme';
 import {useLayoutEffect, useRef} from 'react';
 import type {InputFieldProps} from './InputField.types';
-import {colors} from '../tokens';
 
 export function InputField(p: InputFieldProps) {
+  const colors = usePalette();
   const measurement = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     if (measurement.current) p.onMeasure(measurement.current.scrollHeight);
