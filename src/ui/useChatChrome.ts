@@ -1,24 +1,50 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Easing, Platform} from 'react-native';
 import {useReducedMotion} from './useReducedMotion';
 
-export function isConversationEnd(offset: number, content: number, viewport: number) {
-  return content - viewport - offset <= 3;
-}
 export function isBodyTap(start: {x: number; y: number; at: number}, x: number, y: number, at: number) {
   return at - start.at < 280 && Math.hypot(x - start.x, y - start.y) < 8;
 }
 
-export function useChatChrome(onTap: () => void) {
-  const [hidden, setHidden] = useState(false), [atEnd, setAtEnd] = useState(true);
-  const header = useRef(new Animated.Value(1)).current;
+export function composerScrollOffset(offset: number, content: number, viewport: number, height: number) {
+  if (content <= viewport) return 0;
+  return Math.max(0, Math.min(height, content - viewport - offset));
+}
+
+export function useChatChrome(onTap: () => void, composerHeight: number, headerHeight: number, initialOffset = 0) {
+  const [hidden, setHidden] = useState(false), [offscreen, setOffscreen] = useState(false);
+  const [headerOffscreen, setHeaderOffscreen] = useState(initialOffset >= headerHeight - 1);
+  const controls = useRef(new Animated.Value(1)).current;
+  const scrollY = useRef(new Animated.Value(initialOffset)).current;
+  const endOffset = useRef(new Animated.Value(0)).current;
+  const lastEnd = useRef(0);
+  const hideProgress = useMemo(() => {
+    // Both controls stay visible in a short conversation, including rubber-band scrolling.
+    const scrollable = endOffset.interpolate({inputRange: [0, 0.01], outputRange: [0, 1], extrapolate: 'clamp'});
+    return Animated.multiply(Animated.subtract(1, controls), scrollable);
+  }, [controls, endOffset]);
+  const header = useMemo(() => {
+    const fromTop = scrollY.interpolate({inputRange: [0, headerHeight], outputRange: [0, 1], extrapolate: 'clamp'});
+    return Animated.subtract(1, Animated.multiply(hideProgress, fromTop));
+  }, [hideProgress, scrollY, headerHeight]);
+  const composerTranslateY = useMemo(() => {
+    const distance = Animated.subtract(endOffset, scrollY).interpolate({inputRange: [0, composerHeight],
+      outputRange: [0, composerHeight], extrapolate: 'clamp'});
+    return Animated.multiply(hideProgress, distance);
+  }, [hideProgress, endOffset, scrollY, composerHeight]);
+  const updateGeometry = useCallback((offset: number, content: number, viewport: number) => {
+    const end = Math.max(0, content - viewport);
+    if (lastEnd.current !== end) {lastEnd.current = end; endOffset.setValue(end);}
+    setHeaderOffscreen(end > 0 && offset >= headerHeight - 1);
+    setOffscreen(composerScrollOffset(offset, content, viewport, composerHeight) >= composerHeight - 1);
+  }, [composerHeight, headerHeight, endOffset]);
   const reduced = useReducedMotion();
   const touch = useRef<{x: number; y: number; at: number} | null>(null);
   useEffect(() => {
-    const motion = Animated.timing(header, {toValue: hidden ? 0 : 1, duration: reduced ? 0 : 180,
-      easing: Easing.out(Easing.cubic), useNativeDriver: false});
+    const motion = Animated.timing(controls, {toValue: hidden ? 0 : 1, duration: reduced ? 0 : 180,
+      easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== 'web'});
     motion.start(); return () => motion.stop();
-  }, [header, hidden, reduced]);
+  }, [controls, hidden, reduced]);
   const begin = (x: number, y: number) => {touch.current = {x, y, at: Date.now()};};
   const cancel = () => {touch.current = null;};
   const move = (x: number, y: number) => {if (touch.current && Math.hypot(x - touch.current.x, y - touch.current.y) >= 8) cancel();};
@@ -26,7 +52,7 @@ export function useChatChrome(onTap: () => void) {
     const start = touch.current; touch.current = null;
     if (start && isBodyTap(start, x, y, Date.now())) {onTap(); setHidden(value => !value);}
   };
-  return {hidden, atEnd, setAtEnd, header, composerHidden: hidden && !atEnd, cancel,
+  return {hidden, header, headerHidden: hidden && headerOffscreen, scrollY, updateGeometry, composerTranslateY, composerHidden: hidden && offscreen, cancel,
     touchHandlers: Platform.OS === 'web' ? {
       onPointerDown: (e: {nativeEvent: {pageX: number; pageY: number}}) => begin(e.nativeEvent.pageX, e.nativeEvent.pageY),
       onPointerUp: (e: {nativeEvent: {pageX: number; pageY: number}}) => end(e.nativeEvent.pageX, e.nativeEvent.pageY),

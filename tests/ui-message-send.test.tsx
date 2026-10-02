@@ -5,7 +5,7 @@ import {AccessibilityInfo, Animated, type ScrollView} from 'react-native';
 import {afterEach, expect, it, vi} from 'vitest';
 import {messageSendLayout, messageSendProgress, messageSendSqueeze} from '../src/ui/messageSendMotion';
 import {useMessageSendMotion} from '../src/ui/useMessageSendMotion';
-import {isBodyTap, isConversationEnd, useChatChrome} from '../src/ui/useChatChrome';
+import {isBodyTap, composerScrollOffset, useChatChrome} from '../src/ui/useChatChrome';
 import {KeyboardViewport} from '../src/ui/chat-input/keyboardViewport';
 
 vi.mock('react-native', async () => {
@@ -42,7 +42,7 @@ it('uses current body height at the end even if native scroll events still carry
   expect(viewport.read()).toBe(480);
   viewport.layout(864); expect(viewport.read()).toBe(544); // header collapsed
   viewport.dock(0); expect(viewport.read()).toBe(864);
-  expect(isConversationEnd(500, 1364, viewport.read())).toBe(true);
+  expect(composerScrollOffset(500, 1364, viewport.read(), 140)).toBe(0);
   unsubscribe(); viewport.layout(800);
   expect(changed).toHaveBeenLastCalledWith(864);
 });
@@ -117,25 +117,70 @@ it('reveals the real message if layout never arrives, the viewport changes, or m
   expect(reduced.motion.flight).toBeNull();
 });
 
-it('hides both controls in history, keeps the composer at the end, and restores both on a second tap', async () => {
+it('reveals each control at its conversation edge without leaving hidden mode or starting another timed animation', async () => {
+  const timing = vi.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+    start: callback => {(value as Animated.Value).setValue(config.toValue as number); callback?.({finished: true});},
+    stop() {}, reset() {},
+  }));
   let chrome!: ReturnType<typeof useChatChrome>;
   const tap = vi.fn();
-  function Harness() {chrome = useChatChrome(tap); return null;}
+  function Harness() {
+    chrome = useChatChrome(tap, 140, 64);
+    return <><Animated.View testID="header" pointerEvents={chrome.headerHidden ? 'none' : 'auto'} style={{opacity: chrome.header}}/>
+      <Animated.View testID="composer" style={{transform: [{translateY: chrome.composerTranslateY}]}}/></>;
+  }
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<Harness/>));
   const bodyTap = () => {
     const e = {nativeEvent: {pageX: 150, pageY: 200}};
     chrome.touchHandlers.onPointerDown!(e); chrome.touchHandlers.onPointerUp!(e);
   };
-  await act(async () => {chrome.setAtEnd(false); bodyTap();});
+  const position = (offset: number) => act(async () => {chrome.scrollY.setValue(offset); chrome.updateGeometry(offset, 1000, 600);});
+  await position(200);
+  await act(async () => bodyTap());
   expect(chrome.hidden).toBe(true); expect(chrome.composerHidden).toBe(true);
-  await act(async () => chrome.setAtEnd(true));
+  const bar = document.querySelector<HTMLElement>('[data-testid="composer"]')!;
+  const header = document.querySelector<HTMLElement>('[data-testid="header"]')!;
+  const animations = timing.mock.calls.length;
+  expect(bar.style.transform).toContain('translateY(140px)');
+  for (const offset of [280, 320, 370, 400, 420]) {
+    await position(offset);
+    expect(bar.style.transform).toContain(`translateY(${Math.max(0, 400 - offset)}px)`);
+    expect(chrome.hidden).toBe(true);
+    expect(chrome.composerHidden).toBe(false);
+    expect(chrome.headerHidden).toBe(true);
+    expect(Number(header.style.opacity)).toBe(0);
+  }
+  await position(320);
+  expect(bar.style.transform).toContain('translateY(80px)'); // reverse scroll follows the same position
   expect(chrome.hidden).toBe(true); expect(chrome.composerHidden).toBe(false);
+  for (const offset of [64, 48, 32, 16, 0, -20, 0, 32, 64, 200]) {
+    await position(offset);
+    expect(Number(header.style.opacity)).toBeCloseTo(1 - Math.max(0, Math.min(64, offset)) / 64);
+    expect(chrome.headerHidden).toBe(offset >= 63);
+    expect(chrome.hidden).toBe(true);
+    expect(chrome.composerHidden).toBe(true);
+    expect(bar.style.transform).toContain('translateY(140px)');
+  }
+  expect(timing).toHaveBeenCalledTimes(animations);
   await act(async () => bodyTap());
   expect(chrome.hidden).toBe(false); expect(chrome.composerHidden).toBe(false);
+  expect(chrome.headerHidden).toBe(false);
+  expect(Number(header.style.opacity)).toBe(1);
+  expect(bar.style.transform).toContain('translateY(0px)');
   expect(tap).toHaveBeenCalledTimes(2);
-  expect(isConversationEnd(397, 1000, 600)).toBe(true);
-  expect(isConversationEnd(390, 1000, 600)).toBe(false);
+  expect(composerScrollOffset(397, 1000, 600, 140)).toBe(3);
+  expect(composerScrollOffset(0, 300, 600, 140)).toBe(0); // short conversation
+  await act(async () => {chrome.scrollY.setValue(-40); chrome.updateGeometry(-40, 580, 600); bodyTap();});
+  expect(chrome.hidden).toBe(true);
+  expect(chrome.composerHidden).toBe(false);
+  expect(chrome.headerHidden).toBe(false);
+  expect(Number(header.style.opacity)).toBe(1);
+  expect(bar.style.transform).toContain('translateY(0px)'); // short conversation rubber-band
+  await act(async () => {chrome.scrollY.setValue(40); chrome.updateGeometry(40, 580, 600);});
+  expect(Number(header.style.opacity)).toBe(1);
+  expect(chrome.headerHidden).toBe(false);
+  expect(bar.style.transform).toContain('translateY(0px)');
   const start = {x: 10, y: 20, at: 0};
   expect(isBodyTap(start, 10, 20, 500)).toBe(false); // text selection
   expect(isBodyTap(start, 10, 90, 120)).toBe(false); // scroll

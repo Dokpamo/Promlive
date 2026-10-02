@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import {act, useLayoutEffect, type ReactNode} from 'react';
+import {act, useLayoutEffect, type ComponentProps, type ReactNode} from 'react';
+import {Animated} from 'react-native';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {ChatInput} from '../src/ui/chat-input/ChatInput';
@@ -17,7 +18,7 @@ vi.mock('../src/ui/chat-input/KeyboardDock', () => ({ChatKeyboardDock: ({childre
 vi.mock('../src/ui/chat-input/InputField', () => ({InputField: (p: InputFieldProps) => {
   measured.props = p;
   useLayoutEffect(() => p.onMeasure(measured.height), [p.onMeasure, p.value, measured.height]);
-  return <textarea data-testid="ui-chat-input" value={p.value} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus}/>;
+  return <textarea data-testid="ui-chat-input" value={p.value} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}/>;
 }}));
 vi.mock('../src/ui/PreviewArtwork', () => ({PreviewArtwork: () => <span>첨부 미리보기</span>}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,10 +26,10 @@ let root: Root | undefined;
 const send = vi.fn(), attach = vi.fn(), removeImage = vi.fn(), focus = vi.fn(), change = vi.fn();
 const blocker = {current: null};
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`[data-testid="${id}"]`)!;
-async function render(value = '', image: GalleryImage | null = null) {
+async function render(value = '', image: GalleryImage | null = null, extra: Partial<ComponentProps<typeof ChatInput>> = {}) {
   if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
   await act(async () => root!.render(<ChatInput value={value} image={image} blocker={blocker} onChange={change} onSend={send}
-    onAttach={attach} onRemoveImage={removeImage} onFocus={focus} onHeight={() => {}}/>));
+    onAttach={attach} onRemoveImage={removeImage} onFocus={focus} onHeight={() => {}} {...extra}/>));
 }
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
@@ -36,17 +37,20 @@ afterEach(async () => {
 });
 
 it('starts with text above both controls and keeps the same layout when focused or blurred', async () => {
-  await render();
+  await render('', null, {translateY: Animated.multiply(new Animated.Value(1), new Animated.Value(60))});
   const bar = element('ui-chat-composer'), input = element<HTMLTextAreaElement>('ui-chat-input');
   const initial = bar.style.cssText;
   expect(parseFloat(bar.style.height)).toBe(106);
   expect(parseFloat(element('ui-chat-input-area').style.top)).toBe(14);
   expect(element('ui-chat-send').getAttribute('aria-disabled')).toBe('true');
+  expect(element('ui-chat-composer-visibility').style.transform).toContain('translateY(60px)');
   await act(async () => {input.focus();});
   expect(focus).toHaveBeenCalledOnce();
   expect(bar.style.cssText).toBe(initial);
+  expect(element('ui-chat-composer-visibility').style.transform).toContain('translateY(0px)');
   await act(async () => input.blur());
   expect(bar.style.cssText).toBe(initial);
+  expect(element('ui-chat-composer-visibility').style.transform).toContain('translateY(60px)');
   expect(document.querySelector('[data-testid="ui-composer-expand"]')).toBeNull();
   expect(document.querySelector('[data-testid="ui-expanded-composer"]')).toBeNull();
 });

@@ -15,7 +15,7 @@ export function InputField(p: InputFieldProps) {
   return <>
     <textarea ref={measurement} tabIndex={-1} aria-hidden readOnly value={p.value + '\u200b'} rows={1}
       style={{...style, position: 'absolute', pointerEvents: 'none', opacity: 0, width: p.measurementWidth, height: 0, overflow: 'hidden'}}/>
-    <textarea data-testid="ui-chat-input" aria-label="메시지" value={p.value} onChange={event => p.onChange(event.target.value)} onFocus={p.onFocus}
+    <textarea data-testid="ui-chat-input" aria-label="메시지" value={p.value} onChange={event => p.onChange(event.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}
       placeholder="메시지 보내기…" rows={1} maxLength={p.metrics.maxLength}
       style={{...style, display: 'block', width: '100%', height: '100%', outlineOffset: 3, overflowY: p.scrollable ? 'auto' : 'hidden'}}/>
   </>;
