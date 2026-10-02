@@ -398,6 +398,46 @@ it('switches on press down and keeps inactive pages ready without exposing their
   expect(query('[data-testid="ui-library-filter-recent"]')?.getAttribute('aria-pressed')).toBe('true');
 });
 
+it('slides directly to a distant pressed tab while the tab bar stays fixed and skips intermediate pages', async () => {
+  const animations: {value: Animated.Value; to: number; complete: () => void}[] = [];
+  vi.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
+    start: callback => animations.push({value: value as Animated.Value, to: config.toValue as number, complete: () => callback?.({finished: true})}),
+    stop() {}, reset() {},
+  }));
+  const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
+  await act(async () => root!.render(<App/>));
+  const home = document.querySelector('[data-testid="ui-page-library"]') as HTMLElement;
+  const settings = document.querySelector('[data-testid="ui-page-settings"]') as HTMLElement;
+  const bar = query('[data-testid="ui-tab-bar"]') as HTMLElement;
+  const x = (page: HTMLElement) => Number((page.firstElementChild as HTMLElement).style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
+  const settingsTab = query('[data-testid="ui-tab-settings"]') as HTMLElement;
+  await act(async () => settingsTab.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0})));
+  expect(settingsTab.getAttribute('aria-selected')).toBe('true');
+  expect(x(home)).toBe(0); expect(x(settings)).toBe(412);
+  expect(getComputedStyle(home).display).not.toBe('none');
+  for (const tab of ['chats', 'create']) {
+    expect(getComputedStyle(document.querySelector(`[data-testid="ui-page-${tab}"]`)!).display).toBe('none');
+  }
+  expect(animations).toHaveLength(2);
+  await act(async () => {
+    settingsTab.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0})); settingsTab.click();
+  });
+  expect(animations).toHaveLength(2); // Release/accessibility fallback must not restart the move.
+  await act(async () => {animations[0]!.value.setValue(-150); animations[1]!.value.setValue(262);});
+  expect(x(settings) - x(home)).toBe(412);
+  expect(query('[data-testid="ui-tab-bar"]')).toBe(bar);
+  expect(bar.style.transform).toBe('');
+  expect(queryAll('[data-testid="ui-title"]').map(title => title.textContent)).toEqual(['설정']);
+  await act(async () => animations.forEach(animation => {animation.value.setValue(animation.to); animation.complete();}));
+  expect(x(settings)).toBe(0);
+  expect(getComputedStyle(home).display).toBe('none');
+  await clickControl('ui-tab-library');
+  expect(x(home)).toBe(-412); expect(x(settings)).toBe(0);
+  await act(async () => animations.slice(-2).forEach(animation => {animation.value.setValue(animation.to); animation.complete();}));
+  expect(x(home)).toBe(0);
+  expect(query('[data-testid="ui-title"]')?.textContent).toBe('서재');
+});
+
 it('keeps creation visible when a settings swipe finishes after a newer tab selection', async () => {
   const memory = new ScreenMemory(createScreenStorage());
   memory.updateView(view => ({...view, tab: 'create', creationFilter: 'external'}));

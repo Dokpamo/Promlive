@@ -7,7 +7,7 @@ import type {GalleryImage} from '../cardDetails';
 import {Icon, type IconName} from '../Icon';
 import {PreviewArtwork} from '../PreviewArtwork';
 import {InputField} from './InputField';
-import {ChatKeyboardDock} from './KeyboardDock';
+import {ChatKeyboardDock} from './KeyboardDock'; // Native dock owns keyboard motion on both mobile platforms.
 import {inputLayout, inputMetrics, type InputMetrics} from './geometry';
 
 type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRef;

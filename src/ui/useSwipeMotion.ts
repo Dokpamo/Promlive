@@ -68,6 +68,11 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
     return () => {revision.current++; gestureRevision.current = null; translation.stopAnimation();};
   }, [identity, width, enabled, dismiss, translation]);
   const onStart = useCallback(() => {gestureRevision.current = revision.current; setMoving(true); Keyboard.dismiss();}, []);
+  const cancel = useCallback(() => {
+    revision.current++; gestureRevision.current = null;
+    translation.stopAnimation(); translation.setValue(0);
+    setMoving(false); setSettling(false);
+  }, [translation]);
   const onRelease = useCallback((x: number, velocity: number, cancelled: boolean) => {
     // A tab/filter press can replace this page before the native finger-up arrives.
     // That old gesture must not start a new transition on the newly selected page.
@@ -92,6 +97,6 @@ export function useSwipeMotion({identity, width, previous, next, enabled = true,
   }, [translation, release]);
   const travel = useMemo(() => createSwipeTranslation(translation, width, previous, next), [translation, width]);
   useLayoutEffect(() => {travel.setDirections(previous, next);}, [travel, previous, next]);
-  return {translation, translateX: travel.translateX, moving, settling,
+  return {translation, translateX: travel.translateX, moving, settling, cancel, reduceMotion,
     enabled: enabled && !dismiss && !settling && (previous || next), onStart, onRelease};
 }

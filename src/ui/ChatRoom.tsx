@@ -1,6 +1,6 @@
 import {usePalette, themedStyles} from './Theme';
 import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, Keyboard, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {BackHandler, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ChatRow} from './screenState';
 import type {ScreenMemory} from './ScreenMemory';
@@ -10,7 +10,7 @@ import type {GestureBlockRef} from './HorizontalGesture.types';
 import {SwipeBack} from './SwipeBack';
 import {NavigationButton} from './Navigation';
 import {ChatInput} from './chat-input/ChatInput';
-import {ChatKeyboardProvider, dismissChatKeyboard, useChatKeyboard} from './chat-input/KeyboardDock';
+import {ChatKeyboardProvider, ChatKeyboardBody, ChatKeyboardDock, dismissChatKeyboard} from './chat-input/KeyboardDock';
 import {PreviewArtwork} from './PreviewArtwork';
 import {navigation, navigationActionMetrics} from './tokens';
 import {inputLayout, inputMetrics} from './chat-input/geometry';
@@ -31,11 +31,10 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
 }) {
   const colors = usePalette();
   const styles = useStyles();
-  const safe = useSafeAreaInsets(), actions = navigationActionMetrics(scale), window = useWindowDimensions(), keyboard = useChatKeyboard();
+  const safe = useSafeAreaInsets(), actions = navigationActionMetrics(scale), window = useWindowDimensions();
   const [attachments, setAttachments] = useState(false), [menu, setMenu] = useState(false);
   const geometry = inputMetrics(window.width, window.fontScale);
   const [composerHeight, setComposerHeight] = useState(inputLayout(geometry, geometry.line, !!chat.draftImage).height + safe.bottom + geometry.gap + 10);
-  const keyboardOffset = Math.max(0, keyboard.height - safe.bottom);
   useEffect(() => onPanelChange(attachments || menu), [attachments, menu, onPanelChange]);
   const scroll = useRef<ScrollView>(null);
   const scrolling = usePlainScrollMemory(memory, `chat:${chat.id}`, scroll);
@@ -43,17 +42,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   // An explicitly remembered top position is different from an unopened room.
   const initialScroll = useRef(savedScroll.offset === 0 && savedScroll.maxOffset === 0);
   const followEnd = useRef(initialScroll.current);
-  const keyboardReflow = useRef(false);
   const canSend = !!chat.draft.trim() || !!chat.draftImage;
-  useEffect(() => {
-    const shown = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => {
-      keyboardReflow.current = true; setAttachments(false);
-    });
-    const settled = Keyboard.addListener('keyboardDidShow', () => {
-      requestAnimationFrame(() => {scroll.current?.scrollToEnd({animated: false}); followEnd.current = true; keyboardReflow.current = false;});
-    });
-    return () => {shown.remove(); settled.remove();};
-  }, []);
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -75,17 +64,19 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
         <Text accessibilityRole="header" numberOfLines={1} style={styles.headerName}>{chat.character || chat.title}</Text>
         <NavigationButton testID="ui-chat-room-more" icon="more" label="채팅 메뉴" scale={scale} onPress={() => setMenu(value => !value)} expanded={menu}/>
       </View>
-      <ScrollView ref={scroll} {...scrolling} testID="ui-chat-messages" style={styles.messages} contentContainerStyle={[styles.messageBody, {paddingBottom: composerHeight + keyboardOffset + 12}]}
-        contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} showsVerticalScrollIndicator={false}
+      <ChatKeyboardBody><ScrollView ref={scroll} {...scrolling} testID="ui-chat-messages" style={styles.messages} contentContainerStyle={[styles.messageBody, {paddingBottom: composerHeight + 12}]}
+        contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onScroll={event => {
           scrolling.onScroll(event);
           const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-          if (!keyboardReflow.current) followEnd.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
+          followEnd.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
         }} onContentSizeChange={(width, height) => {
           scrolling.onContentSizeChange(width, height);
           if (initialScroll.current || followEnd.current) {
-            scroll.current?.scrollToEnd({animated: !initialScroll.current}); initialScroll.current = false;
+            // Composer growth already supplies intermediate heights. Another
+            // scroll animation here would make messages trail behind the input.
+            scroll.current?.scrollToEnd({animated: false}); initialScroll.current = false;
           }
         }} onLayout={event => {scrolling.onLayout(event); if (followEnd.current) scroll.current?.scrollToEnd({animated: false});}}>
         {chat.messages.map((message, index) => {
@@ -103,8 +94,8 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
             </View>
           </View>;
         })}
-      </ScrollView>
-      {attachments && <View testID="ui-chat-attachments" style={[styles.attachmentPanel, {position: 'absolute', bottom: composerHeight + keyboardOffset, left: 0, right: 0, backgroundColor: colors.background}]}>
+      </ScrollView></ChatKeyboardBody>
+      {attachments && <ChatKeyboardDock safeBottom={safe.bottom}><View testID="ui-chat-attachments" style={[styles.attachmentPanel, {position: 'absolute', bottom: composerHeight, left: 0, right: 0, backgroundColor: colors.background}]}>
         <View style={styles.attachmentHeading}><Text style={styles.panelTitle}>갤러리</Text>
           <NavigationButton icon="close" label="갤러리 닫기" scale={scale} onPress={() => setAttachments(false)}/></View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.attachmentPictures}>
@@ -113,7 +104,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
             <PreviewArtwork tile={picture.tile} width={88} height={88}/>
           </Pressable>)}
         </ScrollView>
-      </View>}
+      </View></ChatKeyboardDock>}
       {menu && <View style={[styles.menu, {top: safe.top + navigation.headerHeight * scale, right: actions.endInset}]}>
         <Pressable accessibilityRole="button" accessibilityLabel="최근 메시지로 이동" onPress={() => {scroll.current?.scrollToEnd({animated: true}); setMenu(false);}} style={styles.menuItem}>
           <Text style={styles.panelTitle}>최근 메시지로 이동</Text>
@@ -124,7 +115,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
     <ChatInput value={chat.draft} image={chat.draftImage} blocker={blocker} onChange={text => memory.updateChatDraft(chat.id, text)}
       onSend={send} onAttach={() => {dismissChatKeyboard(); setAttachments(value => !value);}}
       onRemoveImage={() => memory.updateChatImage(chat.id, null)} onHeight={setComposerHeight}
-      onFocus={() => {setAttachments(false); setMenu(false); followEnd.current = true; keyboardReflow.current = true;}}/>
+      onFocus={() => {setAttachments(false); setMenu(false);}}/>
   </View>;
 }
 

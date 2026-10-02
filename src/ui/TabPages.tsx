@@ -1,5 +1,5 @@
 import {themedStyles} from './Theme';
-import {useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 'react';
+import {useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 'react';
 import {Animated, Platform, StyleSheet, View} from 'react-native';
 import type {ScreenView} from './screenState';
 import {rootPages, rootPageKey, stepRootView, type RootPageKey, type SwipeDirection} from './swipeNavigation';
@@ -9,8 +9,9 @@ import {createRootSwipeAnimation} from './rootSwipeAnimation';
 import {BodyMotionContext, BodyPageContext, type HeaderMotion} from './BodyMotion';
 import {createRootPageLayout} from './rootPageLayout';
 import {animationBatch} from './animationBatch';
+import {createRootTabTransition} from './rootTabTransition';
 
-export type RootPageHandle = {prepare: (next: ScreenView) => void};
+export type RootPageHandle = {prepare: (next: ScreenView, animateTab?: boolean) => void};
 
 /** Neighboring filter bodies travel together beneath the stationary active header. */
 export function TabPages({view, pages, width, enabled, onStep, ref}: {
@@ -29,18 +30,24 @@ export function TabPages({view, pages, width, enabled, onStep, ref}: {
     return () => {if (headers.get(page) === header) headers.delete(page);};
   }, [headers]);
   const [layout] = useState(() => createRootPageLayout(view, width));
+  const [tabMoving, setTabMoving] = useState(false);
+  const [tabTransition] = useState(() => createRootTabTransition(layout, setTabMoving));
+  const currentView = useRef(view); currentView.current = view;
   const motion = useSwipeMotion({identity: key, width, previous: previous !== key, next: next !== key, enabled, onStep,
-    prepareReset: () => layout.select(view, width)});
+    prepareReset: () => tabTransition.sync(view, width, enabled)});
   const animation = useMemo(() => createRootSwipeAnimation(motion.translateX, width, previousIsTab, nextIsTab), [motion.translateX, width]);
-  useImperativeHandle(ref, () => ({prepare(nextView) {
-    motion.translation.stopAnimation();
+  useImperativeHandle(ref, () => ({prepare(nextView, animateTab = false) {
     animationBatch(() => {
-      layout.select(nextView, width);
-      motion.translation.setValue(0);
+      motion.cancel();
+      if (animateTab && nextView.tab !== currentView.current.tab) tabTransition.prepare(currentView.current, nextView, width);
+      else tabTransition.cancel(nextView, width);
     });
+    currentView.current = nextView;
     // This runs before notifying React: its next native props must contain the
     // destination coordinates, never stale values from before a layout effect.
-  }}), [layout, width, motion.translation]);
+  }}), [width, motion.cancel, tabTransition]);
+  useLayoutEffect(() => {tabTransition.start(motion.reduceMotion.current);}, [key, tabTransition, motion.reduceMotion]);
+  useEffect(() => () => tabTransition.dispose(), [tabTransition]);
   const positions = useMemo(() => {
     // The zero edge keeps visibility attached to the same native-driven graph.
     const zero = Animated.multiply(motion.translateX, 0);
@@ -61,18 +68,18 @@ export function TabPages({view, pages, width, enabled, onStep, ref}: {
     }
     motion.onStart();
   }, [headers, key, previous, next, previousIsTab, nextIsTab, motion.onStart]);
-  const gesture = useMemo(() => ({translation: motion.translation, enabled: motion.enabled,
-    onStart: start, onRelease: motion.onRelease}), [motion.translation, motion.enabled, start, motion.onRelease]);
-  const bodyMotion = useMemo(() => ({translateX: animation.bodyX, moving: motion.moving, registerHeader}), [animation, motion.moving, registerHeader]);
+  const gesture = useMemo(() => ({translation: motion.translation, enabled: motion.enabled && !tabMoving,
+    onStart: start, onRelease: motion.onRelease}), [motion.translation, motion.enabled, tabMoving, start, motion.onRelease]);
+  const bodyMotion = useMemo(() => ({translateX: animation.bodyX, moving: motion.moving || tabMoving, registerHeader}), [animation, motion.moving, tabMoving, registerHeader]);
   return <SwipeContext.Provider value={gesture}><BodyMotionContext.Provider value={bodyMotion}><View style={styles.frame}>
     {rootPages.map(item => {
       const active = item.key === key;
       const neighbor = !active && (item.key === previous || item.key === next);
-      const visible = active || (neighbor && (Platform.OS !== 'web' || motion.moving));
+      const visible = active || (tabMoving ? tabTransition.isPainted(item.key) : neighbor && (Platform.OS !== 'web' || motion.moving));
       const position = positions[item.key];
       return <PageLayer key={item.key} translation={position.page} opacity={position.visible}
         testID={item.key === rootPageKey(view, item.tab) ? `ui-page-${item.tab}` : `ui-prepared-${item.key}`}
-        active={active} visible={visible} interactive={active && !motion.settling}>
+        active={active} visible={visible} interactive={active && !motion.settling && !tabMoving}>
         <BodyPageContext.Provider value={{key: item.key, translateX: position.body, headerOpacity: position.header,
           headerVisible: active || item.tab !== view.tab}}>{pages[item.key]}</BodyPageContext.Provider>
       </PageLayer>;

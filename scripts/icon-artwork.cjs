@@ -3,8 +3,6 @@
 const home = 'M13.9 4.18Q16 2.5 18.1 4.18L26.35 11.18Q28.5 13.03 28.5 15.9V24.1Q28.5 28.5 24.1 28.5H7.9Q3.5 28.5 3.5 24.1V15.9Q3.5 13.03 5.65 11.18Z';
 const bubble = 'M16 3.7C9.2 3.7 3.7 9.18 3.7 15.95S9.2 28.2 16 28.2C18.215 28.2 20.3 27.63 22.11 26.575L28.1 27.9L27.015 21.5C27.875 19.83 28.3 17.965 28.3 15.95C28.3 9.18 22.8 3.7 16 3.7Z';
 const plus = 'M16 10V22M10 16H22';
-const head = '<circle cx="16" cy="9.1" r="5.3"/>';
-const shoulders = 'M4.8 28.2C5.7 22.5 10 19.4 16 19.4S26.3 22.5 27.2 28.2';
 
 function gearPath() {
   const vertices = [];
@@ -51,25 +49,26 @@ const icons = {
     [name, art.outline + (art.details || '')],
     [`${name}Selected`, art.fill + art.outline],
   ])),
-  plus: '<path d="M4 16H28M16 4V28"/>',
-  listPlus: '<path d="M4.5 7H27.5M4.5 15H17M4.5 23H13M24 17V29M18 23H30"/>',
-  send: '<path d="M7 5.5C5.5 4.7 4.2 6.1 4.9 7.6L8.8 14.3H21.4C22.4 14.3 22.4 17.7 21.4 17.7H8.8L4.9 24.4C4.2 25.9 5.5 27.3 7 26.5L27 17.9C28.8 17.1 28.8 14.9 27 14.1Z" fill="currentColor" stroke="none"/>',
-  search: '<circle cx="13.6" cy="13.6" r="9.7"/><path d="M20.7 20.7L28.4 28.4"/>',
-  close: '<path d="M7.2 7.2L24.8 24.8M24.8 7.2L7.2 24.8"/>',
-  check: '<path d="M5.5 16.5L12.5 23.5L26.5 8.5"/>',
-  back: '<path d="M26.6 16H5.4M15 6.4L5.4 16L15 25.6"/>',
-  eye: '<path d="M2.8 16C6.2 9.9 10.5 6.8 16 6.8S25.8 9.9 29.2 16C25.8 22.1 21.5 25.2 16 25.2S6.2 22.1 2.8 16Z"/><circle cx="16" cy="16" r="4.1"/>',
-  eyeOff: '<path d="M4.4 4.4L27.6 27.6M12 7.4C13.3 7 14.6 6.8 16 6.8C21.5 6.8 25.8 9.9 29.2 16C28 18.1 26.7 19.8 25.2 21.2M20.5 24.4C19.1 24.9 17.6 25.2 16 25.2C10.5 25.2 6.2 22.1 2.8 16C4 13.9 5.4 12.1 7 10.7M12.3 14.2A4.1 4.1 0 0 0 17.8 19.7"/>',
-  more: '<g fill="currentColor" stroke="none"><circle cx="6.5" cy="16" r="2.1"/><circle cx="16" cy="16" r="2.1"/><circle cx="25.5" cy="16" r="2.1"/></g>',
-  compose: '<path d="M17 4.7H9.3C6 4.7 4.4 6.4 4.4 9.7V22.9C4.4 26.2 6 27.8 9.3 27.8H22.4C25.7 27.8 27.3 26.2 27.3 22.9V16.8"/><path d="M13.1 14.8L23.6 4.3Q25.5 2.4 27.4 4.3L28 4.9Q29.9 6.8 28 8.7L17.5 19.2L11.7 20.6Z"/><path d="M21.5 6.4L25.9 10.8"/>',
-  user: `${head}<path d="${shoulders}"/>`,
-  aiSettings: '<rect x="3.7" y="3.7" width="24.6" height="24.6" rx="5.2"/><path d="M10.7 8.3V11.3M10.7 16.1V23.7M21.3 8.3V16M21.3 20.8V23.7"/><circle cx="10.7" cy="13.7" r="2.4"/><circle cx="21.3" cy="18.4" r="2.4"/>',
-  personas: '<circle cx="11.4" cy="9.1" r="5.1"/><path d="M2.9 27.7C3.8 22.3 7 19.3 11.4 19.3S19 22.3 19.9 27.7M22.2 5.2C25 5.2 26.8 7 26.8 9.6S25 14 22.2 14M23.4 19.5C27.1 20.4 29 23.1 29.3 27.7"/>',
-  prompt: '<path d="M18.6 3.8H8.4C5.9 3.8 4.7 5.1 4.7 7.6V24.4C4.7 26.9 5.9 28.2 8.4 28.2H23.6C26.1 28.2 27.3 26.9 27.3 24.4V12.5Z"/><path d="M18.6 3.8V9.6Q18.6 12.5 21.5 12.5H27.3M10 18H22M10 23H18.7"/>',
-  appearance: '<path d="M26.9 19.1C25.4 24.1 21 27.6 15.7 27.6A11.6 11.6 0 0 1 13.1 4.7C11.9 6.2 11.2 8.2 11.2 10.3C11.2 15.7 15.6 20 21 20C23.1 20 25.1 19.7 26.9 19.1Z"/>',
-  language: '<circle cx="16" cy="16" r="12.1"/><ellipse cx="16" cy="16" rx="5.2" ry="12.1"/><path d="M3.9 16H28.1"/>',
-  plugin: '<path d="M12.8 6.8H7Q4.4 6.8 4.4 9.4V12.4H6.2A3.6 3.6 0 0 1 6.2 19.6H4.4V25Q4.4 27.6 7 27.6H12.4V25.8A3.6 3.6 0 0 1 19.6 25.8V27.6H25Q27.6 27.6 27.6 25V19.8H26A3.8 3.8 0 0 1 26 12.2H27.6V9.4Q27.6 6.8 25 6.8H19.2V6.2A3.2 3.2 0 0 0 12.8 6.2Z"/>',
-  info: '<circle cx="16" cy="16" r="12.1"/><path d="M16 15.3V22.7"/><circle cx="16" cy="9.7" r="1.35" fill="currentColor" stroke="none"/>',
+  // Approved balanced collection. Personas uses the profile-card variant.
+  plus: '<path d="M16 4.5V27.5M4.5 16H27.5"/>',
+  listPlus: '<path d="M4.5 7H27.5M4.5 15H17M4.5 23H12.5M24 17V29M18 23H30"/>',
+  send: solid('M9.3 6.1C4.2 3.6 2.4 6.3 4.8 10.4L6.3 12.9C6.9 14.1 7.7 14.7 9.4 14.7H20.6C22.7 14.7 22.7 17.3 20.6 17.3H9.4C7.7 17.3 6.9 17.9 6.3 19.1L4.8 21.6C2.4 25.7 4.2 28.4 9.3 25.9L25.8 19.3C30.1 17.8 30.1 14.2 25.8 12.7Z'),
+  search: '<circle cx="13.5" cy="13.5" r="9.6"/><path d="M20.6 20.6L28.3 28.3"/>',
+  close: '<path d="M7 7L25 25M25 7L7 25"/>',
+  check: '<path d="M5 16.5L12.3 23.5L27 8.5"/>',
+  back: '<path d="M27 16H5M15 6L5 16L15 26"/>',
+  eye: '<path d="M2.8 16C6.4 10 10.7 7 16 7S25.6 10 29.2 16C25.6 22 21.3 25 16 25S6.4 22 2.8 16Z"/><circle cx="16" cy="16" r="4.1"/>',
+  eyeOff: '<defs><mask id="eye-off-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="32" height="32" fill="white" stroke="none"/><path d="M4.5 4.5L27.5 27.5" fill="none" stroke="black" stroke-width="6"/></mask></defs><g mask="url(#eye-off-cut)"><path d="M2.8 16C6.4 10 10.7 7 16 7S25.6 10 29.2 16C25.6 22 21.3 25 16 25S6.4 22 2.8 16Z"/><circle cx="16" cy="16" r="4.1"/></g><path d="M4.5 4.5L27.5 27.5"/>',
+  more: '<circle cx="16" cy="6.5" r="1.9" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.9" fill="currentColor" stroke="none"/><circle cx="16" cy="25.5" r="1.9" fill="currentColor" stroke="none"/>',
+  compose: '<path d="M17 4.5H9.5Q4.5 4.5 4.5 9.5V22.5Q4.5 27.5 9.5 27.5H22.5Q27.5 27.5 27.5 22.5V16.5M12.8 15.4L23.8 4.4Q25.3 2.9 26.8 4.4L28 5.6Q29.5 7.1 28 8.6L17 19.6L11.5 21ZM21.8 6.4L26 10.6"/>',
+  user: '<circle cx="16" cy="16" r="12.3"/><circle cx="16" cy="12.2" r="4.3"/><path d="M6.8 24Q9 19.5 16 19.5Q23 19.5 25.2 24"/>',
+  aiSettings: '<rect x="7" y="7" width="18" height="18" rx="4"/><rect x="12" y="12" width="8" height="8" rx="2"/><path d="M12 3V7M20 3V7M12 25V29M20 25V29M3 12H7M3 20H7M25 12H29M25 20H29"/>',
+  personas: '<rect x="4.2" y="3.8" width="23.6" height="24.4" rx="5.2"/><circle cx="16" cy="11.5" r="4.2"/><path d="M9 23.5Q10.3 19 16 19Q21.7 19 23 23.5"/>',
+  prompt: '<rect x="4.7" y="3.7" width="22.6" height="24.6" rx="5.3"/><path d="M10.5 10.5H21.5M10.5 16H21.5M10.5 21.5H17.5"/>',
+  appearance: '<circle cx="16" cy="16" r="6.1"/><path d="M16 2.8V5.5M16 26.5V29.2M2.8 16H5.5M26.5 16H29.2M6.6 6.6L8.5 8.5M23.5 23.5L25.4 25.4M6.6 25.4L8.5 23.5M23.5 8.5L25.4 6.6"/>',
+  language: '<path d="M19 11V7Q19 4 16 4H6Q3 4 3 7V17Q3 20 6 20H11M16 12H26Q29 12 29 15V25Q29 28 26 28H16Q13 28 13 25V15Q13 12 16 12Z"/><g stroke-width="1.9"><path d="M6.5 9H15.5M11 6.7V9M13.6 9Q12.6 14.2 7 17M8.8 11Q11.2 14.8 14.5 16M17.2 24L21 16L24.8 24M18.7 21H23.3"/></g>',
+  plugin: '<path d="M11 4V11M21 4V11M7 11H25V15Q25 23 16 23Q7 23 7 15ZM16 23V29"/>',
+  info: '<circle cx="16" cy="16" r="12.2"/><circle cx="16" cy="9.7" r="1.4" fill="currentColor" stroke="none"/><path d="M16 15V22.7"/>',
 };
 
 function wrapSvg(name, body, weight, size) {

@@ -39,6 +39,8 @@ import kotlin.math.roundToInt
 
 /** The dock follows the IME on the UI thread, without waiting for a JS layout. */
 class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactViewGroup(reactContext) {
+  var chatBody = false
+    set(value) { field = value; positionDock() }
   var trackDockOffset = false
     set(value) { field = value; lastDockOffset = Float.NaN; positionDock() }
   var dockFraction = 0f
@@ -72,6 +74,11 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   private var lastDockOffset = Float.NaN
   private val motion = KeyboardInsetMotion(publish = ::updateHeight)
   private val caret = EditorCaretVisibility(this)
+  private val chatViewport = ChatKeyboardViewport(this)
+  private val beforeLayoutDraw = ViewTreeObserver.OnPreDrawListener {
+    if (chatBody) chatViewport.update(caretIme, bottomInset)
+    true
+  }
   private val beforeDraw = ViewTreeObserver.OnDrawListener {
     if (composerGeometry != null) positionDock()
     if (followCaret || caret.isTransitioning) caret.beforeDraw(caretIme)
@@ -94,6 +101,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
     val surface = if (geometry == null) null else findComposerSurface()
     val fraction = if (geometry != null && surface != null && surface.height > 0) geometry.fraction(surface.height) else dockFraction
     translationY = if (Build.VERSION.SDK_INT >= 30) -maxOf(0f, dockIme - bottomInset) * fraction else 0f
+    if (chatBody) chatViewport.update(caretIme, bottomInset)
     // Fabric measures its shadow tree, not this UI-thread translation. Mirror
     // the displayed offset so Pressability keeps the correct release bounds.
     if (trackDockOffset && isAttachedToWindow && id != NO_ID && translationY != lastDockOffset) {
@@ -144,6 +152,7 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     viewTreeObserver.addOnDrawListener(beforeDraw)
+    viewTreeObserver.addOnPreDrawListener(beforeLayoutDraw)
     lastReported = -1
     lastDockOffset = Float.NaN
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
@@ -180,7 +189,9 @@ class KeyboardMotionView(private val reactContext: ThemedReactContext) : ReactVi
 
   override fun onDetachedFromWindow() {
     if (viewTreeObserver.isAlive) viewTreeObserver.removeOnDrawListener(beforeDraw)
+    if (viewTreeObserver.isAlive) viewTreeObserver.removeOnPreDrawListener(beforeLayoutDraw)
     caret.reset()
+    chatViewport.reset()
     composerSurface = null
     ViewCompat.setOnApplyWindowInsetsListener(this, null)
     ViewCompat.setWindowInsetsAnimationCallback(this, null)
@@ -205,6 +216,10 @@ class KeyboardMotionViewManager : ReactViewManager() {
   // The transform prop mirrors native motion for Fabric measurements only.
   // Applying a late JS frame to the view would make the IME animation jump back.
   override fun setTransform(view: ReactViewGroup, transforms: ReadableArray?) = Unit
+  @ReactProp(name = "keyboardRoot", defaultBoolean = false)
+  fun setKeyboardRoot(view: ReactViewGroup, value: Boolean) = Unit
+  @ReactProp(name = "chatBody", defaultBoolean = false)
+  fun setChatBody(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).chatBody = value }
   @ReactProp(name = "trackDockOffset", defaultBoolean = false)
   fun setTrackDockOffset(view: ReactViewGroup, value: Boolean) { (view as KeyboardMotionView).trackDockOffset = value }
   @ReactProp(name = "dockFraction", defaultFloat = 0f)

@@ -63,10 +63,10 @@ function Shell({memory}: {memory: ScreenMemory}) {
   }, [viewingCover, uiAppearance]);
   const nextCardNumber = useRef(0);
   const rootPagesRef = useRef<RootPageHandle>(null);
-  const navigateRoot = useCallback((update: (current: ScreenView) => ScreenView) => {
+  const navigateRoot = useCallback((update: (current: ScreenView) => ScreenView, animateTab = false) => {
     memory.updateView(current => {
       const next = update(current);
-      if (next !== current) rootPagesRef.current?.prepare(next);
+      if (next !== current) rootPagesRef.current?.prepare(next, animateTab);
       return next;
     });
   }, [memory]);
@@ -132,7 +132,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
   }, [memory, openCard]);
   function changeTab(next: Tab) {
     // onPress remains as a keyboard/accessibility fallback after onPressIn.
-    navigateRoot(current => current.tab === next ? current : {...current, tab: next});
+    navigateRoot(current => current.tab === next ? current : {...current, tab: next}, true);
     if (next !== tab) Keyboard.dismiss();
   }
   const stepPage = useCallback((direction: SwipeDirection) => navigateRoot(current => stepRootView(current, direction)), [navigateRoot]);
