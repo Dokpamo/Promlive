@@ -25,7 +25,8 @@ export type ScreenView = {
 export type ScrollMemory = {offset: number; hidden: number; height: number; maxOffset: number};
 export type ScrollScope = Tab | 'editor' | 'detail' | `chat:${string}` | `library:${LibraryFilter}` | `create:${CreationFilter}`;
 export type ScreenSnapshot = {version: 1; savedAt: number; data: ScreenData; view: ScreenView; positions: Partial<Record<ScrollScope, ScrollMemory>>};
-export type ScreenState = {data: ScreenData; view: ScreenView; saveError: boolean};
+export type ScreenStorageIssue = 'corrupt' | 'unsupported' | 'read' | 'write' | 'conflict';
+export type ScreenState = {data: ScreenData; view: ScreenView; saveError: boolean; storageIssue: ScreenStorageIssue | null};
 
 export function initialScreenData(): ScreenData { return {cards: createPreviewWorkspace(), chats: chatPreviewRows}; }
 export function initialScreenView(): ScreenView {
@@ -118,6 +119,29 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     if (!positions[creationScope] && positions.create) positions[creationScope] = positions.create;
     return {version: 1, savedAt: number(value.savedAt) ? value.savedAt : 0, data, view, positions};
   } catch { return null; }
+}
+
+export type ScreenRead = {kind: 'empty'} | {kind: 'valid'; snapshot: ScreenSnapshot} | {kind: 'corrupt' | 'unsupported'};
+/** Absence may initialize a workspace; unreadable existing bytes must never do so. */
+export function inspectScreenSnapshot(raw: string | null): ScreenRead {
+  if (raw === null) return {kind: 'empty'};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (object(value) && typeof value.version === 'number' && value.version !== 1) return {kind: 'unsupported'};
+  } catch {return {kind: 'corrupt'};}
+  const snapshot = decodeScreenSnapshot(raw);
+  return snapshot ? {kind: 'valid', snapshot} : {kind: 'corrupt'};
+}
+
+export function decodeScreenView(raw: string | null, data: ScreenData) {
+  if (raw === null) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!object(value) || value.version !== 1) return null;
+    // Reuse the same checks for referenced cards, chats and older scroll scopes.
+    const snapshot = decodeScreenSnapshot(JSON.stringify({...value, data}));
+    return snapshot && {view: snapshot.view, positions: snapshot.positions};
+  } catch {return null;}
 }
 
 /** Stable identities keep unchanged rows/images mounted during background refresh. */

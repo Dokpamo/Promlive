@@ -50,7 +50,7 @@ function AppFrame({memory}: {memory: ScreenMemory}) {
 function Shell({memory}: {memory: ScreenMemory}) {
   const {colors, appearance: uiAppearance} = useTheme();
   const [settingsDetail, setSettingsDetail] = useState<SettingsDestination | null>(null);
-  const {data, view, saveError} = useSyncExternalStore(memory.subscribe, memory.getSnapshot);
+  const {data, view, saveError, storageIssue} = useSyncExternalStore(memory.subscribe, memory.getSnapshot);
   useScreenMemory(memory);
   const {tab, searches, libraryFilter, creationFilter, openedCardId, detailCardId, coverOpen, galleryIndex, chatId} = view;
   const {cards, chats} = data;
@@ -187,9 +187,13 @@ function Shell({memory}: {memory: ScreenMemory}) {
           memory={memory} scale={scale} onClose={closeChat} transition={editorBack}/>
       </ScreenLayer>}
     </View>
-    {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.flush();}}
+    {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.refresh().then(memory.flush);}}
       style={{padding: 12, backgroundColor: colors.surface}}>
-      <Text accessibilityRole="alert" style={{color: colors.error}}>변경 내용을 저장하지 못했어요. 눌러서 다시 시도</Text>
+      <Text accessibilityRole="alert" style={{color: colors.error}}>{storageIssue === 'corrupt' ? '저장한 데이터를 읽을 수 없어 원본을 보존하고 있어요.'
+        : storageIssue === 'unsupported' ? '다른 버전에서 저장한 데이터예요. 원본을 보존하고 있어요.'
+          : storageIssue === 'conflict' ? '다른 창의 변경과 충돌해 저장하지 못했어요. 이 창의 수정 내용은 아직 저장되지 않았어요.'
+            : storageIssue === 'read' ? '저장한 데이터를 불러오지 못했어요. 눌러서 다시 시도'
+              : '변경 내용을 저장하지 못했어요. 눌러서 다시 시도'}</Text>
     </Pressable>}
   </View>;
 }

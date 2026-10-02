@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './ui-image-fixtures';
 import {act, StrictMode, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {AccessibilityInfo, Animated} from 'react-native';
@@ -70,7 +71,7 @@ async function fixture() {
   const repo = {getSetting: async (key: string) => values.get(key), setSetting: async (key: string, value: string) => {values.set(key, value);}};
   const credentials = {get: async (key: string) => secrets.get(key) ?? null, set: async (key: string, value: string) => {secrets.set(key, value);}, remove: async (key: string) => {secrets.delete(key);}};
   const services = createSettingsServices(repo, credentials); await services.load();
-  const memory = new ScreenMemory({readSync: () => null, readBackupSync: () => null, read: async () => null, write: async () => {}});
+  const memory = new ScreenMemory({readSync: () => null, readBackupSync: () => null, read: async () => null, write: async () => {}, readViewSync: () => null, writeView: async () => {}});
   memory.updateView(view => ({...view, tab: 'settings'}));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   const render = async (settings: SettingsServices) => {await act(async () => root!.render(<App memory={memory} settingsServices={settings}/>));};
@@ -197,6 +198,35 @@ it('groups the token count for display and keeps focused edits and persisted val
   await services.ai.flush();
   const saved = JSON.parse(values.get(aiPreferencesKey)!);
   expect(saved.connections.xai.modelPresets[connection.model].maxTokens).toBe('8192');
+});
+it('keeps AI controls unavailable after a read failure and retries the persisted provider without overwriting it', async () => {
+  const {services, repo, credentials, values, render} = await fixture();
+  await act(async () => {
+    services.ai.update(old => ({...old, service: 'anthropic'}));
+    await services.ai.flush();
+  });
+  const original = values.get(aiPreferencesKey);
+  let failing = true;
+  vi.spyOn(repo, 'getSetting').mockImplementation(async key => {
+    if (key === aiPreferencesKey && failing) throw new Error('temporary disk failure');
+    return values.get(key);
+  });
+  const restarted = createSettingsServices(repo, credentials);
+  const writes = vi.spyOn(repo, 'setSetting');
+  await render(restarted);
+  await click('ui-settings-row-ai');
+  expect(get('ui-ai-load-retry')).toBeTruthy();
+  expect(get('ui-ai-provider')).toBeUndefined();
+  expect(get('ui-ai-api-key')).toBeUndefined();
+  expect(writes).not.toHaveBeenCalled();
+  expect(values.get(aiPreferencesKey)).toBe(original);
+  failing = false;
+  await click('ui-ai-load-retry');
+  expect(get('ui-ai-load-retry')).toBeUndefined();
+  expect(get('ui-ai-provider').textContent).toContain('Anthropic');
+  expect(restarted.ai.snapshot().value.service).toBe('anthropic');
+  expect(values.get(aiPreferencesKey)).toBe(original);
+  expect(writes).not.toHaveBeenCalled();
 });
 it('keeps model settings isolated and preserves the page and scroll while choosing', async () => {
   const {services} = await fixture();
@@ -543,7 +573,7 @@ it('paints the cached theme while storage is loading, then reconciles the saved 
   const gate = new Promise<void>(resolve => {finish = resolve;});
   const repo = {getSetting: async (key: string) => {await gate; return key === 'appearance:theme' ? 'light' : undefined;}, setSetting: async () => {}};
   const services = createSettingsServices(repo, {get: async () => null, set: async () => {}, remove: async () => {}});
-  const memory = new ScreenMemory({readSync: () => null, readBackupSync: () => null, read: async () => null, write: async () => {}});
+  const memory = new ScreenMemory({readSync: () => null, readBackupSync: () => null, read: async () => null, write: async () => {}, readViewSync: () => null, writeView: async () => {}});
   memory.updateView(view => ({...view, themeMode: 'dark'}));
   function Probe() {return <span data-testid="theme-probe">{useTheme().appearance}</span>;}
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);

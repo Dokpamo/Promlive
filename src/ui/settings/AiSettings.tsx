@@ -34,7 +34,8 @@ export function AiSettings({services, nav}: {services: SettingsServices; nav: Se
       {...(numeric ? {keyboardType: key === 'maxTokens' || key === 'context' ? 'number-pad' as const : 'decimal-pad' as const} : {})}/>;
   return <SettingsPage title="AI" nav={nav} testID="ui-ai-settings">
     {!!error && <Note error>{error}</Note>}
-    {!ready ? <Note>저장한 설정을 불러오고 있어요.</Note> : <>
+    {!ready ? error ? <TextAction label="다시 시도" testID="ui-ai-load-retry" onPress={() => {void services.ai.load();}}/>
+      : <Note>저장한 설정을 불러오고 있어요.</Note> : <>
       <SettingRow testID="ui-ai-provider" label="프로바이더" value={service.name} onPress={() => nav.push(child => <ChoicePage nav={child} title="프로바이더"
         value={service.id} labelStyle={providerNameTypography} choices={aiServices.map(item => ({value: item.id, label: item.name}))}
         onChoose={next => services.ai.update(old => ({...old, service: next as AiService}))}/>)}/>

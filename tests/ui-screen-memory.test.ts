@@ -1,18 +1,98 @@
 import {expect, it, vi} from 'vitest';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {decodeScreenSnapshot, initialScreenData, initialScreenView, type ScreenSnapshot} from '../src/ui/screenState';
-import type {ScreenStorage} from '../src/ui/screenPersistence';
+import {ScreenStorageConflict, type ScreenStorage} from '../src/ui/screenPersistence';
 
 function storage(initial: string | null = null) {
   let raw = initial;
   let backup: string | null = null;
+  let view: string | null = null;
   const port: ScreenStorage = {readSync: () => raw, readBackupSync: () => backup, read: async () => raw,
-    write: vi.fn(async value => {backup = raw; raw = value;})};
+    write: vi.fn(async (value, expected) => {if (raw !== expected) throw new ScreenStorageConflict(); if (decodeScreenSnapshot(raw)) backup = raw; raw = value;}),
+    readViewSync: () => view, writeView: vi.fn(async value => {view = value;})};
   return port;
 }
 function snapshot(): ScreenSnapshot {
   return {version: 1, savedAt: 1, data: initialScreenData(), view: initialScreenView(), positions: {}};
 }
+
+it('does not replace shared content when another instance only changes its view or scroll', async () => {
+  const disk = storage(JSON.stringify(snapshot()));
+  const a = new ScreenMemory(disk), b = new ScreenMemory(disk);
+  a.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: '다른 창에서 저장한 제목', now: 10});
+  await a.flush();
+  b.updateView(view => ({...view, tab: 'settings'}));
+  b.rememberScroll('library', {offset: 10, hidden: 0, height: 20, maxOffset: 100});
+  await b.flush();
+  expect(decodeScreenSnapshot(disk.readSync())!.data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('다른 창에서 저장한 제목');
+  expect(disk.write).toHaveBeenCalledTimes(1);
+  b.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: '충돌한 창의 초안', now: 11});
+  await b.flush(); await b.refresh();
+  expect(b.getSnapshot()).toMatchObject({saveError: true, storageIssue: 'conflict'});
+  expect(b.getSnapshot().data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('충돌한 창의 초안');
+  expect(decodeScreenSnapshot(disk.readSync())!.data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('다른 창에서 저장한 제목');
+});
+
+it('preserves corrupt and unsupported primary/backup bytes without initializing or accepting edits', async () => {
+  const saved = JSON.parse(JSON.stringify(snapshot()));
+  saved.data.cards[0].draft.tile = -1;
+  for (const raw of [JSON.stringify(saved), '{broken', '', JSON.stringify({...snapshot(), version: 2})]) {
+    const disk = storage(raw); disk.readBackupSync = () => raw;
+    const memory = new ScreenMemory(disk);
+    await memory.refresh().then(memory.flush);
+    memory.updateView(view => ({...view, tab: 'settings'}));
+    memory.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: 'must not be saved', now: 3});
+    await memory.flush();
+    expect(disk.readSync()).toBe(raw); expect(disk.readBackupSync()).toBe(raw);
+    expect(disk.write).not.toHaveBeenCalled();
+    expect(memory.getSnapshot().saveError).toBe(true);
+    expect(memory.getSnapshot().data.cards).toEqual([]);
+  }
+  const newer = storage(JSON.stringify({...snapshot(), version: 2}));
+  newer.readBackupSync = () => JSON.stringify(snapshot());
+  const memory = new ScreenMemory(newer); await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().storageIssue).toBe('unsupported');
+  expect(newer.write).not.toHaveBeenCalled();
+});
+
+it('can recover from a temporary read failure without saving defaults over existing data', async () => {
+  const saved = snapshot(); saved.data.cards.find(card => card.id === 'draft-1')!.draft.title = '읽기 오류 뒤 복구';
+  const disk = storage(JSON.stringify(saved)), read = disk.readSync;
+  disk.readSync = () => {throw new Error('temporary');};
+  const memory = new ScreenMemory(disk); await memory.flush();
+  expect(disk.write).not.toHaveBeenCalled(); expect(memory.getSnapshot().storageIssue).toBe('read');
+  disk.readSync = read; await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().saveError).toBe(false);
+  expect(memory.getSnapshot().data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('읽기 오류 뒤 복구');
+  expect(disk.write).not.toHaveBeenCalled();
+});
+
+it('waits for the edit queued in the final write microtask before flush resolves', async () => {
+  const disk = storage(JSON.stringify(snapshot())), memory = new ScreenMemory(disk);
+  const edit = (value: string) => memory.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value, now: 1});
+  edit('first'); queueMicrotask(() => edit('last-microtask-change'));
+  await memory.flush();
+  expect(new ScreenMemory(disk).getSnapshot().data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('last-microtask-change');
+  expect(memory.getSnapshot().saveError).toBe(false);
+});
+
+it.each(['empty', 'backup'])('retries an initial read failure and safely recovers a subsequently readable %s store', async kind => {
+  const disk = storage(kind === 'empty' ? null : '{broken');
+  const originalRead = disk.readSync;
+  disk.readSync = () => {throw new Error('initialization failed');};
+  const saved = snapshot(); saved.data.cards[0]!.draft.title = '복구한 초안';
+  disk.readBackupSync = () => kind === 'backup' ? JSON.stringify(saved) : null;
+  const memory = new ScreenMemory(disk);
+  expect(memory.getSnapshot().storageIssue).toBe('read');
+  expect(memory.getSnapshot().data.cards).toEqual([]);
+  await memory.flush(); expect(disk.write).not.toHaveBeenCalled();
+  disk.readSync = originalRead;
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().saveError).toBe(false);
+  expect(memory.getSnapshot().data.cards.length).toBeGreaterThan(0);
+  expect(decodeScreenSnapshot(disk.readSync())!.data).toEqual(memory.getSnapshot().data);
+  if (kind === 'backup') expect(memory.getSnapshot().data.cards[0]!.draft.title).toBe('복구한 초안');
+});
 
 it('stores filter scroll positions independently and migrates only the selected legacy filter', async () => {
   const old = snapshot();
@@ -96,16 +176,18 @@ it('serializes pending writes and saves the latest change after a slow disk oper
   const disk = storage(JSON.stringify(snapshot()));
   const persisted: string[] = [];
   let unblock!: () => void;
-  disk.write = vi.fn(async value => {
+  disk.writeView = vi.fn(async value => {
     if (!persisted.length) await new Promise<void>(done => {unblock = done;});
     persisted.push(value);
   });
   const memory = new ScreenMemory(disk);
   memory.updateView(view => ({...view, tab: 'chats'}));
+  await Promise.resolve();
   memory.updateView(view => ({...view, tab: 'settings'}));
   unblock(); await memory.flush();
-  expect(disk.write).toHaveBeenCalledTimes(2);
-  expect(decodeScreenSnapshot(persisted.at(-1)!)!.view.tab).toBe('settings');
+  expect(disk.writeView).toHaveBeenCalledTimes(2);
+  expect(JSON.parse(persisted.at(-1)!).view.tab).toBe('settings');
+  expect(disk.write).not.toHaveBeenCalled();
 });
 
 it('retains memory after a storage failure and retries without clearing content', async () => {
@@ -146,7 +228,8 @@ it('saves scroll without rerendering the page on every event', async () => {
   expect(listener).not.toHaveBeenCalled();
   expect(disk.write).not.toHaveBeenCalled();
   await memory.flush();
-  expect(disk.write).toHaveBeenCalledTimes(1);
+  expect(disk.writeView).toHaveBeenCalledTimes(1);
+  expect(disk.write).not.toHaveBeenCalled();
   expect(new ScreenMemory(disk).getScroll('library').offset).toBe(30);
 });
 

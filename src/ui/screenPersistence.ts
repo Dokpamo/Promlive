@@ -3,6 +3,14 @@ export interface ScreenStorage {
   readSync(): string | null;
   readBackupSync(): string | null;
   read(): Promise<string | null>;
-  write(value: string): Promise<void>;
+  /** Compare and replace under the storage's cross-instance lock/transaction. */
+  write(value: string, expected: string | null): Promise<void>;
+  /** Presentation is separate (per-tab session storage on web) and never writes content. */
+  readViewSync(): string | null;
+  writeView(value: string): Promise<void>;
 }
 export const screenStorageKey = 'promlive:screen:local:v1';
+export const screenViewKey = screenStorageKey + ':view';
+export class ScreenStorageConflict extends Error {
+  constructor() {super('Screen content changed in another instance');}
+}

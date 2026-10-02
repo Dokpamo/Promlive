@@ -35,37 +35,41 @@ export function serializeAiPreferences(value: AiSettingsPreviewState): string {
 }
 
 export function restoreAiPreferences(raw: string | undefined): AiSettingsPreviewState {
+  try {return readAiPreferences(raw);} catch {return createAiSettingsPreview();}
+}
+
+/** The editable store must distinguish missing preferences from unreadable bytes. */
+function readAiPreferences(raw: string | undefined): AiSettingsPreviewState {
   const value = createAiSettingsPreview();
-  if (!raw) return value;
-  try {
-    const result = preferencesSchema.safeParse(JSON.parse(raw));
-    if (!result.success) return value;
-    const saved = result.data;
-    value.service = aiServices.find(service => service.id === saved.service)?.id ?? value.service;
-    value.appPreset = saved.appPreset;
-    for (const service of aiServices) {
-      const parsed = connectionSchema.safeParse(saved.connections[service.id]);
-      const routes = connectionRoutes(service);
-      if (!parsed.success) continue;
-      const connection = parsed.data;
-      // Replace the old API defaults once, including inactive regions/accounts.
-      // Version 2 preserves any subsequently chosen 4096-token Claude limit.
-      for (const profile of [connection, ...Object.values(connection.routes)]) {
-        for (const preset of Object.values(profile.modelPresets)) {
-          const wasClaudeDefault = saved.version === 1 && service.id === 'anthropic' && preset.maxTokens === '4096';
-          preset.maxTokens = outputLimitValue(wasClaudeDefault ? '' : preset.maxTokens);
-        }
+  if (raw === undefined) return value;
+  const result = preferencesSchema.safeParse(JSON.parse(raw));
+  if (!result.success) throw new Error('Invalid AI preferences');
+  const saved = result.data;
+  value.service = aiServices.find(service => service.id === saved.service)?.id ?? value.service;
+  value.appPreset = saved.appPreset;
+  for (const service of aiServices) {
+    const parsed = connectionSchema.safeParse(saved.connections[service.id]);
+    const routes = connectionRoutes(service);
+    if (saved.connections[service.id] === undefined) continue;
+    if (!parsed.success) throw new Error('Invalid AI connection preferences');
+    const connection = parsed.data;
+    // Replace the old API defaults once, including inactive regions/accounts.
+    // Version 2 preserves any subsequently chosen 4096-token Claude limit.
+    for (const profile of [connection, ...Object.values(connection.routes)]) {
+      for (const preset of Object.values(profile.modelPresets)) {
+        const wasClaudeDefault = saved.version === 1 && service.id === 'anthropic' && preset.maxTokens === '4096';
+        preset.maxTokens = outputLimitValue(wasClaudeDefault ? '' : preset.maxTokens);
       }
-      const activeRouteExists = routes.some(route => route.id === connection.routeId);
-      const routeId = activeRouteExists ? connection.routeId : routes[0]!.id;
-      // Retiring an unsupported login preview must restore the saved API profile,
-      // never carry account-only selections or credentials into a different route.
-      const profile = activeRouteExists ? connection : connection.routes[routeId] ?? value.connections[service.id];
-      value.connections[service.id] = {...profile, routeId, key: '', routes: Object.fromEntries(
-        Object.entries(connection.routes).filter(([id]) => routes.some(route => route.id === id)).map(([id, profile]) => [id, {...profile, key: ''}]),
-      )};
     }
-  } catch { /* Keep usable defaults when an older or damaged preference cannot be read. */ }
+    const activeRouteExists = routes.some(route => route.id === connection.routeId);
+    const routeId = activeRouteExists ? connection.routeId : routes[0]!.id;
+    // Retiring an unsupported login preview must restore the saved API profile,
+    // never carry account-only selections or credentials into a different route.
+    const profile = activeRouteExists ? connection : connection.routes[routeId] ?? value.connections[service.id];
+    value.connections[service.id] = {...profile, routeId, key: '', routes: Object.fromEntries(
+      Object.entries(connection.routes).filter(([id]) => routes.some(route => route.id === id)).map(([id, profile]) => [id, {...profile, key: ''}]),
+    )};
+  }
   return value;
 }
 
@@ -98,8 +102,11 @@ export class AiSettingsPreferences {
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private emit() {for (const listener of this.listeners) listener();}
   load() {
-    return this.loading ??= this.repo.getSetting(aiPreferencesKey).then(async raw => {
-      const value = restoreAiPreferences(raw);
+    if (this.loading) return this.loading;
+    if (this.state.ready) return Promise.resolve();
+    this.state = {...this.state, error: ''}; this.emit();
+    return this.loading = Promise.resolve().then(() => this.repo.getSetting(aiPreferencesKey)).then(async raw => {
+      const value = readAiPreferences(raw);
       let error = '';
       await Promise.all(aiServices.map(async service => {
         const connection = value.connections[service.id];
@@ -123,9 +130,9 @@ export class AiSettingsPreferences {
       this.state = {value, ready: true, error};
       this.emit();
     }).catch(() => {
-      this.state = {...this.state, ready: true, error: '저장한 AI 설정을 불러오지 못했어요.'};
+      this.state = {...this.state, ready: false, error: '저장한 AI 설정을 불러오지 못했어요.'};
       this.emit();
-    });
+    }).finally(() => {this.loading = undefined;});
   }
   update = (action: AiSettingsPreviewState | ((previous: AiSettingsPreviewState) => AiSettingsPreviewState)) => {
     if (!this.state.ready) return;

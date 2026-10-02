@@ -14,6 +14,36 @@ function credentialFixture() {
   return store;
 }
 
+it('blocks edits after a failed read, retries the read, and keeps saved provider settings intact', async () => {
+  const original = createAiSettingsPreview(); original.service = 'anthropic';
+  let stored = serializeAiPreferences(original);
+  const repo = {getSetting: vi.fn().mockRejectedValueOnce(new Error('temporary')).mockImplementation(async () => stored),
+    setSetting: vi.fn(async (_key: string, value: string) => {stored = value;})};
+  const preferences = new AiSettingsPreferences(repo, credentialFixture());
+  await preferences.load();
+  expect(preferences.snapshot().ready).toBe(false);
+  preferences.update(previous => ({...previous, service: 'xai'})); await preferences.flush();
+  expect(repo.setSetting).not.toHaveBeenCalled(); expect(JSON.parse(stored).service).toBe('anthropic');
+  const retry = preferences.load(); expect(preferences.load()).toBe(retry); await retry;
+  expect(repo.getSetting).toHaveBeenCalledTimes(2);
+  expect(preferences.snapshot()).toMatchObject({ready: true, error: '', value: {service: 'anthropic'}});
+  preferences.update(previous => ({...previous, appPreset: {length: 'long'}})); await preferences.flush();
+  expect(JSON.parse(stored)).toMatchObject({service: 'anthropic', appPreset: {length: 'long'}});
+});
+
+it('protects damaged and unsupported preferences while treating actual absence as editable defaults', async () => {
+  const damaged = JSON.parse(serializeAiPreferences(createAiSettingsPreview())); damaged.connections.xai.modelPresets = null;
+  for (const raw of ['{broken', '', '{"version":3}', JSON.stringify(damaged)]) {
+    const repo = {getSetting: async () => raw, setSetting: vi.fn()};
+    const preferences = new AiSettingsPreferences(repo, credentialFixture()); await preferences.load();
+    expect(preferences.snapshot().ready).toBe(false);
+    preferences.update(previous => ({...previous, service: 'anthropic'})); await preferences.flush();
+    expect(repo.setSetting).not.toHaveBeenCalled();
+  }
+  const empty = new AiSettingsPreferences({getSetting: async () => undefined, setSetting: async () => {}}, credentialFixture());
+  await empty.load(); expect(empty.snapshot()).toMatchObject({ready: true, error: ''});
+});
+
 it('restores live model capabilities and media selections separately without storing keys', () => {
   const state = createAiSettingsPreview();
   const model = {id: 'api-only-model', name: 'API model', detail: '텍스트', effort: ['high'], tools: [], source: 'api' as const};

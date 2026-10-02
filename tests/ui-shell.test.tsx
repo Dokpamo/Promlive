@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './ui-image-fixtures';
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {AccessibilityInfo, Animated} from 'react-native';
@@ -6,6 +7,7 @@ import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {createScreenStorage} from '../src/ui/screenStorage.web';
+import {installBrowserScreenStorage} from './browser-screen-storage';
 
 vi.mock('../src/app/runtime', () => ({initialize: () => new Promise(() => {})}));
 vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
@@ -24,14 +26,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-beforeEach(() => {
-  // Node's optional localStorage can shadow jsdom's browser storage in this runner.
-  const values = new Map<string, string>();
-  const storage: Storage = {get length() {return values.size;}, key: index => [...values.keys()][index] ?? null,
-    getItem: key => values.get(key) ?? null, setItem: (key, value) => {values.set(key, value);},
-    removeItem: key => {values.delete(key);}, clear: () => values.clear()};
-  Object.defineProperty(window, 'localStorage', {configurable: true, value: storage});
-});
+beforeEach(installBrowserScreenStorage);
 afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks();});
 
 // Inactive tab pages stay mounted, but are hidden from users and accessibility.

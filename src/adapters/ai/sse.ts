@@ -1,17 +1,28 @@
-// Incremental SSE framing; chunks need not align with lines or complete JSON objects.
+// Incremental SSE framing, independent of transport chunk boundaries.
 export class SseDecoder {
-  private buffer = '';
+  private line = '';
+  private data: string[] = [];
+  private eventSize = 0;
+  private first = true;
+  private afterCR = false;
+
   push(chunk: string): string[] {
-    this.buffer += chunk;
-    if (this.buffer.length > 512000) throw new Error('AI 스트림 이벤트가 너무 큽니다.');
     const events: string[] = [];
-    while (true) {
-      const boundary = /\r?\n\r?\n/.exec(this.buffer);
-      if (!boundary) break;
-      const frame = this.buffer.slice(0, boundary.index);
-      this.buffer = this.buffer.slice(boundary.index + boundary[0].length);
-      const data = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).replace(/^ /, '')).join('\n');
-      if (data) events.push(data);
+    for (let index = 0; index < chunk.length; index++) {
+      const character = chunk[index]!;
+      if (this.first) {this.first = false; if (character === '\uFEFF') continue;}
+      if (this.afterCR) {this.afterCR = false; if (character === '\n') continue;}
+      if (++this.eventSize > 512000) throw new Error('AI 스트림 이벤트가 너무 큽니다.');
+      if (character !== '\r' && character !== '\n') {this.line += character; continue;}
+      this.afterCR = character === '\r';
+      if (this.line === '') {
+        const data = this.data.join('\n');
+        if (data) events.push(data);
+        this.data = []; this.eventSize = 0;
+      } else if (this.line.startsWith('data:')) {
+        this.data.push(this.line.slice(5).replace(/^ /, ''));
+      } else if (this.line === 'data') this.data.push('');
+      this.line = '';
     }
     return events;
   }
