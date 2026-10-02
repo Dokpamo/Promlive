@@ -1,5 +1,6 @@
 import {useContext, useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ActivityIndicator, Image, Keyboard, Pressable, Text, View} from 'react-native';
+import {ListPressable} from '../ListPressable';
 import {canMovePersonaFolders, libraryPersonas, personaFolderPath, searchPersonas, type PersonaFields} from '../../features/personas/personaPreferences';
 import {pickProfileImage} from '../../adapters/profile/pickProfileImage';
 import {cropProfileImage} from '../../adapters/profile/cropProfileImage';
@@ -75,8 +76,8 @@ function ProfileFields({services, nav}: {services: SettingsServices; nav: Settin
         <Avatar image={value.image} name={name} size={152}/>
         <Pressable testID="ui-profile-photo-edit" accessibilityRole="button" accessibilityLabel="프로필 사진 편집"
           accessibilityState={{busy: picking, disabled: picking || !!nav.closing}} disabled={picking || !!nav.closing} onPress={() => {void pick();}}
-          style={({pressed}) => ({position: 'absolute', bottom: 0, right: 0, width: 48, height: 48, borderRadius: 24,
-            borderWidth: 3, borderColor: colors.background, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, opacity: pressed ? .55 : 1})}>
+          style={{position: 'absolute', bottom: 0, right: 0, width: 48, height: 48, borderRadius: 24,
+            borderWidth: 3, borderColor: colors.background, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface}}>
           {picking ? <ActivityIndicator color={colors.foreground}/> : <Icon name="compose" size={24}/>}
         </Pressable>
       </View>
@@ -141,18 +142,18 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
       {selectedFolders.length === 1 && !selectedPeople.length && <TextAction label="폴더 이름" onPress={() => nav.push(child => <FolderEditor services={services} nav={child} parentId={selectedFolders[0]!} rename/>)}/>}
       <TextAction label="이동" disabled={!selected.length} onPress={move}/>
       <TextAction label="삭제" danger disabled={!selected.length} onPress={() => nav.push(child => <ConfirmDelete nav={child} onDelete={async () => {await services.personas.removeMany(selectedPeople, selectedFolders); setSelected([]); setManaging(false);}}/>)}/></View>}
-    {entries.map(persona => <Pressable key={persona.id} testID={`ui-persona-${persona.id}`} accessibilityRole={managing ? 'checkbox' : 'button'} accessibilityLabel={persona.name}
+    {entries.map(persona => <ListPressable key={persona.id} testID={`ui-persona-${persona.id}`} accessibilityRole={managing ? 'checkbox' : 'button'} accessibilityLabel={persona.name}
       accessibilityHint="길게 눌러 선택" accessibilityActions={[{name: 'longpress', label: '선택'}]}
       onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'longpress') beginSelection(`p:${persona.id}`);}}
       onLongPress={() => beginSelection(`p:${persona.id}`)}
       accessibilityState={managing ? {checked: selected.includes(`p:${persona.id}`)} : {}} aria-checked={managing ? selected.includes(`p:${persona.id}`) : undefined}
       onPress={() => managing ? toggle(`p:${persona.id}`) : nav.push(child => <PersonaEditor services={services} nav={child} id={persona.id} folderId={persona.folderId}/>)}
-      style={({pressed}) => ({paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 16,
-        backgroundColor: managing && selected.includes(`p:${persona.id}`) ? colors.surface : 'transparent', opacity: pressed ? .55 : 1})}>
+      style={{paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 16,
+        backgroundColor: managing && selected.includes(`p:${persona.id}`) ? colors.surface : 'transparent'}}>
       <Avatar image={persona.image} name={persona.name}/><View style={{flex: 1, gap: 4}}><Text numberOfLines={1} style={{fontSize: 16, lineHeight: 22, color: colors.foreground}}>{persona.name}</Text>
         <Text numberOfLines={1} style={{fontSize: 14, lineHeight: 20, color: colors.secondaryForeground}}>{persona.description || '설명을 추가해 보세요.'}</Text></View>
       {managing && selected.includes(`p:${persona.id}`) && <Icon name="check" size={settingsDetailLayout.selectionIconSize}/>}
-    </Pressable>)}
+    </ListPressable>)}
     {!entries.length && <Note>{query ? '검색 결과가 없어요.' : '플러스 버튼으로 페르소나를 만들어 보세요.'}</Note>}
   </SettingsPage>;
 }

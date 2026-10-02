@@ -78,7 +78,7 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
     </ScrollView>
     <View style={[styles.footer, {paddingHorizontal: inset, paddingBottom: bottomInset + 22}]}>
       <Pressable testID="ui-card-detail-start" accessibilityRole="button" accessibilityLabel="대화 시작"
-        onPress={onStartChat} style={({pressed}) => [styles.start, {minHeight: 90 * scale, borderRadius: 32 * scale, opacity: pressed ? 0.6 : 1}]}>
+        onPress={onStartChat} style={[styles.start, {minHeight: 90 * scale, borderRadius: 32 * scale}]}>
         <Text style={styles.startText}>대화 시작</Text>
       </Pressable>
     </View>
@@ -91,7 +91,7 @@ export function CardDetail({card, width, scale, bottomInset, active, memory, onC
       style={[styles.floatingButton, {top: buttonTop, right: actions.endInset, borderRadius: actions.size / 2}]}/>
     {menuOpen && <View testID="ui-card-detail-menu" style={[styles.menu, {right: actions.endInset, top: buttonTop + actions.size + 3}]}>
       <Pressable testID="ui-card-detail-edit" accessibilityRole="button" accessibilityLabel="생성에서 편집"
-        onPress={() => {setMenuOpen(false); onEdit();}} style={({pressed}) => [styles.menuItem, {opacity: pressed ? 0.55 : 1}]}>
+        onPress={() => {setMenuOpen(false); onEdit();}} style={styles.menuItem}>
         <Icon name="compose" size={actions.iconSize}/><Text style={styles.menuText}>생성에서 편집</Text>
       </Pressable>
     </View>}

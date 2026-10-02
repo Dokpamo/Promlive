@@ -62,7 +62,7 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
         {...(item.onLongPress ? {accessibilityHint: '길게 눌러 선택', accessibilityActions: [{name: 'longpress', label: '선택'}],
           onAccessibilityAction: (event: {nativeEvent: {actionName: string}}) => {if (event.nativeEvent.actionName === 'longpress') item.onLongPress?.();}} : {})}
         disabled={item.disabled} onPress={() => onChange(item.id)}
-        style={({pressed}) => [styles.target, {minHeight: Math.max(48, m.targetHeight * scale), opacity: item.disabled ? .4 : pressed ? 0.65 : 1}]}>
+        style={[styles.target, {minHeight: Math.max(48, m.targetHeight * scale), opacity: item.disabled ? .4 : 1}]}>
         <View style={[styles.chip, chip, {backgroundColor: active ? palette.selectedBackground : palette.background,
           borderColor: active ? 'transparent' : palette.border}]}>
           <Text numberOfLines={1} style={[styles.text, {fontSize: m.fontSize * scale, lineHeight: m.lineHeight * scale,
@@ -73,7 +73,7 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
     })}
     {trailingAction && <Pressable testID={trailingAction.testID} accessibilityRole="button" accessibilityLabel={trailingAction.label}
       accessibilityState={{disabled: !!trailingAction.disabled}} disabled={trailingAction.disabled} onPress={trailingAction.onPress}
-      style={({pressed}) => [styles.target, {minHeight: Math.max(48, m.targetHeight * scale), opacity: trailingAction.disabled ? .4 : pressed ? .65 : 1}]}>
+      style={[styles.target, {minHeight: Math.max(48, m.targetHeight * scale), opacity: trailingAction.disabled ? .4 : 1}]}>
       <View style={[styles.chip, {height: m.height * scale, minWidth: m.height * scale, paddingHorizontal: 16 * scale,
         borderWidth: m.borderWidth * scale, backgroundColor: palette.background, borderColor: palette.border}]}>
         <Icon name={trailingAction.icon} size={36 * scale} color={palette.foreground}/>

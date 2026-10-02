@@ -1,19 +1,45 @@
+import {useMemo} from 'react';
+import {Animated, PixelRatio, View} from 'react-native';
 import {usePalette} from './Theme';
-import {Image, View, type ImageSourcePropType} from 'react-native';
-import {tabIconSources} from './icons/sources';
+import {navigationIconSources} from './icons/sources';
+import type {Tab} from './navigationRoutes';
+import {releaseWaveFrame, waveSamples} from './tabReleaseWave';
 
-type TabIconName = keyof typeof tabIconSources;
-type Layers = {outline: ImageSourcePropType; fill: ImageSourcePropType; details?: ImageSourcePropType};
+type Scalar = Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>;
+const sum = (values: Scalar[], initial = 0): Scalar => values.reduce<Scalar>((total, value) => Animated.add(total, value), new Animated.Value(initial));
 
-/** Keep images mounted and update every layer in the same render as tab selection. */
-export function TabIcon({name, selected, size}: {name: TabIconName; selected: boolean; size: number}) {
+/** Approved icon masks, with a small travelling wave entirely on the UI thread. */
+export function TabIcon({name, selection, waves, size}: {name: Tab; selection: Animated.Value; waves: Animated.Value[]; size: number}) {
   const colors = usePalette();
-  const tintColor = selected ? colors.foreground : colors.secondaryForeground;
-  const layers: Layers = tabIconSources[name];
-  const style = {position: 'absolute' as const, width: size, height: size};
-  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={{width: size, height: size}}>
-    <Image accessible={false} source={layers.fill} tintColor={tintColor} resizeMode="contain" fadeDuration={0} style={[style, {opacity: selected ? 1 : 0}]}/>
-    <Image accessible={false} source={layers.outline} tintColor={tintColor} resizeMode="contain" fadeDuration={0} style={style}/>
-    {layers.details && <Image accessible={false} source={layers.details} tintColor={tintColor} resizeMode="contain" fadeDuration={0} style={[style, {opacity: selected ? 0 : 1}]}/>}
-  </View>;
+  const unselected = useMemo(() => Animated.subtract(1, selection), [selection]);
+  const motion = useMemo(() => {
+    const interpolate = (fn: (t: number) => number, initial = 0) => sum(waves.map(wave => wave.interpolate({
+      inputRange: waveSamples, outputRange: waveSamples.map(fn), extrapolate: 'clamp',
+    })), initial);
+    const density = PixelRatio.get(), pixels = Math.round(size * density);
+    return {
+      scaleX: interpolate(t => releaseWaveFrame(t).scaleX - 1, 1),
+      scaleY: interpolate(t => releaseWaveFrame(t).scaleY - 1, 1),
+      strips: Array.from({length: 4}, (_, i) => {
+        const left = Math.round(pixels * i / 4) / density, right = Math.round(pixels * (i + 1) / 4) / density;
+        const center = (left + right) / 2, x = center / size * 2 - 1;
+        return {left, width: right - left, center,
+          offset: interpolate(t => releaseWaveFrame(t, x).offset * size / 2),
+          shear: interpolate(t => releaseWaveFrame(t, x).shear).interpolate({inputRange: [-1, 1], outputRange: ['-1rad', '1rad']}),
+        };
+      }),
+    };
+  }, [waves, size]);
+  const image = {position: 'absolute' as const, width: size, height: size};
+  return <Animated.View testID={`ui-tab-motion-${name}`} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none"
+    style={{width: size, height: size, transform: [{scaleX: motion.scaleX}, {scaleY: motion.scaleY}]}}>
+    {motion.strips.map((strip, index) => <View key={index} style={{position: 'absolute', left: strip.left, top: -size / 4,
+      width: strip.width, height: size * 1.5, overflow: 'hidden'}}>
+      <Animated.View style={{position: 'absolute', left: -strip.left, top: size / 4, width: size, height: size,
+        transformOrigin: [strip.center, size / 2, 0], transform: [{translateY: strip.offset}, {skewY: strip.shear}]}}>
+        <Animated.Image accessible={false} source={navigationIconSources[name]} tintColor={colors.secondaryForeground} resizeMode="contain" fadeDuration={0} style={[image, {opacity: unselected}]}/>
+        <Animated.Image accessible={false} source={navigationIconSources[`${name}Selected`]} tintColor={colors.foreground} resizeMode="contain" fadeDuration={0} style={[image, {opacity: selection}]}/>
+      </Animated.View>
+    </View>)}
+  </Animated.View>;
 }

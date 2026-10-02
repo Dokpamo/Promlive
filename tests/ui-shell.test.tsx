@@ -379,7 +379,7 @@ it('switches on press down and keeps inactive pages ready without exposing their
   grid.scrollTop = 240;
   const chats = query('[data-testid="ui-tab-chats"]')!;
 
-  // No release event or timer advance: the screen and selected icon change together.
+  // No release event or timer advance: routing changes before the icon's release feedback.
   await act(async () => chats.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0})));
   expect(chats.getAttribute('aria-selected')).toBe('true');
   expect(query('[data-testid="ui-title"]')?.textContent).toBe('채팅');
@@ -401,7 +401,13 @@ it('switches on press down and keeps inactive pages ready without exposing their
 it('slides directly to a distant pressed tab while the tab bar stays fixed and skips intermediate pages', async () => {
   const animations: {value: Animated.Value; to: number; complete: () => void}[] = [];
   vi.spyOn(Animated, 'timing').mockImplementation((value, config) => ({
-    start: callback => animations.push({value: value as Animated.Value, to: config.toValue as number, complete: () => callback?.({finished: true})}),
+    start: callback => {
+      // Track page travel separately from the icon's 0–1 deformation/fill feedback.
+      const from = (value as unknown as {__getValue: () => number}).__getValue();
+      if (Math.abs(from) > 1 || Math.abs(config.toValue as number) > 1) {
+        animations.push({value: value as Animated.Value, to: config.toValue as number, complete: () => callback?.({finished: true})});
+      } else callback?.({finished: true});
+    },
     stop() {}, reset() {},
   }));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);

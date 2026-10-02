@@ -91,7 +91,7 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onGall
       <NavigationButton testID="ui-card-editor-back" icon="back" label="이전 화면으로 돌아가기" scale={scale} onPress={onClose}/>
       <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, {fontSize: navigation.titleSize * scale, lineHeight: navigation.titleLineHeight * scale, fontWeight: '700'}]}>{card.draft.title ? '카드 편집' : '카드 만들기'}</Text>
       <Pressable testID="ui-card-editor-complete" accessibilityRole="button" accessibilityLabel="완료하고 서재에 반영"
-        onPress={complete} style={({pressed}) => [styles.complete, {opacity: pressed ? 0.55 : 1}]}>
+        onPress={complete} style={styles.complete}>
         <Text style={styles.completeText}>완료</Text>
       </Pressable>
     </View>

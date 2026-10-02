@@ -72,7 +72,7 @@ function InputAction({testID, label, icon, metrics: m, filled = false, disabled 
 }) {
   const colors = usePalette();
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
-    style={({pressed}) => ({width: m.actionSize, height: m.actionSize, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.25 : pressed ? 0.6 : 1})}>
+    style={{width: m.actionSize, height: m.actionSize, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.25 : 1}}>
     <View style={{width: m.circleSize, height: m.circleSize, borderRadius: m.circleSize / 2, alignItems: 'center', justifyContent: 'center',
       backgroundColor: filled ? colors.selectedBackground : 'transparent'}}>
       <Icon name={icon} size={m.iconSize} color={filled ? colors.selectedForeground : colors.secondaryForeground}/>

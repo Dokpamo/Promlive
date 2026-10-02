@@ -7,6 +7,7 @@ import {KeyboardPage} from '../KeyboardPage';
 import {listTypography, navigation, settingsDetailLayout, settingsListLayout} from '../tokens';
 import {usePalette} from '../Theme';
 import {ToggleIndicator} from './ToggleIndicator';
+import {ListPressable} from '../ListPressable';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
 export const SettingsFocusContext = createContext((_focused: boolean) => {});
 export type Choice = {value: string; label: string; detail?: string};
@@ -51,22 +52,22 @@ export function SettingRow({label, value = '', onPress, detail, testID, selected
     {selected ? <Icon name="check" size={settingsDetailLayout.selectionIconSize}/> : !!value && <Text numberOfLines={1} ellipsizeMode="tail" style={{...listTypography, maxWidth: '52%', flexShrink: 1, color: colors.secondaryForeground}}>{value}</Text>}</>;
   const style = {minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 16,
     backgroundColor: selected ? colors.surface : 'transparent'};
-  return onPress ? <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={[label, value].filter(Boolean).join(', ')}
-    accessibilityState={{selected, disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => [style, {opacity: disabled && dimDisabled ? .45 : pressed && !disabled ? .55 : 1}]}>{content}</Pressable>
+  return onPress ? <ListPressable testID={testID} accessibilityRole="button" accessibilityLabel={[label, value].filter(Boolean).join(', ')}
+    accessibilityState={{selected, disabled}} disabled={disabled} onPress={onPress} style={[style, {opacity: disabled && dimDisabled ? .45 : 1}]}>{content}</ListPressable>
     : <View testID={testID} style={style}>{content}</View>;
 }
 export function SettingToggle({label, value, onChange, testID}: {label: string; value: boolean; onChange: (value: boolean) => void; testID?: string}) {
   const colors = usePalette();
-  return <Pressable testID={testID} accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)}
+  return <ListPressable testID={testID} accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)}
     style={{minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16}}>
     <Text style={{...listTypography, flex: 1, color: colors.foreground}}>{label}</Text>
     <ToggleIndicator value={value}/>
-  </Pressable>;
+  </ListPressable>;
 }
 export function TextAction({label, onPress, disabled = false, danger = false, testID}: {label: string; onPress: () => void; disabled?: boolean; danger?: boolean; testID?: string}) {
   const colors = usePalette();
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
-    style={({pressed}) => ({minWidth: 48, minHeight: 48, paddingHorizontal: settingsDetailLayout.textActionInset, justifyContent: 'center', alignItems: 'center', opacity: disabled ? .4 : pressed ? .55 : 1})}>
+    style={{minWidth: 48, minHeight: 48, paddingHorizontal: settingsDetailLayout.textActionInset, justifyContent: 'center', alignItems: 'center', opacity: disabled ? .4 : 1}}>
     <Text style={{fontSize: 16, fontWeight: '600', color: danger ? colors.error : colors.foreground}}>{label}</Text>
   </Pressable>;
 }

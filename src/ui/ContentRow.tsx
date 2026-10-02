@@ -1,5 +1,6 @@
 import {themedStyles} from './Theme';
-import {Pressable, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
+import {ListPressable} from './ListPressable';
 import {PreviewArtwork} from './PreviewArtwork';
 import {listTypography} from './tokens';
 
@@ -29,8 +30,8 @@ export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessi
     </View>
   </>;
   return onPress
-    ? <Pressable testID={`ui-${scope}-row-${id}`} accessibilityRole="button" accessibilityLabel={accessibilityLabel}
-        onPress={onPress} style={({pressed}) => [styles.row, {opacity: pressed ? 0.6 : 1}]}>{content}</Pressable>
+    ? <ListPressable testID={`ui-${scope}-row-${id}`} accessibilityRole="button" accessibilityLabel={accessibilityLabel}
+        onPress={onPress} style={styles.row}>{content}</ListPressable>
     : <View testID={`ui-${scope}-row-${id}`} accessible accessibilityLabel={accessibilityLabel} style={styles.row}>{content}</View>;
 }
 

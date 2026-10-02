@@ -1,4 +1,5 @@
-import {Platform, Pressable, ScrollView, Text} from 'react-native';
+import {Platform, ScrollView, Text} from 'react-native';
+import {ListPressable} from './ListPressable';
 import {useRef} from 'react';
 import type {SettingsDestination} from './settings/OtherSettings';
 import {usePalette} from './Theme';
@@ -33,11 +34,11 @@ export function Settings({scale, memory, onOpen}: {scale: number; memory: Screen
   return <ScrollView ref={scroll} {...scrolling} testID="ui-settings-list" style={{flex: 1, backgroundColor: colors.background}}
     contentContainerStyle={{paddingTop: settingsListLayout.topInset, paddingBottom: layout.rowVerticalInset * scale}}
     bounces={false} alwaysBounceVertical={false} overScrollMode="never" showsVerticalScrollIndicator={false}>
-    {items.map(item => <Pressable key={item.id} testID={item.id === 'profile' ? 'ui-settings-user' : `ui-settings-row-${item.id}`} accessibilityRole="button" accessibilityLabel={item.title} onPress={() => onOpen(item.id)}
+    {items.map(item => <ListPressable key={item.id} testID={item.id === 'profile' ? 'ui-settings-user' : `ui-settings-row-${item.id}`} accessibilityRole="button" accessibilityLabel={item.title} onPress={() => onOpen(item.id)}
       style={{minHeight: settingsListLayout.rowHeight, flexDirection: 'row', alignItems: 'center',
         paddingHorizontal: horizontalInset, paddingVertical: layout.rowVerticalInset * scale, gap: layout.iconGap * scale}}>
       <Icon name={item.icon} size={iconSize}/>
       <Text style={{...labelStyle, flex: 1, minWidth: 0}}>{item.title}</Text>
-    </Pressable>)}
+    </ListPressable>)}
   </ScrollView>;
 }

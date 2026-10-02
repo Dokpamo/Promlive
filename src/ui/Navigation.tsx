@@ -1,7 +1,8 @@
 import {usePalette} from './Theme';
 import {Platform, Pressable, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {Icon, type IconName} from './Icon';
-import {TabIcon} from './TabIcon';
+import {TabButton} from './TabButton';
+import {useReducedMotion} from './useReducedMotion';
 import {navigation as m, navigationActionMetrics} from './tokens';
 import {tabs, tabLabels, type Tab} from './navigationRoutes';
 export {tabs, tabLabels, type Tab} from './navigationRoutes';
@@ -20,8 +21,7 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={{disabled: !onPress, ...(expanded === undefined ? {} : {expanded})}} aria-expanded={expanded}
     disabled={!onPress} onPress={onPress}
-    style={({pressed}) => [{width: size, height: size, flexShrink: 0, alignItems: 'center', justifyContent: 'center'},
-      style, {opacity: pressed ? 0.55 : 1}]}>
+    style={[{width: size, height: size, flexShrink: 0, alignItems: 'center', justifyContent: 'center'}, style]}>
     <Icon name={icon} size={iconSize} color={color}/>
   </Pressable>;
 }
@@ -43,17 +43,13 @@ export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Ta
 
 export function TabBar({tab, onChange, scale: s, bottomInset}: {tab: Tab; onChange: (tab: Tab) => void; scale: number; bottomInset: number}) {
   const colors = usePalette();
+  const reducedMotion = useReducedMotion();
   const height = Math.max(48, m.tabHeight * s);
   return <View testID="ui-tab-bar" accessibilityRole="tablist" style={{height: height + bottomInset, flexShrink: 0, paddingBottom: bottomInset, backgroundColor: colors.background}}>
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: m.separatorHeight * s, backgroundColor: colors.separator}}/>
     <View style={{flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', flexDirection: 'row'}}>
-      {tabs.map(item => <Pressable key={item} testID={`ui-tab-${item}`} accessibilityRole="tab" accessibilityLabel={tabLabels[item]}
-        accessibilityState={{selected: item === tab}} aria-selected={item === tab}
-        {...(Platform.OS === 'web' ? {delayPressIn: 0} : {unstable_pressDelay: 0})}
-        onPressIn={() => onChange(item)} onPress={() => onChange(item)}
-        style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        <TabIcon name={item} selected={item === tab} size={m.iconSize * s}/>
-      </Pressable>)}
+      {tabs.map(item => <TabButton key={item} name={item} selected={item === tab} size={m.iconSize * s}
+        reducedMotion={reducedMotion} onChange={onChange}/>)}
     </View>
   </View>;
 }
