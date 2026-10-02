@@ -1,6 +1,6 @@
 import {usePalette} from '../Theme';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Easing, Pressable, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, Animated, Easing, Platform, Pressable, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
 import type {GalleryImage} from '../cardDetails';
@@ -9,9 +9,12 @@ import {PreviewArtwork} from '../PreviewArtwork';
 import {InputField} from './InputField';
 import {ChatKeyboardDock} from './KeyboardDock'; // Native dock owns keyboard motion on both mobile platforms.
 import {inputLayout, inputMetrics, type InputMetrics} from './geometry';
+import {messageSendDuration, messageSendProgress} from '../messageSendMotion';
 
 type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRef;
   onChange: (value: string) => void; onSend: () => void; onAttach: () => void; onRemoveImage: () => void;
+  sendPhase?: 'measuring' | 'flying' | undefined;
+  hidden?: boolean;
   onHeight: (height: number) => void; onFocus: () => void};
 
 export function ChatInput(p: Props) {
@@ -23,6 +26,13 @@ export function ChatInput(p: Props) {
   const [frameHeight, setFrameHeight] = useState(layout.height);
   const motion = useRef(new Animated.Value(layout.height)).current;
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+  const previousSendPhase = useRef(p.sendPhase);
+  const visibility = useRef(new Animated.Value(p.hidden ? 0 : 1)).current;
+  useEffect(() => {
+    const animation = Animated.timing(visibility, {toValue: p.hidden ? 0 : 1, duration: reducedMotion ? 0 : 160,
+      easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== 'web'});
+    animation.start(); return () => animation.stop();
+  }, [p.hidden, reducedMotion, visibility]);
   useEffect(() => {
     let mounted = true;
     void AccessibilityInfo.isReduceMotionEnabled().then(value => {if (mounted) setReducedMotion(value);});
@@ -35,10 +45,15 @@ export function ChatInput(p: Props) {
   }, [motion]);
   useLayoutEffect(() => {
     motion.stopAnimation();
-    if (reducedMotion !== false) {motion.setValue(layout.height); return;}
-    const animation = Animated.timing(motion, {toValue: layout.height, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: false});
+    const wasSending = previousSendPhase.current;
+    previousSendPhase.current = p.sendPhase;
+    if (p.sendPhase === 'measuring') return;
+    if (reducedMotion !== false || (wasSending && !p.sendPhase)) {motion.setValue(layout.height); return;}
+    const animation = Animated.timing(motion, {toValue: layout.height,
+      duration: p.sendPhase === 'flying' ? messageSendDuration : 180,
+      easing: p.sendPhase === 'flying' ? t => Math.min(1, messageSendProgress(t)) : Easing.out(Easing.cubic), useNativeDriver: false});
     animation.start(); return () => animation.stop();
-  }, [motion, layout.height, reducedMotion]);
+  }, [motion, layout.height, reducedMotion, p.sendPhase]);
   const bottom = safe.bottom + m.gap;
   useLayoutEffect(() => p.onHeight(frameHeight + bottom + 10), [frameHeight, bottom, p.onHeight]);
   const width = Math.min(800, window.width - safe.left - safe.right) - m.gap * 2;
@@ -46,6 +61,9 @@ export function ChatInput(p: Props) {
   const canSend = !!p.value.trim() || !!p.image;
   const textTop = layout.photoHeight + m.textTop;
   return <ChatKeyboardDock safeBottom={safe.bottom}>
+    <Animated.View testID="ui-chat-composer-visibility" pointerEvents={p.hidden ? 'none' : 'box-none'} accessibilityElementsHidden={p.hidden}
+      importantForAccessibility={p.hidden ? 'no-hide-descendants' : 'auto'}
+      style={{position: 'absolute', inset: 0, opacity: visibility, transform: [{translateY: visibility.interpolate({inputRange: [0, 1], outputRange: [8, 0]})}]}}>
     <View pointerEvents="none" style={{position: 'absolute', bottom: 0, left: 0, right: 0, height: frameHeight + bottom + 10, backgroundColor: colors.background}}/>
     <View testID="ui-chat-composer" style={{position: 'absolute', left, width, bottom, height: frameHeight,
       borderRadius: m.radius, borderCurve: 'continuous', backgroundColor: colors.inputSurface}}>
@@ -64,6 +82,7 @@ export function ChatInput(p: Props) {
         <InputAction testID="ui-chat-send" label="메시지 전송" icon="send" metrics={m} filled disabled={!canSend} onPress={p.onSend}/>
       </View>
     </View>
+    </Animated.View>
   </ChatKeyboardDock>;
 }
 

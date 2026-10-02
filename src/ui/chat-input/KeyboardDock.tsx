@@ -6,8 +6,8 @@ import {Keyboard, View} from 'react-native';
 export function ChatKeyboardProvider({children}: {children: ReactNode}) {
   return <View style={{flex: 1}}>{children}</View>;
 }
-export function ChatKeyboardBody({children}: {children: ReactNode}) {
-  return <View style={{flex: 1, minHeight: 0}}>{children}</View>;
+export function ChatKeyboardBody({children, onViewport}: {children: ReactNode; onViewport?: (height: number) => void}) {
+  return <View onLayout={event => onViewport?.(event.nativeEvent.layout.height)} style={{flex: 1, minHeight: 0}}>{children}</View>;
 }
 export function dismissChatKeyboard() {Keyboard.dismiss();}
 export function ChatKeyboardDock({children}: {children: ReactNode; safeBottom: number}) {

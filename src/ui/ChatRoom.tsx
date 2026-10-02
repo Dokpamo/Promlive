@@ -1,6 +1,6 @@
 import {usePalette, themedStyles} from './Theme';
 import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {BackHandler, Platform, Pressable, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {Animated, BackHandler, Platform, Pressable, ScrollView, Text, View, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {ChatRow} from './screenState';
 import type {ScreenMemory} from './ScreenMemory';
@@ -14,8 +14,10 @@ import {ChatKeyboardProvider, ChatKeyboardBody, ChatKeyboardDock, dismissChatKey
 import {PreviewArtwork} from './PreviewArtwork';
 import {navigation, navigationActionMetrics} from './tokens';
 import {inputLayout, inputMetrics} from './chat-input/geometry';
-import {groupedMessage} from './chatConversation';
+import {groupedMessage, type ChatMessage} from './chatConversation';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
+import {useMessageSendMotion} from './useMessageSendMotion';
+import {isConversationEnd, useChatChrome} from './useChatChrome';
 
 type Props = {chat: ChatRow; gallery: GalleryImage[]; memory: ScreenMemory; scale: number; onClose: () => void; transition: BackTransition};
 export function ChatRoom(p: Props) {
@@ -42,6 +44,19 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   // An explicitly remembered top position is different from an unopened room.
   const initialScroll = useRef(savedScroll.offset === 0 && savedScroll.maxOffset === 0);
   const followEnd = useRef(initialScroll.current);
+  const compactComposer = inputLayout(geometry, geometry.line, false).height + safe.bottom + geometry.gap + 10;
+  const sending = useMessageSendMotion(scroll, compactComposer, geometry.textTop);
+  const chrome = useChatChrome(() => {sending.finish(); dismissChatKeyboard(); setAttachments(false); setMenu(false);});
+  const scrollFrame = useRef({height: 0, content: 0, offset: savedScroll.offset});
+  const sendingViewport = useRef(sending.onViewport); sendingViewport.current = sending.onViewport;
+  const setAtEnd = chrome.setAtEnd;
+  const updateViewport = useCallback((height: number) => {
+    scrollFrame.current.height = height;
+    sendingViewport.current(height);
+    setAtEnd(isConversationEnd(scrollFrame.current.offset, scrollFrame.current.content, height));
+  }, [setAtEnd]);
+  const flyingIndex = chat.messages.findIndex(message => message.id === sending.flight?.id);
+  const flyingMessage = chat.messages[flyingIndex];
   const canSend = !!chat.draft.trim() || !!chat.draftImage;
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -54,47 +69,79 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   function send() {
     if (!canSend) return;
     followEnd.current = true; initialScroll.current = true;
-    memory.sendChat(chat.id); setAttachments(false);
+    chrome.setAtEnd(true);
+    const message = memory.sendChat(chat.id);
+    if (message) sending.prepare(message.id, composerHeight);
+    setAttachments(false);
   }
   return <View testID="ui-chat-room" style={styles.screen}>
     <View style={{flex: 1, paddingTop: safe.top}}>
+      <Animated.View testID="ui-chat-header-visibility" pointerEvents={chrome.hidden ? 'none' : 'auto'} accessibilityElementsHidden={chrome.hidden}
+        importantForAccessibility={chrome.hidden ? 'no-hide-descendants' : 'auto'}
+        style={{height: chrome.header.interpolate({inputRange: [0, 1], outputRange: [0, navigation.headerHeight * scale]}), opacity: chrome.header, overflow: 'hidden'}}>
       <View testID="ui-chat-room-header" style={[styles.header, {height: navigation.headerHeight * scale, paddingLeft: actions.backInset, paddingRight: actions.endInset}]}>
         <NavigationButton testID="ui-chat-room-back" icon="back" label="이전 화면으로 돌아가기" scale={scale} onPress={onClose}/>
         <View style={styles.headerAvatar}><PreviewArtwork tile={chat.tile} width={36} height={36}/></View>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.headerName}>{chat.character || chat.title}</Text>
         <NavigationButton testID="ui-chat-room-more" icon="more" label="채팅 메뉴" scale={scale} onPress={() => setMenu(value => !value)} expanded={menu}/>
       </View>
-      <ChatKeyboardBody><ScrollView ref={scroll} {...scrolling} testID="ui-chat-messages" style={styles.messages} contentContainerStyle={[styles.messageBody, {paddingBottom: composerHeight + 12}]}
+      </Animated.View>
+      <ChatKeyboardBody onViewport={updateViewport}><ScrollView ref={scroll} {...scrolling} testID="ui-chat-messages" style={styles.messages} contentContainerStyle={[styles.messageBody, {paddingBottom: (sending.flight ? compactComposer : composerHeight) + 12}]}
         contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false}
+        {...chrome.touchHandlers} removeClippedSubviews={false} onScrollBeginDrag={() => {chrome.cancel(); sending.finish();}}
         keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onScroll={event => {
-          scrolling.onScroll(event);
           const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-          followEnd.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
+          const height = scrollFrame.current.height || layoutMeasurement.height;
+          scrolling.onScroll({...event, nativeEvent: {...event.nativeEvent, layoutMeasurement: {...layoutMeasurement, height}}});
+          scrollFrame.current = {height, content: contentSize.height, offset: contentOffset.y};
+          chrome.setAtEnd(isConversationEnd(contentOffset.y, contentSize.height, height));
+          sending.onScroll(contentOffset.y, height);
+          followEnd.current = contentSize.height - height - contentOffset.y < 80;
         }} onContentSizeChange={(width, height) => {
           scrolling.onContentSizeChange(width, height);
+          scrollFrame.current.content = height;
+          if (!sending.isActive() && !followEnd.current) chrome.setAtEnd(isConversationEnd(scrollFrame.current.offset, height, scrollFrame.current.height));
+          sending.onContentSize(height);
+          if (sending.isActive()) return;
           if (initialScroll.current || followEnd.current) {
             // Composer growth already supplies intermediate heights. Another
             // scroll animation here would make messages trail behind the input.
             scroll.current?.scrollToEnd({animated: false}); initialScroll.current = false;
           }
-        }} onLayout={event => {scrolling.onLayout(event); if (followEnd.current) scroll.current?.scrollToEnd({animated: false});}}>
+        }} onLayout={event => {scrolling.onLayout(event);
+          // Mobile viewport changes are already anchored by the native keyboard
+          // surface. A second JS scroll can use an intermediate header/IME frame.
+          if (Platform.OS === 'web' && !sending.isActive() && followEnd.current) scroll.current?.scrollToEnd({animated: false});}}>
         {chat.messages.map((message, index) => {
           const outgoing = message.role === 'user', group = groupedMessage(chat.messages, index);
-          return <View key={message.id} testID={`ui-chat-message-${message.id}`} style={[styles.messageRow,
-            {justifyContent: outgoing ? 'flex-end' : 'flex-start', marginTop: group.before ? 3 : 16}]}>
+          const flying = message.id === sending.flight?.id;
+          return <Animated.View key={message.id} testID={`ui-chat-message-${message.id}`} onLayout={event => sending.onRow(message.id, event.nativeEvent.layout)}
+            style={[styles.messageRow, {justifyContent: outgoing ? 'flex-end' : 'flex-start', marginTop: group.before ? 3 : 16,
+              opacity: flying || sending.flight?.phase === 'measuring' ? 0 : 1, transform: [{translateY: flying ? 0 : sending.historyY}]}]}>
             {!outgoing && <View style={styles.avatarSpace}>{!group.after && <View testID={`ui-message-avatar-${message.id}`} style={styles.avatar}>
               <PreviewArtwork tile={chat.tile} width={32} height={32}/>
             </View>}</View>}
-            <View style={[styles.bubble, {backgroundColor: outgoing ? colors.selectedBackground : colors.surface},
-              outgoing ? {borderTopRightRadius: group.before ? 6 : 24, borderBottomRightRadius: group.after ? 6 : 24}
-                : {borderTopLeftRadius: group.before ? 6 : 24, borderBottomLeftRadius: group.after ? 6 : 24}]}>
-              {message.image && <View style={styles.messageImage}><PreviewArtwork tile={message.image.tile} width={200} height={160}/></View>}
-              {!!message.text && <Text selectable style={[styles.messageText, {color: outgoing ? colors.selectedForeground : colors.foreground}]}>{message.text}</Text>}
-            </View>
+            <MessageBubble message={message} group={group} onLayout={event => sending.onBubble(message.id, event.nativeEvent.layout)}/>
+          </Animated.View>;
+        })}
+      </ScrollView>
+      {sending.flight?.phase === 'measuring' && <View testID="ui-chat-send-history" pointerEvents="none" accessible={false}
+        accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
+        {sending.flight.frozenRows.map(({id, layout}) => {
+          const index = chat.messages.findIndex(message => message.id === id), message = chat.messages[index];
+          if (!message) return null;
+          const group = groupedMessage(chat.messages, index), outgoing = message.role === 'user';
+          return <View key={id} style={[styles.messageRow, {position: 'absolute', left: layout.x, top: layout.y,
+            width: layout.width, height: layout.height, justifyContent: outgoing ? 'flex-end' : 'flex-start'}]}>
+            {!outgoing && <View style={styles.avatarSpace}>{!group.after && <View style={styles.avatar}>
+              <PreviewArtwork tile={chat.tile} width={32} height={32}/>
+            </View>}</View>}
+            <MessageBubble message={message} group={group} ghost/>
           </View>;
         })}
-      </ScrollView></ChatKeyboardBody>
+      </View>}
+      </ChatKeyboardBody>
       {attachments && <ChatKeyboardDock safeBottom={safe.bottom}><View testID="ui-chat-attachments" style={[styles.attachmentPanel, {position: 'absolute', bottom: composerHeight, left: 0, right: 0, backgroundColor: colors.background}]}>
         <View style={styles.attachmentHeading}><Text style={styles.panelTitle}>갤러리</Text>
           <NavigationButton icon="close" label="갤러리 닫기" scale={scale} onPress={() => setAttachments(false)}/></View>
@@ -112,10 +159,30 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
         <Pressable accessibilityRole="button" accessibilityLabel="메뉴 닫기" onPress={() => setMenu(false)} style={styles.menuItem}><Text style={styles.panelTitle}>닫기</Text></Pressable>
       </View>}
     </View>
-    <ChatInput value={chat.draft} image={chat.draftImage} blocker={blocker} onChange={text => memory.updateChatDraft(chat.id, text)}
+    <ChatInput value={chat.draft} image={chat.draftImage} blocker={blocker} sendPhase={sending.flight?.phase} hidden={chrome.composerHidden}
+      onChange={text => {sending.finish(); memory.updateChatDraft(chat.id, text);}}
       onSend={send} onAttach={() => {dismissChatKeyboard(); setAttachments(value => !value);}}
       onRemoveImage={() => memory.updateChatImage(chat.id, null)} onHeight={setComposerHeight}
       onFocus={() => {setAttachments(false); setMenu(false);}}/>
+    <ChatKeyboardDock safeBottom={safe.bottom}>
+      {sending.flight?.phase === 'flying' && flyingMessage && <Animated.View testID="ui-chat-send-flight" pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={[{position: 'absolute', right: 14, bottom: sending.flight.bottom, width: sending.flight.width, height: sending.flight.height}, sending.ghostStyle]}>
+        <MessageBubble message={flyingMessage} group={groupedMessage(chat.messages, flyingIndex)} width={sending.flight.width} height={sending.flight.height} ghost/>
+      </Animated.View>}
+    </ChatKeyboardDock>
+  </View>;
+}
+
+function MessageBubble({message, group, width, height, ghost = false, onLayout}: {message: ChatMessage; group: {before: boolean; after: boolean};
+  width?: number; height?: number; ghost?: boolean; onLayout?: (event: LayoutChangeEvent) => void}) {
+  const styles = useStyles(), colors = usePalette(), outgoing = message.role === 'user';
+  return <View onLayout={onLayout} style={[styles.bubble, {backgroundColor: outgoing ? colors.selectedBackground : colors.surface},
+    width === undefined ? {} : {width, maxWidth: '100%'},
+    height === undefined ? {} : {height},
+    outgoing ? {borderTopRightRadius: group.before ? 6 : 24, borderBottomRightRadius: group.after ? 6 : 24}
+      : {borderTopLeftRadius: group.before ? 6 : 24, borderBottomLeftRadius: group.after ? 6 : 24}]}>
+    {message.image && <View style={styles.messageImage}><PreviewArtwork tile={message.image.tile} width={200} height={160}/></View>}
+    {!!message.text && <Text selectable={!ghost} style={[styles.messageText, {color: outgoing ? colors.selectedForeground : colors.foreground}]}>{message.text}</Text>}
   </View>;
 }
 

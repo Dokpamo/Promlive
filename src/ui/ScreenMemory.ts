@@ -70,6 +70,7 @@ export class ScreenMemory {
     const updated = {...current, draft: '', draftImage: null, lastChatAt: at, messages: [...current.messages, message]};
     this.state = {...this.state, data: {...this.state.data, chats: [updated, ...this.state.data.chats.filter(chat => chat.id !== id)]}};
     this.dataRevision++; this.changed();
+    return message;
   }
   updateChatImage(id: string, image: GalleryImage | null) {
     if (!this.state.data.chats.some(chat => chat.id === id)) return;
