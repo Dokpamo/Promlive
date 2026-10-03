@@ -17,6 +17,7 @@ import type {SettingsDestination} from '../settings/OtherSettings';
 import {createBackTransition} from '../backTransition';
 import {DesktopPane} from './DesktopPane';
 import {HoverPressable} from './DesktopFeedback';
+import {DesktopSearchDismissal} from './DesktopSearchDismissal';
 import {desktopMetrics} from './desktopMetrics';
 import {desktopActiveTab, desktopLayout, desktopRailWidth, desktopTabView} from './desktopLayout';
 import {DesktopCardDetail, DesktopCardPreview, DesktopChats, DesktopCreation, DesktopEmpty, DesktopHeader, DesktopLibrary, desktopScale as scale} from './DesktopPages';
@@ -70,7 +71,7 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
   const roomWidth = Math.min(800, layout.content - (layout.split ? chatListWidth + 1 : 0));
   const settingsWidth = layout.content - (layout.split ? layout.settingsList + 1 : 0);
   const editorWidth = Math.min(760, layout.content - layout.preview);
-  return <View testID="ui-desktop-shell" onLayout={event => {const {width: w, height: h} = event.nativeEvent.layout;
+  return <DesktopSearchDismissal testID="ui-desktop-shell" onLayout={event => {const {width: w, height: h} = event.nativeEvent.layout;
     if (w > 0 && h > 0) setFrame(old => old.width === w && old.height === h ? old : {width: w, height: h});}}
     style={{flex: 1, minWidth: 0, minHeight: 0, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, flexDirection: 'row'}}>
@@ -128,5 +129,5 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
     {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.refresh().then(memory.flush);}} style={{padding: 12, backgroundColor: colors.surface}}>
       <Text accessibilityRole="alert" style={{color: colors.error}}>{storageIssue === 'conflict' ? '다른 창의 변경과 충돌해 저장하지 못했어요. 눌러서 다시 시도' : '저장한 데이터를 확인하지 못했어요. 원본을 보존하고 있어요. 눌러서 다시 시도'}</Text>
     </Pressable>}
-  </View>;
+  </DesktopSearchDismissal>;
 }

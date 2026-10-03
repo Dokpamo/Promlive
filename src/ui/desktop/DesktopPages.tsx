@@ -3,7 +3,7 @@ import {AppState, FlatList, Pressable, ScrollView, Text, View} from 'react-nativ
 import {usePalette} from '../Theme';
 import {NavigationButton, tabLabels, type Tab} from '../Navigation';
 import {FilterChips} from '../FilterChips';
-import {SearchField} from '../SearchField';
+import {SearchHeader, type HeaderSearch} from '../SearchHeader';
 import {ContentRow} from '../ContentRow';
 import {PreviewArtwork, previewArtworkRatio} from '../PreviewArtwork';
 import {libraryFilters} from '../swipeNavigation';
@@ -20,19 +20,17 @@ export const desktopScale = desktopMetrics.scale;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase();
 type SearchProps = {view: ScreenView; search: (scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => void};
 
-export function DesktopHeader({tab, children}: {tab: Tab; children?: ReactNode}) {
+export function DesktopHeader({tab, children, search, onSearch}: {tab: Tab; children?: ReactNode; search?: HeaderSearch; onSearch?: () => void}) {
   const colors = usePalette();
-  return <View testID="ui-desktop-header" style={{height: 64, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: 28, paddingRight: 16}}>
-    <Text accessibilityRole="header" style={{...desktopMetrics.heading, fontWeight: '700', color: colors.foreground, flex: 1}}>{tabLabels[tab]}</Text>{children}
+  const normal = <View testID="ui-desktop-header" style={{height: 64, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: 28, paddingRight: 16}}>
+    <Text accessibilityRole="header" style={{...desktopMetrics.heading, fontWeight: '700', color: colors.foreground, flex: 1}}>{tabLabels[tab]}</Text>
+    {search && <NavigationButton testID={`ui-${tab}-search-button`} icon="search" label={`${tabLabels[tab]} 검색`} scale={desktopScale} expanded={search.open} onPress={onSearch}/>}
+    {children}
   </View>;
+  return search ? <SearchHeader search={search} scale={desktopScale} height={64} trailingWidth={children ? 40 : 0}>{normal}</SearchHeader> : normal;
 }
-function SearchToggle({scope, view, search}: SearchProps & {scope: 'library' | 'chats' | 'create'}) {
-  return <NavigationButton testID={`ui-${scope}-search-button`} icon="search" label={`${tabLabels[scope]} 검색`} scale={desktopScale}
-    expanded={view.searches[scope].open} onPress={() => search(scope, view.searches[scope].open ? {open: false, query: ''} : {open: true})}/>;
-}
-function Search({scope, view, search}: SearchProps & {scope: 'library' | 'chats' | 'create'}) {
-  return view.searches[scope].open ? <SearchField scope={scope} query={view.searches[scope].query}
-    onQueryChange={query => search(scope, {query})} onClose={() => search(scope, {open: false, query: ''})}/> : null;
+function headerSearch(scope: 'library' | 'chats' | 'create', view: ScreenView, search: SearchProps['search']): HeaderSearch {
+  return {scope, ...view.searches[scope], onQueryChange: query => search(scope, {query}), onClose: () => search(scope, {open: false, query: ''})};
 }
 export function DesktopEmpty({children}: {children: string}) {
   const colors = usePalette();
@@ -47,10 +45,9 @@ export function DesktopLibrary({items, width, columns, memory, view, search, onO
   const filtered = items.filter(card => (view.libraryFilter === 'all' || card.activity === view.libraryFilter)
     && normalize(`${card.title} ${card.character} ${card.creator}`).includes(query));
   return <>
-    <DesktopHeader tab="library"><SearchToggle scope="library" view={view} search={search}/></DesktopHeader>
+    <DesktopHeader tab="library" search={headerSearch('library', view, search)} onSearch={() => search('library', {open: true})}/>
     <FilterChips scope="library" items={libraryFilters} selected={view.libraryFilter} scale={desktopScale} horizontalInset={28}
       onChange={libraryFilter => memory.updateView(current => ({...current, libraryFilter}))}/>
-    <Search scope="library" view={view} search={search}/>
     <LibraryGrid key={`${view.libraryFilter}:${columns}`} items={filtered} width={width} columns={columns} memory={memory} filter={view.libraryFilter} onOpen={onOpen}/>
   </>;
 }
@@ -93,8 +90,7 @@ export function DesktopChats({chats, memory, view, search, onOpen, compact}: Sea
   const query = normalize(view.searches.chats.query.trim());
   const filtered = chats.filter(chat => normalize(`${chat.title} ${chat.character} ${chat.lastAssistantMessage}`).includes(query));
   return <>
-    <DesktopHeader tab="chats"><SearchToggle scope="chats" view={view} search={search}/></DesktopHeader>
-    <Search scope="chats" view={view} search={search}/>
+    <DesktopHeader tab="chats" search={headerSearch('chats', view, search)} onSearch={() => search('chats', {open: true})}/>
     <ScrollView ref={scroll} {...scrolling} testID="ui-chats-list" style={{flex: 1}} contentContainerStyle={{paddingTop: 8, paddingBottom: 24}}>
       {filtered.map(chat => <ContentRow key={chat.id} scope="chat" id={chat.id} title={chat.title} subtitle={chat.lastAssistantMessage}
         timestamp={formatChatTimestamp(chat.lastChatAt, now)} tile={chat.tile} compact={compact} selected={chat.id === view.chatId}
@@ -107,11 +103,10 @@ export function DesktopCreation({cards, memory, view, search, onOpen, onCreate}:
   const now = useNow(), scroll = useRef<ScrollView>(null), scrolling = usePlainScrollMemory(memory, `create:${view.creationFilter}`, scroll);
   const filtered = filteredWorkCards(cards, view.creationFilter, view.searches.create.query);
   return <>
-    <DesktopHeader tab="create"><SearchToggle scope="create" view={view} search={search}/>
+    <DesktopHeader tab="create" search={headerSearch('create', view, search)} onSearch={() => search('create', {open: true})}>
       <NavigationButton testID="ui-header-action" icon="plus" label="새 카드 만들기" scale={desktopScale} onPress={onCreate}/></DesktopHeader>
     <FilterChips scope="create" items={creationFilters} selected={view.creationFilter} scale={desktopScale} horizontalInset={28}
       onChange={creationFilter => memory.updateView(current => ({...current, creationFilter}))}/>
-    <Search scope="create" view={view} search={search}/>
     <ScrollView ref={scroll} {...scrolling} testID="ui-create-list" style={{flex: 1}} contentContainerStyle={{paddingTop: 8, paddingBottom: 24, maxWidth: 900}}>
       {filtered.map(card => <ContentRow key={card.id} scope="creation" id={card.id} title={card.draft.title || '제목 없는 카드'}
         subtitle={`${card.origin === 'external' ? '외부 카드 · ' : ''}${card.working ? '작업 중' : '완성'} · ${card.draft.summary}`}

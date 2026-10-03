@@ -5,7 +5,6 @@ import type {ChatRow} from './screenState';
 import type {ScreenMemory} from './ScreenMemory';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ContentRow} from './ContentRow';
-import {SearchField} from './SearchField';
 import {navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
@@ -16,17 +15,12 @@ type Props = {
   width: number;
   scale: number;
   header: ReactNode;
-  searchOpen: boolean;
   query: string;
-  onQueryChange: (query: string) => void;
-  onCloseSearch: () => void;
   onOpen: (id: string) => void;
 };
 
-export function Chats({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, onOpen}: Props) {
+export function Chats({items, width, scale, header, query, memory, onOpen}: Props) {
   const styles = useStyles();
-  const restoringSearch = useRef(true);
-  useEffect(() => {restoringSearch.current = false;}, []);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const refresh = () => setNow(Date.now());
@@ -35,13 +29,12 @@ export function Chats({items, width, scale, header, searchOpen, query, onQueryCh
     return () => {clearInterval(timer); subscription.remove();};
   }, []);
   const list = useRef<FlatList<ChatRow>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale, JSON.stringify([width, searchOpen, query]), memory, 'chats');
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale, JSON.stringify([width, query]), memory, 'chats');
   const term = query.trim().normalize('NFKC').toLocaleLowerCase();
   const chats = items.filter(chat =>
     `${chat.title} ${chat.character} ${chat.lastAssistantMessage}`.normalize('NFKC').toLocaleLowerCase().includes(term));
   const listHeader = <>
     {header}
-    {searchOpen && <SearchField scope="chats" query={query} onQueryChange={onQueryChange} onClose={onCloseSearch} autoFocus={!restoringSearch.current}/>}
   </>;
 
   return <ScrollFrame scope="chats" header={listHeader} scrolling={scrolling}>

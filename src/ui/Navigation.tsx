@@ -8,6 +8,7 @@ import {tabs, tabLabels, type Tab} from './navigationRoutes';
 import type {TabBarLayout} from './tabBarLayout';
 import {useDesktopPane} from './desktop/DesktopPane';
 import {HoverPressable} from './desktop/DesktopFeedback';
+import {SearchHeader, type HeaderSearch} from './SearchHeader';
 export {tabs, tabLabels, type Tab} from './navigationRoutes';
 const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   library: {icon: 'plus', label: '카드 가져오기'},
@@ -30,19 +31,20 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
   </HoverPressable>;
 }
 
-export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean; onAction?: () => void}) {
+export function Header({tab, scale: s, onSearch, search, onAction}: {tab: Tab; scale: number; onSearch?: () => void; search?: HeaderSearch; onAction?: () => void}) {
   const colors = usePalette();
   const action = headerActions[tab];
-  return <View testID="ui-header" style={{height: m.headerHeight * s, flexShrink: 0, paddingLeft: m.titleInset * s,
+  const normal = <View testID="ui-header" style={{height: m.headerHeight * s, flexShrink: 0, paddingLeft: m.titleInset * s,
     paddingRight: m.actionInset * s, flexDirection: 'row', alignItems: 'center'}}>
     <Text testID="ui-title" accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, color: colors.foreground,
       ...(Platform.OS === 'android' ? {fontFamily: 'sans-serif'} : {}),
       fontSize: m.titleSize * s, lineHeight: m.titleLineHeight * s, fontWeight: '700', includeFontPadding: false,
       transform: [{translateY: m.titleOffsetY * s}]}}>{tabLabels[tab]}</Text>
     {tab !== 'settings' && <NavigationButton testID={`ui-${tab}-search-button`} icon="search" label={`${tabLabels[tab]} 검색`}
-      scale={s} onPress={onSearch} expanded={searchOpen}/>}
+      scale={s} onPress={onSearch} expanded={search?.open ?? false}/>}
     <NavigationButton testID="ui-header-action" icon={action.icon} label={action.label} scale={s} onPress={onAction}/>
   </View>;
+  return search ? <SearchHeader search={search} scale={s} height={m.headerHeight * s} trailingWidth={navigationActionMetrics(s).size}>{normal}</SearchHeader> : normal;
 }
 
 export function TabBar({tab, onChange, scale: s, layout}: {tab: Tab; onChange: (tab: Tab) => void; scale: number; layout: TabBarLayout}) {

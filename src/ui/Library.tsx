@@ -1,9 +1,8 @@
 import {usePalette, themedStyles} from './Theme';
-import {useEffect, useRef, type ReactNode} from 'react';
+import {useRef, type ReactNode} from 'react';
 import {Animated, type FlatList, Pressable, Text, View} from 'react-native';
 import type {LibraryCard} from './cardWorkspace';
 import {PreviewArtwork} from './PreviewArtwork';
-import {SearchField} from './SearchField';
 import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
@@ -17,25 +16,19 @@ type Props = {
   width: number;
   scale: number;
   header: ReactNode;
-  searchOpen: boolean;
   query: string;
-  onQueryChange: (query: string) => void;
-  onCloseSearch: () => void;
   memory: ScreenMemory;
   filter: LibraryFilter;
   onFilterChange: (filter: LibraryFilter) => void;
   onOpen: (id: string) => void;
-  selected?: boolean;
 };
 
 /** Only completed snapshots open here; draft editing remains in the creation workspace. */
-export function Library({items, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, memory, filter, onFilterChange, onOpen, selected = true}: Props) {
+export function Library({items, width, scale, header, query, memory, filter, onFilterChange, onOpen}: Props) {
   const colors = usePalette();
   const styles = useStyles();
-  const restoringSearch = useRef(true);
-  useEffect(() => {restoringSearch.current = false;}, []);
   const list = useRef<FlatList<LibraryCard>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, searchOpen, query]), memory, `library:${filter}`);
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `library:${filter}`);
   const gap = 3 * scale;
   const cardWidth = (width - gap * 2) / 3;
   const term = query.trim().normalize('NFKC').toLocaleLowerCase();
@@ -46,7 +39,6 @@ export function Library({items, width, scale, header, searchOpen, query, onQuery
   const listHeader = <>
     {header}
     <FilterChips scope="library" items={libraryFilters} selected={filter} onChange={onFilterChange} scale={scale}/>
-    {searchOpen && <SearchField scope="library" query={query} onQueryChange={onQueryChange} onClose={onCloseSearch} autoFocus={selected && !restoringSearch.current}/>}
   </>;
 
   return <ScrollFrame scope="library" header={listHeader} scrolling={scrolling}>

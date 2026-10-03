@@ -60,7 +60,7 @@ function StackSettingsNavigator({initial, transition, onClose, scale, bottomInse
       const event = BackHandler.addEventListener('hardwareBackPress', () => {back(stackRef.current.at(-1)?.id); return true;}); return () => event.remove();
     }
     if (Platform.OS === 'web') {
-      const escape = (event: KeyboardEvent) => {if (event.key === 'Escape') {event.preventDefault(); back(stackRef.current.at(-1)?.id);}};
+      const escape = (event: KeyboardEvent) => {if (event.key === 'Escape' && !event.defaultPrevented) {event.preventDefault(); back(stackRef.current.at(-1)?.id);}};
       document.addEventListener('keydown', escape); return () => document.removeEventListener('keydown', escape);
     }
   }, [back]);

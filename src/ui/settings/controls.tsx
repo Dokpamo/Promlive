@@ -4,7 +4,8 @@ import {NavigationButton} from '../Navigation';
 import {Icon} from '../Icon';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {KeyboardPage} from '../KeyboardPage';
-import {listTypography, navigation, settingsDetailLayout, settingsListLayout} from '../tokens';
+import {listTypography, navigation, navigationActionMetrics, settingsDetailLayout, settingsListLayout} from '../tokens';
+import {SearchHeader, type HeaderSearch} from '../SearchHeader';
 import {usePalette} from '../Theme';
 import {ToggleIndicator} from './ToggleIndicator';
 import {ListPressable} from '../ListPressable';
@@ -22,24 +23,28 @@ export type SettingsNavigation = {
 };
 export type SettingsRender = (nav: SettingsNavigation) => ReactNode;
 
-export function SettingsHeader({title, nav, action, backDisabled = false}: {title: string; nav: SettingsNavigation; action?: ReactNode; backDisabled?: boolean}) {
+export function SettingsHeader({title, nav, action, backDisabled = false, search}: {title: string; nav: SettingsNavigation; action?: ReactNode; backDisabled?: boolean; search?: HeaderSearch}) {
   const colors = usePalette();
-  return <View testID="ui-settings-detail-header" style={{height: navigation.headerHeight * nav.scale, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: navigation.backInset, paddingRight: navigation.actionInset * nav.scale}}>
+  const desktop = useDesktopPane();
+  const normal = <View testID="ui-settings-detail-header" style={{height: navigation.headerHeight * nav.scale, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: navigation.backInset, paddingRight: navigation.actionInset * nav.scale}}>
     <NavigationButton testID="ui-settings-back" icon="back" label="뒤로" scale={nav.scale} onPress={backDisabled ? undefined : nav.back}/>
     <Text accessibilityRole="header" numberOfLines={1} style={{flex: 1, minWidth: 0, marginLeft: 12, color: colors.foreground,
       fontSize: navigation.titleSize * nav.scale, lineHeight: navigation.titleLineHeight * nav.scale, fontWeight: '700', includeFontPadding: false,
       fontFamily: Platform.OS === 'android' ? 'sans-serif' : undefined, transform: [{translateY: navigation.titleOffsetY * nav.scale}]}}>{title}</Text>
     {action}
   </View>;
+  return search ? <SearchHeader search={search} scale={nav.scale} height={navigation.headerHeight * nav.scale}
+    actionInset={navigation.actionInset * nav.scale} fieldInset={settingsDetailLayout.horizontalInset} backInset={navigation.backInset}
+    trailingWidth={desktop ? 40 : navigationActionMetrics(nav.scale).size}>{normal}</SearchHeader> : normal;
 }
 
-export function SettingsPage({title, nav, children, action, testID}: {title: string; nav: SettingsNavigation; children: ReactNode; action?: ReactNode; testID?: string}) {
+export function SettingsPage({title, nav, children, action, testID, search}: {title: string; nav: SettingsNavigation; children: ReactNode; action?: ReactNode; testID?: string; search?: HeaderSearch}) {
   const colors = usePalette();
   const safe = useSafeAreaInsets();
   return <KeyboardPage testID={testID}
     keyboardVerticalOffset={safe.top}
     style={{flex: 1, minHeight: 0, backgroundColor: colors.background, paddingBottom: nav.bottomInset}}>
-    <SettingsHeader title={title} nav={nav} action={action}/>
+    <SettingsHeader title={title} nav={nav} action={action} {...(search ? {search} : {})}/>
     <ScrollView testID="ui-settings-detail-content" style={{flex: 1, minHeight: 0}} contentContainerStyle={{paddingTop: settingsListLayout.topInset, paddingBottom: 32}}
       bounces showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {children}

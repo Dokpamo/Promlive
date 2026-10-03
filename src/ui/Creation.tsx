@@ -7,29 +7,22 @@ import {creationFilters, type CreationFilter} from './creationPreview';
 import {filteredWorkCards, type WorkCard} from './cardWorkspace';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ScrollFrame} from './ScrollFrame';
-import {SearchField} from './SearchField';
 import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import type {ScreenMemory} from './ScreenMemory';
 
-export function Creation({cards, width, scale, header, searchOpen, query, onQueryChange, onCloseSearch, onOpen, memory, filter, onFilterChange, selected = true}: {
+export function Creation({cards, width, scale, header, query, onOpen, memory, filter, onFilterChange}: {
   cards: WorkCard[];
   width: number;
   scale: number;
   header: ReactNode;
-  searchOpen: boolean;
   query: string;
-  onQueryChange: (query: string) => void;
-  onCloseSearch: () => void;
   onOpen: (id: string) => void;
   memory: ScreenMemory;
   filter: CreationFilter;
   onFilterChange: (filter: CreationFilter) => void;
-  selected?: boolean;
 }) {
   const styles = useStyles();
-  const restoringSearch = useRef(true);
-  useEffect(() => {restoringSearch.current = false;}, []);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const refresh = () => setNow(Date.now());
@@ -38,11 +31,10 @@ export function Creation({cards, width, scale, header, searchOpen, query, onQuer
     return () => {clearInterval(timer); subscription.remove();};
   }, []);
   const list = useRef<FlatList<WorkCard>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, searchOpen, query]), memory, `create:${filter}`);
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `create:${filter}`);
   const listHeader = <>
     {header}
     <FilterChips scope="create" items={creationFilters} selected={filter} onChange={onFilterChange} scale={scale}/>
-    {searchOpen && <SearchField scope="create" query={query} onQueryChange={onQueryChange} onClose={onCloseSearch} autoFocus={selected && !restoringSearch.current}/>}
   </>;
   return <ScrollFrame scope="create" header={listHeader} scrolling={scrolling}>
     <Animated.FlatList ref={list} testID="ui-create-list" data={filteredWorkCards(cards, filter, query)} extraData={now}

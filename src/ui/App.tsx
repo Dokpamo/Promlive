@@ -144,21 +144,21 @@ function Shell({memory}: {memory: ScreenMemory}) {
   // Stable elements let React skip the lists entirely during tab-only updates.
   const libraryPages = useMemo(() => Object.fromEntries(libraryFilters.map(({id}) => [`library:${id}`, <Library key={id}
       items={publishedLibraryCards(cards)} width={contentWidth} scale={scale} memory={memory}
-      filter={id} selected={libraryFilter === id} onFilterChange={setLibraryFilter} onOpen={openDetail}
-      header={<Header tab="library" scale={scale} onSearch={() => searches.library.open ? closeSearch() : search('library', {open: true})} searchOpen={searches.library.open}/>}
-      searchOpen={searches.library.open} query={searches.library.query} onQueryChange={setQuery} onCloseSearch={closeSearch}/>])),
+      filter={id} onFilterChange={setLibraryFilter} onOpen={openDetail}
+      header={<Header tab="library" scale={scale} onSearch={() => searches.library.open ? closeSearch() : search('library', {open: true})} search={{scope: 'library', ...searches.library, onQueryChange: setQuery, onClose: closeSearch}}/>}
+      query={searches.library.query}/>])),
     [cards, contentWidth, scale, memory, libraryFilter, setLibraryFilter, searches.library, search, setQuery, closeSearch, openDetail]);
   const chatsPage = useMemo(() => <Chats items={chats} width={contentWidth} scale={scale} memory={memory}
-      header={<Header tab="chats" scale={scale} onSearch={() => searches.chats.open ? closeChatSearch() : search('chats', {open: true})} searchOpen={searches.chats.open}/>}
-      searchOpen={searches.chats.open} query={searches.chats.query} onQueryChange={setChatQuery} onCloseSearch={closeChatSearch} onOpen={openChat}/>,
+      header={<Header tab="chats" scale={scale} onSearch={() => searches.chats.open ? closeChatSearch() : search('chats', {open: true})} search={{scope: 'chats', ...searches.chats, onQueryChange: setChatQuery, onClose: closeChatSearch}}/>}
+      query={searches.chats.query} onOpen={openChat}/>,
     [chats, contentWidth, scale, memory, searches.chats, search, setChatQuery, closeChatSearch, openChat]);
   const creationPages = useMemo(() => Object.fromEntries(creationFilters.map(({id}) => [`create:${id}`, <Creation key={id}
       cards={cards} width={contentWidth} scale={scale} memory={memory}
-      filter={id} selected={creationFilter === id} onFilterChange={setCreationFilter}
-      header={<Header tab="create" scale={scale} onSearch={() => searches.create.open ? closeCreationSearch() : search('create', {open: true})} searchOpen={searches.create.open} onAction={createCard}/>}
-      searchOpen={searches.create.open} query={searches.create.query} onQueryChange={setCreationQuery} onCloseSearch={closeCreationSearch} onOpen={openCard}/>])),
+      filter={id} onFilterChange={setCreationFilter}
+      header={<Header tab="create" scale={scale} onSearch={() => searches.create.open ? closeCreationSearch() : search('create', {open: true})} search={{scope: 'create', ...searches.create, onQueryChange: setCreationQuery, onClose: closeCreationSearch}} onAction={createCard}/>}
+      query={searches.create.query} onOpen={openCard}/>])),
     [cards, contentWidth, scale, memory, creationFilter, setCreationFilter, searches.create, search, setCreationQuery, closeCreationSearch, createCard, openCard]);
-  const settingsPage = useMemo(() => <><Header tab="settings" scale={scale} onSearch={() => {}} searchOpen={false} onAction={() => openSettings('profile')}/>
+  const settingsPage = useMemo(() => <><Header tab="settings" scale={scale} onAction={() => openSettings('profile')}/>
     <SwipeSurface testID="ui-settings-swipe"><Settings scale={scale} memory={memory} onOpen={openSettings}/></SwipeSurface></>, [scale, memory, openSettings]);
   return <View testID="ui-shell" style={{flex: 1, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>

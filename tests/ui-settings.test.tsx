@@ -383,7 +383,7 @@ it('filters personas with one folder chip row and creates inside the selected ne
   expect(get(`ui-persona-${guide.id}`)).toBeTruthy();
   expect(get(`ui-persona-${created.id}`)).toBeTruthy();
   expect(get('ui-persona-default')).toBeUndefined();
-  await click('ui-persona-search-button');
+  await click('ui-persona-search-back');
   expect(get('ui-persona-search')).toBeUndefined();
   expect(get('ui-persona-default')).toBeTruthy();
   expect(get(`ui-persona-${created.id}`)).toBeTruthy();

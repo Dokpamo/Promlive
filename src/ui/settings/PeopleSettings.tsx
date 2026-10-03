@@ -106,13 +106,10 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
   const toggle = (id: string) => setSelected(old => old.includes(id) ? old.filter(item => item !== id) : [...old, id]);
   const beginSelection = (id: string) => {
     if (!ready) return;
-    Keyboard.dismiss(); setFocused(false); setManaging(true); setNotice('');
+    Keyboard.dismiss(); setFocused(false); setSearchOpen(false); setQuery(''); setManaging(true); setNotice('');
     setSelected(old => old.includes(id) ? old : [...old, id]);
   };
-  const toggleSearch = () => {
-    if (searchOpen) {setQuery(''); Keyboard.dismiss(); setFocused(false);}
-    setSearchOpen(!searchOpen);
-  };
+  const closeSearch = () => {setSearchOpen(false); setQuery(''); setFocused(false);};
   const filters = [
     {id: 'all', label: '전체', disabled: managing},
     ...value.folders.map(item => ({id: item.id, label: personaFolderPath(value, item.id).map(parent => parent.name).join(' / '),
@@ -130,9 +127,11 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
     <Note error={!!error}>{error || '페르소나를 불러오고 있어요.'}</Note>
     {!!error && <TextAction testID="ui-personas-load-retry" label="다시 시도" onPress={() => {void services.personas.load();}}/>}
   </SettingsPage>;
-  return <SettingsPage title="페르소나" nav={nav} testID="ui-personas-settings" action={<View style={{flexDirection: 'row', alignItems: 'center'}}>
+  return <SettingsPage title="페르소나" nav={nav} testID="ui-personas-settings"
+    search={{scope: 'persona', open: searchOpen, query, onQueryChange: setQuery, onClose: closeSearch, onFocus: () => setFocused(true), onBlur: () => setFocused(false)}}
+    action={<View style={{flexDirection: 'row', alignItems: 'center'}}>
     {managing ? <TextAction label="완료" onPress={() => {setManaging(false); setSelected([]); setNotice('');}}/> :
-      <NavigationButton testID="ui-persona-search-button" icon="search" label="페르소나 검색" scale={nav.scale} expanded={searchOpen} onPress={toggleSearch}/>}
+      <NavigationButton testID="ui-persona-search-button" icon="search" label="페르소나 검색" scale={nav.scale} expanded={searchOpen} onPress={() => setSearchOpen(true)}/>}
     {!managing && <NavigationButton testID="ui-persona-add" icon="plus" label="페르소나 추가" scale={nav.scale}
       onPress={ready ? () => nav.push(child => <PersonaEditor services={services} nav={child} folderId={folderId}/>) : undefined}/>}
   </View>}>
@@ -143,7 +142,6 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
         trailingAction={managing ? undefined : {testID: 'ui-persona-folder-add', icon: 'listPlus', label: '폴더 만들기', disabled: !ready,
           onPress: () => nav.push(child => <FolderEditor services={services} nav={child} parentId={folderId}/>)}}/>
     </View>
-    {searchOpen && <Field label="페르소나 검색" search testID="ui-persona-search" value={query} onChange={setQuery} placeholder="이름 또는 설명" autoFocus returnKeyType="search"/>}
     {managing && <View style={{flexDirection: 'row', paddingHorizontal: settingsDetailLayout.horizontalInset - settingsDetailLayout.textActionInset}}>
       {selectedFolders.length === 1 && !selectedPeople.length && <TextAction label="폴더 이름" onPress={() => nav.push(child => <FolderEditor services={services} nav={child} parentId={selectedFolders[0]!} rename/>)}/>}
       <TextAction label="이동" disabled={!selected.length} onPress={move}/>
