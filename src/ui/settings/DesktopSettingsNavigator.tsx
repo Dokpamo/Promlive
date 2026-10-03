@@ -14,6 +14,8 @@ export function DesktopSettingsNavigator({renderRoot, onClose, scale}: {
   const pane = useDesktopPane()!, colors = usePalette(), reducedMotion = useReducedMotion();
   const nextId = useRef(0), blocked = useRef(new Set<number>());
   const [stack, setStack] = useState<Entry[]>(() => [{id: 0, render: renderRoot}]);
+  const stackRef = useRef(stack), mounted = useRef(true);
+  useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
   const scroll = useRef<ScrollView>(null), reveal = useRef(false), contentWidth = useRef(0);
   const width = stack.length === 1 ? Math.min(760, pane.width)
     : Math.min(560, Math.max(Math.min(360, pane.width), (pane.width - 1) / 2));
@@ -27,27 +29,31 @@ export function DesktopSettingsNavigator({renderRoot, onClose, scale}: {
   // New columns wait for their native layout before scrolling to the right.
   useLayoutEffect(revealRight, [stack, revealRight]);
   const canRemove = useCallback((entries: Entry[]) => !entries.some(entry => blocked.current.has(entry.id)), []);
-  const back = useCallback((index: number) => {
-    if (!canRemove(stack.slice(index))) return;
+  const back = useCallback((id: number | undefined) => {
+    const current = stackRef.current, index = current.findIndex(entry => entry.id === id);
+    if (!mounted.current || index < 0 || !canRemove(current.slice(index))) return;
     Keyboard.dismiss();
-    for (const entry of stack.slice(index)) blocked.current.delete(entry.id);
-    if (index === 0) onClose(); else setStack(old => old.slice(0, index));
-  }, [stack, canRemove, onClose]);
-  const push = (index: number, render: SettingsRender) => {
-    if (!canRemove(stack.slice(index + 1))) return;
+    for (const entry of current.slice(index)) blocked.current.delete(entry.id);
+    stackRef.current = current.slice(0, index);
+    if (index === 0) onClose(); else setStack(stackRef.current);
+  }, [canRemove, onClose]);
+  const push = (id: number, render: SettingsRender) => {
+    const current = stackRef.current, index = current.findIndex(entry => entry.id === id);
+    if (!mounted.current || index < 0 || !canRemove(current.slice(index + 1))) return;
     Keyboard.dismiss();
     reveal.current = true;
-    for (const entry of stack.slice(index + 1)) blocked.current.delete(entry.id);
-    setStack(old => [...old.slice(0, index + 1), {id: ++nextId.current, render}]);
+    for (const entry of current.slice(index + 1)) blocked.current.delete(entry.id);
+    stackRef.current = [...current.slice(0, index + 1), {id: ++nextId.current, render}];
+    setStack(stackRef.current);
   };
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {event.preventDefault(); back(stack.length - 1);}
+      if (event.key === 'Escape' && !event.defaultPrevented) {event.preventDefault(); back(stackRef.current.at(-1)?.id);}
     };
     document.addEventListener('keydown', escape);
     return () => document.removeEventListener('keydown', escape);
-  }, [back, stack.length]);
+  }, [back]);
   return <ScrollView ref={scroll} horizontal testID="ui-desktop-settings-columns" style={{flex: 1, minHeight: 0}}
     contentContainerStyle={{minWidth: pane.width, flexGrow: 1, justifyContent: stack.length === 1 ? 'center' : 'flex-start'}}
     showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}
@@ -56,8 +62,8 @@ export function DesktopSettingsNavigator({renderRoot, onClose, scale}: {
       style={{width: width + (index ? 1 : 0), height: pane.height, flexDirection: 'row'}}>
       {index > 0 && <View style={{width: 1, backgroundColor: colors.separator}}/>}
       <DesktopPane width={width} height={pane.height}>
-        <DesktopEntry render={entry.render} nav={{back: () => back(index), push: render => push(index, render), scale, bottomInset: 0,
-          blockBack: value => {if (value) blocked.current.add(entry.id); else blocked.current.delete(entry.id);}}}/>
+        <DesktopEntry render={entry.render} nav={{back: () => back(entry.id), push: render => push(entry.id, render), scale, bottomInset: 0,
+          blockBack: value => {if (value && mounted.current && stackRef.current.some(current => current.id === entry.id)) blocked.current.add(entry.id); else blocked.current.delete(entry.id);}}}/>
       </DesktopPane>
     </View>)}
   </ScrollView>;

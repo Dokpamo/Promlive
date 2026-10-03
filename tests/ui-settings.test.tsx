@@ -78,6 +78,68 @@ async function fixture() {
   await render(services);
   return {services, repo, credentials, values, secrets, render, container, memory};
 }
+it('offers persona retry without editable recovery defaults and restores the original collection', async () => {
+  const {repo, credentials, values, render} = await fixture();
+  values.set('personas:v1', '{broken');
+  const services = createSettingsServices(repo, credentials);
+  await services.load(); await render(services);
+  const writes = vi.spyOn(repo, 'setSetting');
+  await click('ui-settings-row-personas');
+  expect(get('ui-personas-load-retry')).toBeTruthy();
+  expect(get('ui-persona-add')).toBeUndefined();
+  expect(get('ui-persona-default')).toBeUndefined();
+  await click('ui-personas-load-retry');
+  expect(writes).not.toHaveBeenCalled();
+  expect(values.get('personas:v1')).toBe('{broken');
+  values.set('personas:v1', JSON.stringify({version: 1, items: [{id: 'original', name: '원래 페르소나', description: '', image: null}]}));
+  await click('ui-personas-load-retry');
+  expect(get('ui-personas-load-retry')).toBeUndefined();
+  expect(get('ui-persona-original')).toBeTruthy();
+  expect(get('ui-persona-add')).toBeTruthy();
+  expect(writes).not.toHaveBeenCalled();
+});
+
+it('ignores completion from a closed persona editor while another editor is open and keeps navigation usable', async () => {
+  const {services} = await fixture();
+  let finish!: () => void;
+  const update = services.personas.update;
+  vi.spyOn(services.personas, 'update').mockImplementationOnce(async (...args) => {
+    await new Promise<void>(resolve => {finish = resolve;}); await update(...args);
+  });
+  await click('ui-settings-row-personas'); await click('ui-persona-default');
+  await type('ui-persona-name', '늦게 저장된 이름'); await click('ui-persona-save');
+  expect(finish).toBeTypeOf('function');
+  await click('ui-settings-back'); await click('ui-persona-add');
+  const editor = get('ui-persona-editor');
+  await type('ui-persona-name', '새 페이지의 초안');
+  await act(async () => {finish();});
+  expect(services.personas.snapshot().value.items[0]!.name).toBe('늦게 저장된 이름');
+  expect(get('ui-persona-editor')).toBe(editor);
+  expect((get('ui-persona-name') as HTMLInputElement).value).toBe('새 페이지의 초안');
+  await click('ui-settings-back'); await click('ui-persona-add');
+  expect(get('ui-persona-editor')).toBeTruthy();
+  await click('ui-settings-back'); await click('ui-settings-back');
+  expect(get('ui-tab-bar')).toBeTruthy();
+});
+
+it('keeps settings navigation usable when deletion completes after its confirmation page was cancelled', async () => {
+  const {services} = await fixture();
+  let finish!: () => void;
+  const remove = services.personas.removeMany;
+  vi.spyOn(services.personas, 'removeMany').mockImplementationOnce(async (...args) => {
+    await new Promise<void>(resolve => {finish = resolve;}); await remove(...args);
+  });
+  await click('ui-settings-row-personas'); await longPress('ui-persona-default');
+  await button('삭제'); await button('삭제');
+  expect(finish).toBeTypeOf('function');
+  await button('취소');
+  await act(async () => {finish();});
+  expect(services.personas.snapshot().value.items).toEqual([]);
+  await click('ui-persona-add');
+  expect(get('ui-persona-editor')).toBeTruthy();
+  await click('ui-settings-back'); await click('ui-settings-back');
+  expect(get('ui-tab-bar')).toBeTruthy();
+});
 it('keeps the user row consistent and automatically saves the name without a profile completion action', async () => {
   const {services} = await fixture();
   const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3eoAAAAASUVORK5CYII=';

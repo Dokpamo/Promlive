@@ -144,6 +144,18 @@ export function decodeScreenView(raw: string | null, data: ScreenData) {
   } catch {return null;}
 }
 
+export type ScreenViewRead = {kind: 'empty' | 'corrupt' | 'unsupported'} | {kind: 'valid'; view: ScreenView; positions: ScreenSnapshot['positions']};
+export function inspectScreenView(raw: string | null, data: ScreenData): ScreenViewRead {
+  if (raw === null) return {kind: 'empty'};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (object(value) && typeof value.version === 'number' && value.version !== 1) return {kind: 'unsupported'};
+    if (!object(value) || !object(value.view) || (value.positions !== undefined && !object(value.positions))) return {kind: 'corrupt'};
+    const decoded = decodeScreenView(raw, data);
+    return decoded ? {kind: 'valid', ...decoded} : {kind: 'corrupt'};
+  } catch {return {kind: 'corrupt'};}
+}
+
 /** Stable identities keep unchanged rows/images mounted during background refresh. */
 function shareRows<T extends {id: string}>(previous: T[], next: T[]): T[] {
   const byId = new Map(previous.map(row => [row.id, row]));

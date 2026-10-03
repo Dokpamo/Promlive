@@ -16,6 +16,105 @@ function snapshot(): ScreenSnapshot {
   return {version: 1, savedAt: 1, data: initialScreenData(), view: initialScreenView(), positions: {}};
 }
 
+function presentationFailure() {
+  const disk = storage(JSON.stringify(snapshot()));
+  const original = JSON.stringify({version: 1, view: {...initialScreenView(), themeMode: 'dark', tab: 'settings',
+    searches: {...initialScreenView().searches, library: {open: true, query: '저장한 검색'}}},
+    positions: {settings: {offset: 120, hidden: 0, height: 50, maxOffset: 500}}});
+  let raw = original, failing = true;
+  disk.readViewSync = vi.fn(() => {if (failing) throw new Error('temporary view read'); return raw;});
+  disk.writeView = vi.fn(async value => {raw = value;});
+  return {disk, original, raw: () => raw, recover: () => {failing = false;}};
+}
+
+it('retries the failed view store and restores theme, tab and scroll without replacing its bytes', async () => {
+  const source = presentationFailure(), memory = new ScreenMemory(source.disk);
+  for (let i = 0; i < 3; i++) await memory.refresh().then(memory.flush);
+  expect(source.disk.readViewSync).toHaveBeenCalledTimes(4);
+  expect(memory.getSnapshot().storageIssue).toBe('read');
+  expect(source.raw()).toBe(source.original);
+  expect(source.disk.writeView).not.toHaveBeenCalled();
+  source.recover();
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot()).toMatchObject({saveError: false, view: {themeMode: 'dark', tab: 'settings'}});
+  expect(memory.getScroll('settings').offset).toBe(120);
+  expect(source.disk.writeView).not.toHaveBeenCalled();
+  expect(source.disk.write).not.toHaveBeenCalled();
+});
+
+it('preserves unread view fields while saving content and merging only intervening view edits on recovery', async () => {
+  const source = presentationFailure(), memory = new ScreenMemory(source.disk);
+  memory.updateView(view => ({...view, tab: 'create', searches: {...view.searches, chats: {open: true, query: '새 검색'}}}));
+  memory.rememberScroll('create', {offset: 80, hidden: 0, height: 40, maxOffset: 200});
+  memory.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: '보존할 새 본문', now: 20});
+  await memory.flush();
+  expect(source.disk.write).toHaveBeenCalledTimes(1);
+  expect(source.disk.writeView).not.toHaveBeenCalled();
+  expect(source.raw()).toBe(source.original);
+  expect(memory.getSnapshot().storageIssue).toBe('read');
+  source.recover();
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot()).toMatchObject({saveError: false, view: {themeMode: 'dark', tab: 'create',
+    searches: {library: {open: true, query: '저장한 검색'}, chats: {open: true, query: '새 검색'}}}});
+  expect(memory.getScroll('settings').offset).toBe(120);
+  expect(memory.getScroll('create').offset).toBe(80);
+  expect(source.disk.writeView).toHaveBeenCalledTimes(1);
+  expect(decodeScreenSnapshot(source.disk.readSync())!.data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('보존할 새 본문');
+});
+
+it('never saves the recovery preview when the view is restored during a pending content write', async () => {
+  const source = presentationFailure(), memory = new ScreenMemory(source.disk);
+  let finishRead!: (data: ReturnType<typeof initialScreenData>) => void;
+  const refreshing = memory.refresh(() => new Promise(done => {finishRead = done;}));
+  let releaseWrite!: () => void, started!: () => void;
+  const writing = new Promise<void>(done => {started = done;}), originalWrite = source.disk.write;
+  source.disk.write = vi.fn(async (value, expected) => {
+    await new Promise<void>(done => {releaseWrite = done; started();});
+    await originalWrite(value, expected);
+  });
+  memory.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: '저장 중인 본문', now: 21});
+  await writing;
+  source.recover(); finishRead(initialScreenData());
+  await refreshing;
+  expect(memory.getSnapshot().view.themeMode).toBe('dark');
+  releaseWrite(); await memory.flush();
+  expect(source.raw()).toBe(source.original);
+  expect(source.disk.writeView).not.toHaveBeenCalled();
+  expect(decodeScreenSnapshot(source.disk.readSync())!.data.cards.find(card => card.id === 'draft-1')!.draft.title).toBe('저장 중인 본문');
+});
+
+it.each(['{broken', '', JSON.stringify({version: 2, view: {themeMode: 'dark'}})])('does not overwrite an unreadable presentation: %s', async raw => {
+  const disk = storage(JSON.stringify(snapshot()));
+  disk.readViewSync = () => raw;
+  const memory = new ScreenMemory(disk);
+  memory.updateView(view => ({...view, tab: 'create'}));
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().saveError).toBe(true);
+  expect(disk.writeView).not.toHaveBeenCalled();
+  expect(disk.write).not.toHaveBeenCalled();
+});
+
+it('recovers independent content and view read failures without clearing the remaining error or losing references', async () => {
+  const source = presentationFailure(), disk = source.disk;
+  const saved = JSON.stringify({...snapshot(), view: {...initialScreenView(), themeMode: 'dark', chatId: 'night-library'}});
+  let dataFails = true;
+  disk.readSync = () => {throw new Error('content unavailable');};
+  disk.read = async () => {if (dataFails) throw new Error('content unavailable'); return saved;};
+  const memory = new ScreenMemory(disk);
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().data.cards).toEqual([]);
+  dataFails = false;
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot().data.cards.length).toBeGreaterThan(0);
+  expect(memory.getSnapshot().storageIssue).toBe('read');
+  expect(disk.writeView).not.toHaveBeenCalled();
+  disk.readViewSync = () => JSON.stringify({version: 1, view: JSON.parse(saved).view, positions: {}});
+  await memory.refresh().then(memory.flush);
+  expect(memory.getSnapshot()).toMatchObject({saveError: false, view: {themeMode: 'dark', chatId: 'night-library'}});
+  expect(disk.write).not.toHaveBeenCalled();
+  expect(disk.writeView).not.toHaveBeenCalled();
+});
+
 it('does not replace shared content when another instance only changes its view or scroll', async () => {
   const disk = storage(JSON.stringify(snapshot()));
   const a = new ScreenMemory(disk), b = new ScreenMemory(disk);

@@ -22,16 +22,21 @@ export interface PersonaCollection {
 }
 export const defaultPersonas: PersonaCollection = {items: [{id: 'default', name: '기본', description: '', image: null, folderId: null}], folders: [], selectedId: 'default'};
 
-export function restorePersonas(raw: string | undefined): PersonaCollection {
-  const defaults = () => ({...defaultPersonas, items: defaultPersonas.items.map(item => ({...item})), folders: []});
-  if (!raw) return defaults();
+export type PersonaRead = {kind: 'empty' | 'valid' | 'corrupt' | 'unsupported'; value: PersonaCollection};
+const freshPersonas = (): PersonaCollection => ({...defaultPersonas, items: defaultPersonas.items.map(item => ({...item})), folders: []});
+
+/** Recovery previews are not permission to replace the original stored document. */
+export function inspectPersonas(raw: string | undefined): PersonaRead {
+  if (raw === undefined) return {kind: 'empty', value: freshPersonas()};
   try {
     const saved = JSON.parse(raw);
+    if (typeof saved?.version === 'number' && saved.version !== 1) return {kind: 'unsupported', value: freshPersonas()};
     if (saved?.version !== 1 || !Array.isArray(saved.items)) throw new Error('Invalid personas');
+    let damaged = saved.folders !== undefined && !Array.isArray(saved.folders);
     const folderIds = new Set<string>();
     const folders: PersonaFolder[] = (Array.isArray(saved.folders) ? saved.folders : []).flatMap((entry: unknown) => {
       const result = folderSchema.safeParse(entry);
-      if (!result.success || folderIds.has(result.data.id)) return [];
+      if (!result.success || folderIds.has(result.data.id)) {damaged = true; return [];}
       folderIds.add(result.data.id); return [result.data];
     });
     const byId = new Map(folders.map(folder => [folder.id, folder]));
@@ -39,22 +44,26 @@ export function restorePersonas(raw: string | undefined): PersonaCollection {
       const ancestors = new Set([folder.id]);
       let parent = folder.parentId;
       while (parent) {
-        if (!byId.has(parent) || ancestors.has(parent)) {folder.parentId = null; break;}
+        if (!byId.has(parent) || ancestors.has(parent)) {damaged = true; folder.parentId = null; break;}
         ancestors.add(parent); parent = byId.get(parent)!.parentId;
       }
     }
     const seen = new Set<string>();
     const items: Persona[] = saved.items.flatMap((entry: unknown) => {
       const result = personaSchema.safeParse(entry);
-      if (!result.success || seen.has(result.data.id)) return [];
+      if (!result.success || seen.has(result.data.id)) {damaged = true; return [];}
       seen.add(result.data.id);
+      if (result.data.folderId && !folderIds.has(result.data.folderId)) damaged = true;
       return [{...result.data, folderId: result.data.folderId && folderIds.has(result.data.folderId) ? result.data.folderId : null}];
     });
     const value: PersonaCollection = {items, folders, selectedId: items.some(item => item.id === saved.selectedId) ? saved.selectedId : items[0]?.id ?? null};
     if (Array.isArray(saved.order)) value.order = personaEntryOrder({...value, order: saved.order});
-    return value;
-  } catch {return defaults();}
+    else if (saved.order !== undefined) damaged = true;
+    return {kind: damaged ? 'corrupt' : 'valid', value};
+  } catch {return {kind: 'corrupt', value: freshPersonas()};}
 }
+
+export function restorePersonas(raw: string | undefined): PersonaCollection {return inspectPersonas(raw).value;}
 
 export function searchPersonas(items: readonly Persona[], search: string) {
   const query = search.trim().toLocaleLowerCase();
@@ -92,10 +101,14 @@ export class PersonaPreferences {
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private emit() {for (const listener of this.listeners) listener();}
   load = () => this.loading ??= this.storage.getSetting(personaSettingsKey).then(raw => {
-    this.state = {value: restorePersonas(raw), ready: true, error: ''}; this.emit();
+    const result = inspectPersonas(raw);
+    const ready = result.kind === 'empty' || result.kind === 'valid';
+    if (!ready) this.loading = undefined;
+    this.state = {value: result.value, ready, error: ready ? '' : result.kind === 'unsupported'
+      ? '다른 버전에서 저장한 페르소나예요. 원본을 보존하고 있어요.' : '저장한 페르소나를 읽을 수 없어 원본을 보존하고 있어요.'}; this.emit();
   }).catch(() => {
     this.loading = undefined;
-    this.state = {...this.state, error: '페르소나를 불러오지 못했어요. 다시 시도해 주세요.'}; this.emit();
+    this.state = {...this.state, ready: false, error: '페르소나를 불러오지 못했어요. 다시 시도해 주세요.'}; this.emit();
   });
   private mutate(change: (value: PersonaCollection) => PersonaCollection): Promise<void> {
     const next = this.saving.catch(() => {}).then(async () => {

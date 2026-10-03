@@ -44,6 +44,52 @@ async function fixture(memory = new ScreenMemory(createScreenStorage())) {
   return {memory, services};
 }
 
+it('does not let a completed save from an old column close its replacement and keeps navigation usable', async () => {
+  const {services} = await fixture();
+  let finish!: () => void;
+  const update = services.personas.update;
+  vi.spyOn(services.personas, 'update').mockImplementationOnce(async (...args) => {
+    await new Promise<void>(resolve => {finish = resolve;}); await update(...args);
+  });
+  await click('ui-tab-settings'); await click('ui-settings-row-personas'); await click('ui-persona-default');
+  await type('ui-persona-name', '늦은 PC 저장'); await click('ui-persona-save');
+  expect(finish).toBeTypeOf('function');
+  const childBack = get('ui-desktop-settings-column-1')!.querySelector<HTMLElement>('[data-testid="ui-settings-back"]')!;
+  await act(async () => childBack.click());
+  await click('ui-persona-add');
+  const replacement = get('ui-desktop-settings-column-2');
+  expect(replacement).toBeTruthy();
+  await type('ui-persona-name', '유지할 새 초안');
+  await act(async () => {finish();});
+  expect(get('ui-desktop-settings-column-2')).toBe(replacement);
+  expect((get('ui-persona-name') as HTMLInputElement).value).toBe('유지할 새 초안');
+  expect(services.personas.snapshot().value.items[0]!.name).toBe('늦은 PC 저장');
+  const parentBack = get('ui-desktop-settings-column-0')!.querySelector<HTMLElement>('[data-testid="ui-settings-back"]')!;
+  await act(async () => parentBack.click());
+  await click('ui-settings-row-ai'); await click('ui-ai-provider');
+  expect(get('ui-settings-choice-page')).toBeTruthy();
+});
+
+it('ignores late completion after closing and reopening the same desktop settings destination', async () => {
+  const {services} = await fixture();
+  let finish!: () => void;
+  vi.spyOn(services.personas, 'duplicate').mockImplementationOnce(() => new Promise(resolve => {
+    finish = () => resolve(services.personas.snapshot().value.items[0]!);
+  }));
+  await click('ui-tab-settings'); await click('ui-settings-row-personas'); await click('ui-persona-default');
+  const duplicate = [...document.querySelectorAll<HTMLElement>('[role="button"]')].find(element => element.getAttribute('aria-label') === '복제')!;
+  await act(async () => duplicate.click());
+  expect(finish).toBeTypeOf('function');
+  const back = get('ui-desktop-settings-column-0')!.querySelector<HTMLElement>('[data-testid="ui-settings-back"]')!;
+  await act(async () => back.click());
+  await click('ui-settings-row-personas'); await click('ui-persona-add');
+  const editor = get('ui-persona-editor');
+  await type('ui-persona-name', '새로 연 설정');
+  await act(async () => {finish();});
+  expect(get('ui-persona-editor')).toBe(editor);
+  expect((get('ui-persona-name') as HTMLInputElement).value).toBe('새로 연 설정');
+});
+
 it('uses a rail for desktop hosts and wide web only, with split panes that fit the available width', () => {
   for (const platform of ['macos', 'windows']) expect(isDesktopLayout(platform, 700)).toBe(true);
   for (const platform of ['ios', 'android']) expect(isDesktopLayout(platform, 1400)).toBe(false);

@@ -126,6 +126,10 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
   const move = () => nav.push(child => <ChoicePage nav={child} title="폴더 이동" value="" choices={[{value: '', label: '전체 보관함'}, ...value.folders.filter(folder => canMovePersonaFolders(value, selectedFolders, folder.id)).map(folder => ({value: folder.id, label: folder.name,
     detail: personaFolderPath(value, folder.parentId).map(parent => parent.name).join(' / ')}))]}
     onChoose={id => {void mutate(() => services.personas.move(selectedPeople, id || null, selectedFolders));}}/>);
+  if (!ready) return <SettingsPage title="페르소나" nav={nav} testID="ui-personas-settings">
+    <Note error={!!error}>{error || '페르소나를 불러오고 있어요.'}</Note>
+    {!!error && <TextAction testID="ui-personas-load-retry" label="다시 시도" onPress={() => {void services.personas.load();}}/>}
+  </SettingsPage>;
   return <SettingsPage title="페르소나" nav={nav} testID="ui-personas-settings" action={<View style={{flexDirection: 'row', alignItems: 'center'}}>
     {managing ? <TextAction label="완료" onPress={() => {setManaging(false); setSelected([]); setNotice('');}}/> :
       <NavigationButton testID="ui-persona-search-button" icon="search" label="페르소나 검색" scale={nav.scale} expanded={searchOpen} onPress={toggleSearch}/>}

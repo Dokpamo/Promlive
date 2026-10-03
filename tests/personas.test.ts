@@ -1,9 +1,60 @@
 import {expect, it, vi} from 'vitest';
 import {repository} from './helpers';
-import {PersonaPreferences, personaSettingsKey, restorePersonas, searchPersonas, libraryPersonas, nextPersonaFolderName, personaEntryOrder} from '../src/features/personas/personaPreferences';
+import {PersonaPreferences, personaSettingsKey, restorePersonas, inspectPersonas, searchPersonas, libraryPersonas, nextPersonaFolderName, personaEntryOrder} from '../src/features/personas/personaPreferences';
 
 const image = 'data:image/png;base64,cGhvdG8=';
 const input = {name: '여행자', description: '새로운 세계를 탐험해요.', image};
+
+it.each([
+  {name: 'broken JSON', raw: '{broken', kind: 'corrupt'},
+  {name: 'empty stored bytes', raw: '', kind: 'corrupt'},
+  {name: 'null document', raw: 'null', kind: 'corrupt'},
+  {name: 'newer document', raw: JSON.stringify({version: 2, items: [{...input, id: 'original'}]}), kind: 'unsupported'},
+  {name: 'partly damaged items', raw: JSON.stringify({version: 1, items: [{...input, id: 'original'}, {id: 'damaged', name: ''}]}), kind: 'corrupt'},
+  {name: 'invalid folders', raw: JSON.stringify({version: 1, items: [], folders: {original: 'keep'}}), kind: 'corrupt'},
+])('preserves $name and refuses ordinary persona and folder mutations', async ({raw, kind}) => {
+  let saved = raw;
+  const disk = {getSetting: async () => saved, setSetting: vi.fn(async (_key: string, value: string) => {saved = value;})};
+  const personas = new PersonaPreferences(disk);
+  expect(inspectPersonas(raw).kind).toBe(kind);
+  await personas.load();
+  expect(personas.snapshot().ready).toBe(false);
+  expect(personas.snapshot().error).not.toBe('');
+  await expect(personas.duplicate('default')).rejects.toThrow();
+  await expect(personas.create(input)).rejects.toThrow();
+  await expect(personas.createFolder('새 폴더')).rejects.toThrow();
+  await expect(personas.removeMany(['original'])).rejects.toThrow();
+  expect(disk.setSetting).not.toHaveBeenCalled();
+  expect(saved).toBe(raw);
+});
+
+it('retries a failed persona read and only enables editing after a valid legacy document is available', async () => {
+  let saved = '{broken', failRead = true;
+  const disk = {getSetting: async () => {if (failRead) throw new Error('temporary'); return saved;},
+    setSetting: vi.fn(async (_key: string, value: string) => {saved = value;})};
+  const personas = new PersonaPreferences(disk);
+  await personas.load();
+  expect(personas.snapshot().ready).toBe(false);
+  failRead = false;
+  await personas.load();
+  expect(personas.snapshot().ready).toBe(false);
+  saved = JSON.stringify({version: 1, items: [{...input, id: 'original'}], selectedId: 'original'});
+  await personas.load();
+  expect(personas.snapshot()).toMatchObject({ready: true, error: ''});
+  expect(disk.setSetting).not.toHaveBeenCalled();
+  await personas.duplicate('original');
+  expect(JSON.parse(saved).items.map((item: {name: string}) => item.name)).toEqual(['여행자', '여행자 사본']);
+});
+
+it('distinguishes an absent persona document from damaged bytes and allows initial creation', async () => {
+  expect(inspectPersonas(undefined).kind).toBe('empty');
+  const disk = {getSetting: async () => undefined, setSetting: vi.fn(async () => {})};
+  const personas = new PersonaPreferences(disk);
+  await personas.create(input);
+  expect(personas.snapshot().ready).toBe(true);
+  expect(personas.snapshot().value.items.map(item => item.name)).toEqual(['기본', '여행자']);
+  expect(disk.setSetting).toHaveBeenCalledTimes(1);
+});
 
 it('preserves previously saved ordering when the gesture UI is removed', async () => {
   let saved = JSON.stringify({version: 1, folders: [{id: 'f', name: '보관'}], items: [{...input, id: 'a'}, {...input, id: 'b'}],

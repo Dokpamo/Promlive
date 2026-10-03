@@ -24,47 +24,50 @@ function StackSettingsNavigator({initial, transition, onClose, scale, bottomInse
   const {width} = useWindowDimensions(), corners = useScreenCorners();
   const nextId = useRef(0);
   const [stack, setStack] = useState<Entry[]>(() => [{id: 0, transition, swipeBack: true, render: nav => <Destination page={initial} nav={nav}/>}]);
+  const stackRef = useRef(stack), mounted = useRef(true);
+  useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
   const backBlocks = useRef(new Set<number>());
   const [closing, setClosing] = useState<number | null>(null);
   const closingRef = useRef<number | null>(null);
   const completedRef = useRef<number | null>(null);
-  const back = useCallback(() => {
-    if (closingRef.current !== null) return;
-    const id = stack.at(-1)!.id;
+  const back = useCallback((id: number | undefined) => {
+    if (!mounted.current || id === undefined || stackRef.current.at(-1)?.id !== id || closingRef.current !== null) return;
     if (backBlocks.current.has(id)) return;
     closingRef.current = id;
     Keyboard.dismiss();
     setClosing(id);
-  }, [stack]);
+  }, []);
   const completeBack = useCallback((id: number) => {
-    const entry = stack.at(-1);
-    if (entry?.id !== id || completedRef.current === id) return;
+    const current = stackRef.current, entry = current.at(-1);
+    if (!mounted.current || entry?.id !== id || completedRef.current === id) return;
     completedRef.current = id;
     backBlocks.current.delete(id);
+    stackRef.current = current.slice(0, -1);
     entry.transition.finish();
     closingRef.current = null; setClosing(null);
-    if (stack.length === 1) {onClose(); return;}
-    setStack(old => old.at(-1)?.id === id ? old.slice(0, -1) : old);
-  }, [stack, onClose]);
-  const push = useCallback((render: SettingsRender, options: SettingsPageOptions = {}) => {
-    if (closingRef.current !== null) return;
+    if (current.length === 1) {onClose(); return;}
+    setStack(stackRef.current);
+  }, [onClose]);
+  const push = useCallback((owner: number, render: SettingsRender, options: SettingsPageOptions = {}) => {
+    if (!mounted.current || stackRef.current.at(-1)?.id !== owner || closingRef.current !== null) return;
     Keyboard.dismiss();
     const motion = createBackTransition(new Animated.Value(0), width, corners); motion.prepareOpen();
-    setStack(old => [...old, {id: ++nextId.current, render, transition: motion, swipeBack: options.swipeBack ?? true}]);
+    stackRef.current = [...stackRef.current, {id: ++nextId.current, render, transition: motion, swipeBack: options.swipeBack ?? true}];
+    setStack(stackRef.current);
   }, [width, corners]);
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const event = BackHandler.addEventListener('hardwareBackPress', () => {back(); return true;}); return () => event.remove();
+      const event = BackHandler.addEventListener('hardwareBackPress', () => {back(stackRef.current.at(-1)?.id); return true;}); return () => event.remove();
     }
     if (Platform.OS === 'web') {
-      const escape = (event: KeyboardEvent) => {if (event.key === 'Escape') {event.preventDefault(); back();}};
+      const escape = (event: KeyboardEvent) => {if (event.key === 'Escape') {event.preventDefault(); back(stackRef.current.at(-1)?.id);}};
       document.addEventListener('keydown', escape); return () => document.removeEventListener('keydown', escape);
     }
   }, [back]);
   return <>{stack.map((entry, index) => <ScreenLayer key={entry.id} testID={`ui-settings-layer-${entry.id}`} hidden={index !== stack.length - 1} prepared={index === stack.length - 2} backTransition={stack[index + 1]?.transition}>
     <SettingsEntry entry={entry} active={index === stack.length - 1} dismiss={closing === entry.id}
-      onBack={() => completeBack(entry.id)} nav={{back, push, scale, bottomInset, closing: closing === entry.id,
-        blockBack: blocked => {if (blocked) backBlocks.current.add(entry.id); else backBlocks.current.delete(entry.id);}}}/>
+      onBack={() => completeBack(entry.id)} nav={{back: () => back(entry.id), push: (render, options) => push(entry.id, render, options), scale, bottomInset, closing: closing === entry.id,
+        blockBack: blocked => {if (blocked && mounted.current && stackRef.current.some(current => current.id === entry.id)) backBlocks.current.add(entry.id); else backBlocks.current.delete(entry.id);}}}/>
   </ScreenLayer>)}</>;
 }
 function SettingsEntry({entry, active, dismiss, onBack, nav}: {entry: Entry; active: boolean; dismiss: boolean; onBack: () => void; nav: SettingsNavigation}) {

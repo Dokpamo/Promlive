@@ -1,7 +1,7 @@
 import {cardWorkspaceReducer, type CardAction, type LibraryCard} from './cardWorkspace';
 import type {GalleryImage} from './cardDetails';
 import {ScreenStorageConflict, type ScreenStorage} from './screenPersistence';
-import {decodeScreenView, inspectScreenSnapshot, emptyScrollMemory, initialScreenData, initialScreenView, reconcileScreenData, validScreenData,
+import {inspectScreenView, inspectScreenSnapshot, emptyScrollMemory, initialScreenData, initialScreenView, reconcileScreenData, validScreenData,
   type ScreenData, type ScreenSnapshot, type ScreenState, type ScreenView, type ScrollMemory, type ScrollScope, type ScreenStorageIssue} from './screenState';
 
 /** Cache first, durable writes in order, then background reconciliation without a loading screen. */
@@ -10,11 +10,19 @@ export class ScreenMemory {
   private positions: ScreenSnapshot['positions'];
   private listeners = new Set<() => void>();
   private revision = 0;
-  private savedRevision = -1;
+  private viewRevision = 0;
+  private savedViewRevision = -1;
   private dataRevision = 0;
   private savedDataRevision = -1;
   private source: string | null = null;
-  private blockedLoad = false;
+  private dataLoadIssue: ScreenStorageIssue | null = null;
+  private viewLoadIssue: ScreenStorageIssue | null = null;
+  private writeIssue: ScreenStorageIssue | null = null;
+  private viewPending = false;
+  private viewFallback: Pick<ScreenSnapshot, 'view' | 'positions'> | null = null;
+  private viewOverrides: Partial<Omit<ScreenView, 'searches'>> = {};
+  private searchOverrides: Partial<Record<keyof ScreenView['searches'], Partial<ScreenView['searches']['library']>>> = {};
+  private scrollOverrides: ScreenSnapshot['positions'] = {};
   private writing: Promise<boolean> | null = null;
   private refreshing: Promise<void> | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -33,27 +41,70 @@ export class ScreenMemory {
         else if (primary.kind !== 'empty' || backup.kind !== 'empty') issue = backup.kind === 'unsupported' ? 'unsupported' : 'corrupt';
       }
     } catch {issue = 'read';}
-    this.blockedLoad = issue !== null;
+    this.dataLoadIssue = issue;
     const data = cached?.data ?? (issue ? {cards: [], chats: []} : initialScreenData());
     let presentation = cached && {view: cached.view, positions: cached.positions};
-    try {presentation = decodeScreenView(storage.readViewSync(), data) ?? presentation;} catch {issue ??= 'read';}
+    this.viewFallback = presentation;
+    let viewRead = false;
+    try {
+      const result = inspectScreenView(storage.readViewSync(), data);
+      if (result.kind === 'valid') {presentation = result; viewRead = true;}
+      else if (result.kind !== 'empty') this.viewLoadIssue = result.kind;
+    } catch {this.viewLoadIssue = 'read';}
+    // A readable view still needs its card/chat references restored after a data retry.
+    this.viewPending = this.blockedLoad || this.viewLoadIssue !== null;
+    issue = this.dataLoadIssue ?? this.viewLoadIssue;
     this.state = {data, view: presentation?.view ?? initialScreenView(), saveError: issue !== null, storageIssue: issue};
     this.positions = presentation?.positions ?? {};
-    if (cached && this.savedDataRevision === 0) this.savedRevision = 0;
+    if (!this.viewPending && (viewRead || (cached && this.savedDataRevision === 0))) this.savedViewRevision = 0;
   }
 
+  private get blockedLoad() {return this.dataLoadIssue !== null;}
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private emit() { this.listeners.forEach(listener => listener()); }
-  private setSaveError(storageIssue: ScreenStorageIssue | null) {
+  private publishIssue() {
+    const storageIssue = this.dataLoadIssue ?? this.viewLoadIssue ?? this.writeIssue;
     if (this.state.storageIssue === storageIssue) return;
     this.state = {...this.state, saveError: storageIssue !== null, storageIssue}; this.emit();
+  }
+  private setSaveError(issue: ScreenStorageIssue | null) {this.writeIssue = issue; this.publishIssue();}
+  /** Merge only edits made while the stored view was unavailable; keep its other fields. */
+  private restorePresentation(data: ScreenData, fallback = this.viewFallback) {
+    if (!this.viewPending || this.blockedLoad) return;
+    try {
+      const result = inspectScreenView(this.storage.readViewSync(), data);
+      if (result.kind === 'corrupt' || result.kind === 'unsupported') {this.viewLoadIssue = result.kind; this.publishIssue(); return;}
+      const saved = result.kind === 'valid' ? result : fallback ?? {view: initialScreenView(), positions: {}};
+      const view = {...saved.view, ...this.viewOverrides, searches: {...saved.view.searches}};
+      for (const scope of Object.keys(this.searchOverrides) as (keyof ScreenView['searches'])[]) {
+        view.searches[scope] = {...view.searches[scope], ...this.searchOverrides[scope]};
+      }
+      const edited = Object.keys(this.viewOverrides).length + Object.keys(this.searchOverrides).length + Object.keys(this.scrollOverrides).length > 0;
+      this.positions = {...saved.positions, ...this.scrollOverrides};
+      this.viewPending = false; this.viewLoadIssue = null; this.viewFallback = null;
+      this.viewOverrides = {}; this.searchOverrides = {}; this.scrollOverrides = {};
+      this.viewRevision++;
+      this.savedViewRevision = edited ? -1 : this.viewRevision;
+      this.state = {...this.state, view}; this.publishIssue(); this.emit();
+    } catch {this.viewLoadIssue = 'read'; this.publishIssue();}
   }
   private changed() { this.revision++; this.emit(); void this.flush(); }
 
   updateView(update: (view: ScreenView) => ScreenView) {
-    const view = update(this.state.view);
-    if (view === this.state.view) return;
+    const previous = this.state.view, view = update(previous);
+    if (view === previous) return;
+    if (this.viewPending) {
+      for (const key of Object.keys(view) as (keyof ScreenView)[]) {
+        if (key !== 'searches' && view[key] !== previous[key]) Object.assign(this.viewOverrides, {[key]: view[key]});
+      }
+      for (const scope of Object.keys(view.searches) as (keyof ScreenView['searches'])[]) {
+        for (const key of ['open', 'query'] as const) if (view.searches[scope][key] !== previous.searches[scope][key]) {
+          this.searchOverrides[scope] = {...this.searchOverrides[scope], [key]: view.searches[scope][key]};
+        }
+      }
+    }
+    this.viewRevision++;
     this.state = {...this.state, view}; this.changed();
   }
   dispatchCard(action: CardAction) {
@@ -104,6 +155,12 @@ export class ScreenMemory {
     // Retain the tab-level snapshot for older readers, without mixing prepared filter pages.
     if (scope === `library:${this.state.view.libraryFilter}`) this.positions.library = {...position};
     if (scope === `create:${this.state.view.creationFilter}`) this.positions.create = {...position};
+    if (this.viewPending) {
+      this.scrollOverrides[scope] = {...position};
+      if (scope === `library:${this.state.view.libraryFilter}`) this.scrollOverrides.library = {...position};
+      if (scope === `create:${this.state.view.creationFilter}`) this.scrollOverrides.create = {...position};
+    }
+    this.viewRevision++;
     this.revision++;
     // Scroll events never notify React or serialize the whole screen every frame.
     if (!this.timer) this.timer = setTimeout(() => {this.timer = null; void this.flush();}, 160);
@@ -113,20 +170,24 @@ export class ScreenMemory {
   flush = async (): Promise<void> => {
     if (this.timer) {clearTimeout(this.timer); this.timer = null;}
     if (this.blockedLoad) return;
-    while (this.savedRevision !== this.revision) {
+    while (this.savedDataRevision !== this.dataRevision || (!this.viewPending && this.savedViewRevision !== this.viewRevision)) {
       if (!this.writing) this.writing = Promise.resolve().then(async () => {
-        const revision = this.revision;
+        const viewRevision = this.viewRevision;
         const dataRevision = this.dataRevision;
         const data = this.state.data;
-        const presentation = JSON.stringify({version: 1, view: this.state.view, positions: this.positions});
+        // Never enqueue a recovery preview, even if a concurrent retry later succeeds.
+        const presentation = this.viewPending ? null : JSON.stringify({version: 1, view: this.state.view, positions: this.positions});
         try {
           if (this.savedDataRevision !== dataRevision) {
             const content = JSON.stringify({version: 1, savedAt: Date.now(), data});
             await this.storage.write(content, this.source);
             this.source = content; this.savedDataRevision = dataRevision;
           }
-          await this.storage.writeView(presentation);
-          this.savedRevision = revision; this.setSaveError(null);
+          if (presentation !== null && this.savedViewRevision !== viewRevision) {
+            await this.storage.writeView(presentation);
+            this.savedViewRevision = viewRevision;
+          }
+          this.setSaveError(null);
           return true;
         } catch (error) {this.setSaveError(error instanceof ScreenStorageConflict ? 'conflict' : 'write'); return false;}
         finally {this.writing = null;}
@@ -142,46 +203,49 @@ export class ScreenMemory {
     this.refreshing = (async () => {
       if (this.writing) await this.writing;
       // A failed write leaves a newer local draft than the persisted source.
-      if (!this.blockedLoad && this.savedDataRevision !== this.dataRevision && this.dataRevision > 0) return;
+      if (!this.blockedLoad && this.savedDataRevision !== this.dataRevision && this.dataRevision > 0) {this.restorePresentation(this.state.data); return;}
       const dataRevision = this.dataRevision;
       try {
         let incoming: ScreenData | null;
         let raw: string | null = this.source;
         let repair = false;
+        let fallback = this.viewFallback;
         if (load) incoming = await load();
         else {
           raw = await this.storage.read();
           const result = inspectScreenSnapshot(raw);
-          if (result.kind === 'valid') incoming = result.snapshot.data;
+          if (result.kind === 'valid') {incoming = result.snapshot.data; fallback = result.snapshot;}
           else {
-            if (!this.blockedLoad) return;
-            if (result.kind === 'unsupported') {this.setSaveError('unsupported'); return;}
+            if (!this.blockedLoad) {this.restorePresentation(this.state.data); return;}
+            if (result.kind === 'unsupported') {this.dataLoadIssue = 'unsupported'; this.publishIssue(); return;}
             const backup = inspectScreenSnapshot(this.storage.readBackupSync());
-            if (backup.kind === 'valid') incoming = backup.snapshot.data;
+            if (backup.kind === 'valid') {incoming = backup.snapshot.data; fallback = backup.snapshot;}
             else if (result.kind === 'empty' && backup.kind === 'empty') incoming = initialScreenData();
-            else {this.setSaveError(backup.kind === 'unsupported' ? 'unsupported' : 'corrupt'); return;}
+            else {this.dataLoadIssue = backup.kind === 'unsupported' ? 'unsupported' : 'corrupt'; this.publishIssue(); return;}
             // A successful retry may prove this really is a new installation,
             // or recover a backup that was unreadable on the first attempt.
             repair = true;
           }
         }
         // A slow response must never replace a draft edited while it was in flight.
-        if (!incoming || !validScreenData(incoming) || dataRevision !== this.dataRevision) return;
+        if (!incoming || !validScreenData(incoming) || dataRevision !== this.dataRevision) {this.restorePresentation(this.state.data); return;}
         if (!load) {
           this.source = raw; this.savedDataRevision = repair ? -1 : this.dataRevision;
-          if (this.blockedLoad) {this.blockedLoad = false; this.setSaveError(null);}
+          this.dataLoadIssue = null; this.publishIssue();
         }
         const data = reconcileScreenData(this.state.data, incoming);
+        this.restorePresentation(data, fallback);
         if (data === this.state.data) return;
         let view = this.state.view;
         if (view.openedCardId && !data.cards.some(card => card.id === view.openedCardId)) view = {...view, openedCardId: null};
         if (view.detailCardId && !data.cards.some(card => card.id === view.detailCardId && card.published)) view = {...view, detailCardId: null, coverOpen: false};
         if (view.chatId && !data.chats.some(chat => chat.id === view.chatId)) view = {...view, chatId: null};
+        if (view !== this.state.view) this.viewRevision++;
         this.state = {...this.state, data, view};
         this.dataRevision++;
         if (!load && !repair) this.savedDataRevision = this.dataRevision;
         this.changed();
-      } catch { /* Keep the last usable screen on refresh/network failure. */ }
+      } catch {this.restorePresentation(this.state.data); /* Keep the last usable content on refresh failure. */ }
     })().finally(() => {this.refreshing = null;});
     return this.refreshing;
   };
