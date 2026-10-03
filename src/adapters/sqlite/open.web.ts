@@ -38,8 +38,11 @@ export async function openDatabase() {
       await new Promise<void>(done => { release = done; resolve(); });
     }).catch(reject);
   });
+  const store = await openStore().catch(error => {release(); throw error;});
+  const closeStore = () => {
+    try {store.close();} finally {release();}
+  };
   try {
-    const store = await openStore();
     const SQL = await initSqlJs({locateFile: () => wasmUrl});
     const database = new SQL.Database(await read(store));
     let dirty = false;
@@ -53,7 +56,13 @@ export async function openDatabase() {
         return {rows, changes: database.getRowsModified()};
       },
       async persist() { if (dirty) { const bytes = database.export(); await write(store, bytes); database.run('PRAGMA foreign_keys = ON'); dirty = false; } },
-      async close() { database.close(); store.close(); release(); },
+      async close() {
+        try {database.close();} finally {closeStore();}
+      },
     });
-  } catch (error) { release(); throw error; }
+  } catch (error) {
+    // Preserve the initialization failure even if cleanup itself fails.
+    try {closeStore();} catch { /* Ownership is released in closeStore's finally. */ }
+    throw error;
+  }
 }
