@@ -1,6 +1,8 @@
 import {usePalette, themedStyles} from './Theme';
 import {Pressable, Text, TextInput, View} from 'react-native';
 import {Icon} from './Icon';
+import {useDesktopPane} from './desktop/DesktopPane';
+import {desktopMetrics} from './desktop/desktopMetrics';
 
 type Props = {
   scope: 'library' | 'chats' | 'create';
@@ -12,7 +14,9 @@ type Props = {
 
 export function SearchField({scope, query, onQueryChange, onClose, autoFocus = true}: Props) {
   const colors = usePalette();
-  const styles = useStyles();
+  const base = useStyles(), desktop = useDesktopPane();
+  const styles = desktop ? {...base, field: {...base.field, minHeight: 40, borderRadius: 12},
+    input: {...base.input, ...desktopMetrics.body, paddingVertical: 8}, cancelText: {...base.cancelText, fontSize: 14}} : base;
   const label = scope === 'library' ? '카드 검색' : scope === 'chats' ? '채팅 검색' : '제작물 검색';
   return <View testID={`ui-${scope}-search`} style={styles.row}>
     <View style={styles.field}>

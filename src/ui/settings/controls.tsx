@@ -9,6 +9,8 @@ import {usePalette} from '../Theme';
 import {ToggleIndicator} from './ToggleIndicator';
 import {ListPressable} from '../ListPressable';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
+import {useDesktopPane} from '../desktop/DesktopPane';
+import {desktopMetrics} from '../desktop/desktopMetrics';
 export const SettingsFocusContext = createContext((_focused: boolean) => {});
 export type Choice = {value: string; label: string; detail?: string};
 export type SettingsPageOptions = {swipeBack?: boolean};
@@ -46,29 +48,30 @@ export function SettingsPage({title, nav, children, action, testID}: {title: str
 export function SettingRow({label, value = '', onPress, detail, testID, selected = false, disabled = false, dimDisabled = true, labelStyle}: {
   label: string; value?: string; onPress?: () => void; detail?: string; testID?: string; selected?: boolean; disabled?: boolean; dimDisabled?: boolean; labelStyle?: StyleProp<TextStyle>;
 }) {
-  const colors = usePalette();
-  const content = <><View style={{flex: 1, minWidth: 0, gap: 4}}><Text style={[{...listTypography, color: colors.foreground}, labelStyle]}>{label}</Text>
+  const colors = usePalette(), desktop = useDesktopPane();
+  const typography = desktop ? desktopMetrics.body : listTypography;
+  const content = <><View style={{flex: 1, minWidth: 0, gap: 4}}><Text style={[{...typography, color: colors.foreground}, labelStyle]}>{label}</Text>
     {!!detail && <Text style={{fontSize: 14, lineHeight: 21, color: colors.secondaryForeground}}>{detail}</Text>}</View>
-    {selected ? <Icon name="check" size={settingsDetailLayout.selectionIconSize}/> : !!value && <Text numberOfLines={1} ellipsizeMode="tail" style={{...listTypography, maxWidth: '52%', flexShrink: 1, color: colors.secondaryForeground}}>{value}</Text>}</>;
-  const style = {minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 16,
+    {selected ? <Icon name="check" size={desktop ? 20 : settingsDetailLayout.selectionIconSize}/> : !!value && <Text numberOfLines={1} ellipsizeMode="tail" style={{...typography, maxWidth: '52%', flexShrink: 1, color: colors.secondaryForeground}}>{value}</Text>}</>;
+  const style = {minHeight: desktop ? desktopMetrics.rowHeight : settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: desktop ? 11 : 14, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 16,
     backgroundColor: selected ? colors.surface : 'transparent'};
   return onPress ? <ListPressable testID={testID} accessibilityRole="button" accessibilityLabel={[label, value].filter(Boolean).join(', ')}
     accessibilityState={{selected, disabled}} disabled={disabled} onPress={onPress} style={[style, {opacity: disabled && dimDisabled ? .45 : 1}]}>{content}</ListPressable>
     : <View testID={testID} style={style}>{content}</View>;
 }
 export function SettingToggle({label, value, onChange, testID}: {label: string; value: boolean; onChange: (value: boolean) => void; testID?: string}) {
-  const colors = usePalette();
+  const colors = usePalette(), desktop = useDesktopPane();
   return <ListPressable testID={testID} accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{checked: value}} aria-checked={value} onPress={() => onChange(!value)}
-    style={{minHeight: settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16}}>
-    <Text style={{...listTypography, flex: 1, color: colors.foreground}}>{label}</Text>
+    style={{minHeight: desktop ? desktopMetrics.rowHeight : settingsListLayout.rowHeight, paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 16}}>
+    <Text style={{...(desktop ? desktopMetrics.body : listTypography), flex: 1, color: colors.foreground}}>{label}</Text>
     <ToggleIndicator value={value}/>
   </ListPressable>;
 }
 export function TextAction({label, onPress, disabled = false, danger = false, testID}: {label: string; onPress: () => void; disabled?: boolean; danger?: boolean; testID?: string}) {
-  const colors = usePalette();
+  const colors = usePalette(), desktop = useDesktopPane();
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
     style={{minWidth: 48, minHeight: 48, paddingHorizontal: settingsDetailLayout.textActionInset, justifyContent: 'center', alignItems: 'center', opacity: disabled ? .4 : 1}}>
-    <Text style={{fontSize: 16, fontWeight: '600', color: danger ? colors.error : colors.foreground}}>{label}</Text>
+    <Text style={{fontSize: desktop ? 14 : 16, fontWeight: '600', color: danger ? colors.error : colors.foreground}}>{label}</Text>
   </Pressable>;
 }
 export function Section({children}: {children: ReactNode}) {
@@ -82,13 +85,13 @@ export function Note({children, error = false}: {children: ReactNode; error?: bo
 export function Field({label, value, onChange, search = false, secret = false, groupDigits = false, scale = 2 / 3, ...props}: Omit<TextInputProps, 'onChange'> & {
   label: string; value: string; onChange: (value: string) => void; search?: boolean; secret?: boolean; groupDigits?: boolean; scale?: number;
 }) {
-  const colors = usePalette(), setFocused = useContext(SettingsFocusContext);
+  const colors = usePalette(), setFocused = useContext(SettingsFocusContext), desktop = useDesktopPane();
   const [visible, setVisible] = useState(false);
   const [editing, setEditing] = useState(false), [draft, setDraft] = useState(value);
   const grouped = groupDigits && /^\d+$/.test(value.trim()) ? value.trim().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : value;
   return <View style={{paddingHorizontal: settingsDetailLayout.horizontalInset,
     paddingTop: search ? 0 : 14, paddingBottom: search ? settingsDetailLayout.searchListGap : 10}}>
-    {!search && <Text style={{...listTypography, marginBottom: 8, color: colors.foreground}}>{label}</Text>}
+    {!search && <Text style={{...(desktop ? desktopMetrics.body : listTypography), marginBottom: 8, color: colors.foreground}}>{label}</Text>}
     <View style={{flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface,
       paddingLeft: settingsDetailLayout.inputInset, paddingRight: secret ? 0 : settingsDetailLayout.inputInset}}>
       <TextInput {...props} accessibilityLabel={label} value={groupDigits ? editing ? draft : grouped : value}
@@ -103,7 +106,7 @@ export function Field({label, value, onChange, search = false, secret = false, g
         }} onBlur={event => {setEditing(false); setFocused(false); props.onBlur?.(event);}}
         autoCapitalize={props.autoCapitalize ?? 'none'} autoCorrect={props.autoCorrect ?? false} placeholderTextColor={colors.secondaryForeground}
         underlineColorAndroid="transparent" textAlignVertical={props.multiline ? 'top' : 'center'}
-        style={[{flex: 1, minWidth: 0, minHeight: props.multiline ? 130 : 48, paddingVertical: 12, paddingHorizontal: 0, fontSize: 16, lineHeight: 24, color: colors.foreground}, props.style]}/>
+        style={[{flex: 1, minWidth: 0, minHeight: props.multiline ? 130 : desktop ? desktopMetrics.fieldHeight : 48, paddingVertical: desktop ? 9 : 12, paddingHorizontal: 0, fontSize: desktop ? 14 : 16, lineHeight: desktop ? 22 : 24, color: colors.foreground}, props.style]}/>
       {secret && <NavigationButton testID="ui-api-key-visibility" icon={visible ? 'eyeOff' : 'eye'} label={visible ? 'API 키 숨기기' : 'API 키 표시'} scale={scale} onPress={() => setVisible(value => !value)}/>}
     </View>
   </View>;

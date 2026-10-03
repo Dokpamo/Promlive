@@ -3,17 +3,18 @@ import {AccessibilityInfo, Animated, Platform, View} from 'react-native';
 import type {AiModelPreview} from '../../features/settings/aiSettingsModel';
 import {settingsListLayout} from '../tokens';
 import {SettingRow} from './controls';
+import {useDesktopPane} from '../desktop/DesktopPane';
+import {desktopMetrics} from '../desktop/desktopMetrics';
 
 type Row = {
   model: AiModelPreview; present: boolean; fresh: boolean; targetY: number;
   y: Animated.Value; opacity: Animated.Value;
 };
 type Frame = {rows: Row[]; height: number; animate: boolean; moveStart: number; moveDuration: number};
-const rowHeight = settingsListLayout.rowHeight;
 const useNativeDriver = Platform.OS === 'ios' || Platform.OS === 'android';
 const smooth = (value: number) => value * value * (3 - 2 * value);
 
-function initialFrame(models: AiModelPreview[]): Frame {
+function initialFrame(models: AiModelPreview[], rowHeight: number): Frame {
   return {rows: models.map((model, index) => ({model, present: true, fresh: false, targetY: index * rowHeight,
     y: new Animated.Value(index * rowHeight), opacity: new Animated.Value(1)})),
     height: models.length * rowHeight, animate: false, moveStart: 0, moveDuration: 360};
@@ -23,7 +24,8 @@ function initialFrame(models: AiModelPreview[]): Frame {
 export function AnimatedModelRows({models, selected, onChoose}: {
   models: AiModelPreview[]; selected: string; onChoose: (model: AiModelPreview) => void;
 }) {
-  const [frame, setFrame] = useState(() => initialFrame(models));
+  const rowHeight = useDesktopPane() ? desktopMetrics.rowHeight : settingsListLayout.rowHeight;
+  const [frame, setFrame] = useState(() => initialFrame(models, rowHeight));
   const current = useRef(frame);
   const height = useRef(new Animated.Value(frame.height)).current;
   const animation = useRef<Animated.CompositeAnimation | null>(null);
@@ -44,7 +46,7 @@ export function AnimatedModelRows({models, selected, onChoose}: {
     if (!Number.isFinite(measured) || measured <= 0 || Math.abs((heights.current.get(id) ?? rowHeight) - measured) < .5) return;
     heights.current.set(id, measured);
     setLayoutVersion(value => value + 1);
-  }, []);
+  }, [rowHeight]);
 
   useLayoutEffect(() => {
     const oldInput = previous.current;
@@ -74,7 +76,7 @@ export function AnimatedModelRows({models, selected, onChoose}: {
       moveDuration: 360 + Math.min(120, Math.max(0, maxDistance - rowHeight) * .55)};
     current.current = next;
     setFrame(next);
-  }, [models, layoutVersion, reducedMotion]);
+  }, [models, layoutVersion, reducedMotion, rowHeight]);
 
   useEffect(() => {
     const run = ++generation.current;

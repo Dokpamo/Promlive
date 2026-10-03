@@ -3,6 +3,8 @@ import {Text, View} from 'react-native';
 import {ListPressable} from './ListPressable';
 import {PreviewArtwork} from './PreviewArtwork';
 import {listTypography} from './tokens';
+import {useDesktopPane} from './desktop/DesktopPane';
+import {desktopMetrics} from './desktop/desktopMetrics';
 
 /** Chat and creation rows use the same avatar, text alignment, and hit area. */
 export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessibilityLabel, onPress, compact = false, selected = false}: {
@@ -17,20 +19,21 @@ export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessi
   compact?: boolean;
   selected?: boolean;
 }) {
-  const styles = useStyles();
-  const size = compact ? 44 : 60;
-  const rowStyle = [styles.row, compact && {minHeight: 82, paddingHorizontal: 12, gap: 12, borderRadius: 14, marginHorizontal: 10}, selected && styles.selected];
+  const styles = useStyles(), desktop = useDesktopPane();
+  const size = desktop ? 40 : compact ? 44 : 60;
+  const rowStyle = [styles.row, compact && {minHeight: 82, paddingHorizontal: 12, gap: 12, borderRadius: 14, marginHorizontal: 10},
+    desktop && {minHeight: 70, paddingVertical: 12, gap: 12}, selected && styles.selected];
   const content = <>
     <View testID={`ui-${scope}-avatar-${id}`} style={[styles.avatar, {width: size, height: size}]}>
       <PreviewArtwork tile={tile} width={size} height={size}/>
     </View>
     <View style={styles.text}>
       <View style={styles.titleRow}>
-        <Text testID={`ui-${scope}-title-${id}`} numberOfLines={1} ellipsizeMode="tail" style={styles.title}>{title}</Text>
+        <Text testID={`ui-${scope}-title-${id}`} numberOfLines={1} ellipsizeMode="tail" style={[styles.title, desktop && desktopMetrics.body]}>{title}</Text>
         <Text testID={`ui-${scope}-time-${id}`} numberOfLines={1} style={styles.timestamp}>{timestamp}</Text>
       </View>
       <Text testID={`ui-${scope}-${scope === 'chat' ? 'message' : 'summary'}-${id}`}
-        numberOfLines={1} ellipsizeMode="tail" style={styles.subtitle}>{subtitle}</Text>
+        numberOfLines={1} ellipsizeMode="tail" style={[styles.subtitle, desktop && desktopMetrics.body]}>{subtitle}</Text>
     </View>
   </>;
   return onPress

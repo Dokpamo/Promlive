@@ -8,11 +8,13 @@ import {catalogKinds, catalogLabels, defaultCatalog, loadAiModels, reconcileCata
 import {catalogScope} from '../../features/settings/aiCatalogCache';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
 import {providerNameTypography} from '../tokens';
+import {useDesktopPane} from '../desktop/DesktopPane';
 import type {SettingsServices} from './SettingsServices';
 import {AnimatedModelRows} from './AnimatedModelRows';
 import {ChoicePage, choicesFrom, Field, Note, SettingRow, SettingsPage, SettingToggle, TextAction, type Choice, type SettingsNavigation} from './controls';
 
 export function AiSettings({services, nav}: {services: SettingsServices; nav: SettingsNavigation}) {
+  const desktop = useDesktopPane();
   const {value, ready, error} = useSyncExternalStore(services.ai.subscribe, services.ai.snapshot);
   const service = aiServices.find(item => item.id === value.service)!;
   const connection = value.connections[service.id], route = connectionRoute(service, connection);
@@ -37,7 +39,7 @@ export function AiSettings({services, nav}: {services: SettingsServices; nav: Se
     {!ready ? error ? <TextAction label="다시 시도" testID="ui-ai-load-retry" onPress={() => {void services.ai.load();}}/>
       : <Note>저장한 설정을 불러오고 있어요.</Note> : <>
       <SettingRow testID="ui-ai-provider" label="프로바이더" value={service.name} onPress={() => nav.push(child => <ChoicePage nav={child} title="프로바이더"
-        value={service.id} labelStyle={providerNameTypography} choices={aiServices.map(item => ({value: item.id, label: item.name}))}
+        value={service.id} labelStyle={desktop ? {fontSize: 16, lineHeight: 22} : providerNameTypography} choices={aiServices.map(item => ({value: item.id, label: item.name}))}
         onChoose={next => services.ai.update(old => ({...old, service: next as AiService}))}/>)}/>
       {connectionRoutes(service).length > 1 && <SettingRow testID="ui-ai-route" label="연결 방식" value={route.name} onPress={() => select('연결 방식', route.id,
         connectionRoutes(service).map(item => ({value: item.id, label: item.name, ...(item.auth === 'oauth' ? {detail: '로그인 연동 준비 중'} : {})})),

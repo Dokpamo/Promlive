@@ -1,5 +1,13 @@
 /** Photo width is 618px; the app's reference viewport is 412dp. */
-export function inputMetrics(width: number, fontScale = 1) {
+export function inputMetrics(width: number, fontScale = 1, desktop = false) {
+  if (desktop) return {
+    scale: 1, gap: 12, radius: 20,
+    fontSize: 15, lineHeight: 22, line: 22 * fontScale,
+    textInset: 16, textTop: 12, textMinHeight: 24,
+    textToActions: 10, actionBottom: 6, actionSide: 8,
+    actionSize: 36, circleSize: 32, iconSize: 21,
+    maxLines: 7, maxLength: 8000, photoSize: 88, photoGap: 12,
+  };
   const scale = Math.min(width, 412) / 618;
   const lineHeight = 37 * scale, line = lineHeight * fontScale;
   return {

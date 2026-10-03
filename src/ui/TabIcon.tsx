@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import {Animated, PixelRatio, View} from 'react-native';
+import {Animated, useWindowDimensions, View} from 'react-native';
 import {usePalette} from './Theme';
 import {navigationIconSources} from './icons/sources';
 import type {Tab} from './navigationRoutes';
@@ -10,13 +10,13 @@ const sum = (values: Scalar[], initial = 0): Scalar => values.reduce<Scalar>((to
 
 /** Approved icon masks, with a travelling wave (native animation on mobile). */
 export function TabIcon({name, selection, waves, size}: {name: Tab; selection: Animated.Value; waves: Animated.Value[]; size: number}) {
-  const colors = usePalette();
+  const colors = usePalette(), {scale: density} = useWindowDimensions();
   const unselected = useMemo(() => Animated.subtract(1, selection), [selection]);
   const motion = useMemo(() => {
     const interpolate = (fn: (t: number) => number, initial = 0) => sum(waves.map(wave => wave.interpolate({
       inputRange: waveSamples, outputRange: waveSamples.map(fn), extrapolate: 'clamp',
     })), initial);
-    const density = PixelRatio.get(), pixels = Math.round(size * density);
+    const pixels = Math.round(size * density);
     return {
       scaleX: interpolate(t => releaseWaveFrame(t).scaleX - 1, 1),
       scaleY: interpolate(t => releaseWaveFrame(t).scaleY - 1, 1),
@@ -29,7 +29,7 @@ export function TabIcon({name, selection, waves, size}: {name: Tab; selection: A
         };
       }),
     };
-  }, [waves, size]);
+  }, [waves, size, density]);
   const image = {position: 'absolute' as const, width: size, height: size};
   return <Animated.View testID={`ui-tab-motion-${name}`} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none"
     style={{width: size, height: size, transform: [{scaleX: motion.scaleX}, {scaleY: motion.scaleY}]}}>

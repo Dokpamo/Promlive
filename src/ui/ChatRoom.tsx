@@ -19,6 +19,7 @@ import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {useMessageSendMotion} from './useMessageSendMotion';
 import {useChatChrome} from './useChatChrome';
 import {useDesktopPane} from './desktop/DesktopPane';
+import {desktopMetrics} from './desktop/desktopMetrics';
 
 type Props = {chat: ChatRow; gallery: GalleryImage[]; memory: ScreenMemory; scale: number; onClose: () => void; transition: BackTransition};
 export function ChatRoom(p: Props) {
@@ -37,7 +38,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   const insets = useSafeAreaInsets(), pane = useDesktopPane(), actions = navigationActionMetrics(scale), window = useWindowDimensions();
   const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
   const [attachments, setAttachments] = useState(false), [menu, setMenu] = useState(false);
-  const geometry = inputMetrics(pane?.width ?? window.width, window.fontScale);
+  const geometry = inputMetrics(pane?.width ?? window.width, window.fontScale, !!pane);
   const [composerHeight, setComposerHeight] = useState(inputLayout(geometry, geometry.line, !!chat.draftImage).height + safe.bottom + geometry.gap + 10);
   useEffect(() => onPanelChange(attachments || menu), [attachments, menu, onPanelChange]);
   const scroll = useRef<ScrollView>(null);
@@ -84,7 +85,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
       <View testID="ui-chat-room-header" style={[styles.header, {height: navigation.headerHeight * scale, paddingLeft: actions.backInset, paddingRight: actions.endInset}]}>
         <NavigationButton testID="ui-chat-room-back" icon="back" label="이전 화면으로 돌아가기" scale={scale} onPress={onClose}/>
         <View style={styles.headerAvatar}><PreviewArtwork tile={chat.tile} width={36} height={36}/></View>
-        <Text accessibilityRole="header" numberOfLines={1} style={styles.headerName}>{chat.character || chat.title}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerName, pane && {fontSize: 16}]}>{chat.character || chat.title}</Text>
         <NavigationButton testID="ui-chat-room-more" icon="more" label="채팅 메뉴" scale={scale} onPress={() => setMenu(value => !value)} expanded={menu}/>
       </View>
       </Animated.View>
@@ -178,14 +179,14 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
 
 function MessageBubble({message, group, width, height, ghost = false, onLayout}: {message: ChatMessage; group: {before: boolean; after: boolean};
   width?: number; height?: number; ghost?: boolean; onLayout?: (event: LayoutChangeEvent) => void}) {
-  const styles = useStyles(), colors = usePalette(), outgoing = message.role === 'user';
-  return <View onLayout={onLayout} style={[styles.bubble, {backgroundColor: outgoing ? colors.selectedBackground : colors.surface},
+  const styles = useStyles(), colors = usePalette(), outgoing = message.role === 'user', desktop = useDesktopPane();
+  return <View onLayout={onLayout} style={[styles.bubble, desktop && {paddingHorizontal: 13, paddingVertical: 9}, {backgroundColor: outgoing ? colors.selectedBackground : colors.surface},
     width === undefined ? {} : {width, maxWidth: '100%'},
     height === undefined ? {} : {height},
     outgoing ? {borderTopRightRadius: group.before ? 6 : 24, borderBottomRightRadius: group.after ? 6 : 24}
       : {borderTopLeftRadius: group.before ? 6 : 24, borderBottomLeftRadius: group.after ? 6 : 24}]}>
     {message.image && <View style={styles.messageImage}><PreviewArtwork tile={message.image.tile} width={200} height={160}/></View>}
-    {!!message.text && <Text selectable={!ghost} style={[styles.messageText, {color: outgoing ? colors.selectedForeground : colors.foreground}]}>{message.text}</Text>}
+    {!!message.text && <Text selectable={!ghost} style={[styles.messageText, desktop && desktopMetrics.conversation, {color: outgoing ? colors.selectedForeground : colors.foreground}]}>{message.text}</Text>}
   </View>;
 }
 

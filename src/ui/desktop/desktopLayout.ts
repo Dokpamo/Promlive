@@ -1,7 +1,8 @@
 import type {ScreenView} from '../screenState';
 import type {Tab} from '../navigationRoutes';
+import {desktopMetrics} from './desktopMetrics';
 
-export const desktopRailWidth = 76;
+export const desktopRailWidth = desktopMetrics.rail;
 export const isDesktopLayout = (platform: string, width: number) =>
   platform === 'macos' || platform === 'windows' || (platform === 'web' && width >= 800);
 

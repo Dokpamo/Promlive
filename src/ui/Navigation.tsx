@@ -6,6 +6,7 @@ import {useReducedMotion} from './useReducedMotion';
 import {navigation as m, navigationActionMetrics} from './tokens';
 import {tabs, tabLabels, type Tab} from './navigationRoutes';
 import type {TabBarLayout} from './tabBarLayout';
+import {useDesktopPane} from './desktop/DesktopPane';
 export {tabs, tabLabels, type Tab} from './navigationRoutes';
 const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   library: {icon: 'plus', label: '카드 가져오기'},
@@ -18,7 +19,8 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
   icon: IconName; label: string; scale: number; onPress?: (() => void) | undefined; expanded?: boolean;
   testID?: string; style?: StyleProp<ViewStyle>; color?: string;
 }) {
-  const {size, iconSize} = navigationActionMetrics(scale);
+  const desktop = useDesktopPane(), {size: mobileSize, iconSize} = navigationActionMetrics(scale);
+  const size = desktop ? 40 : mobileSize;
   return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={{disabled: !onPress, ...(expanded === undefined ? {} : {expanded})}} aria-expanded={expanded}
     disabled={!onPress} onPress={onPress}

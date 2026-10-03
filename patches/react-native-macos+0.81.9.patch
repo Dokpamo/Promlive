@@ -1,0 +1,388 @@
+diff --git a/node_modules/react-native-macos/Libraries/Image/RCTImageView.mm b/node_modules/react-native-macos/Libraries/Image/RCTImageView.mm
+index 879e36b..c96de52 100644
+--- a/node_modules/react-native-macos/Libraries/Image/RCTImageView.mm
++++ b/node_modules/react-native-macos/Libraries/Image/RCTImageView.mm
+@@ -287,17 +287,29 @@ - (void)setResizeMode:(RCTResizeMode)resizeMode
+ #if !TARGET_OS_OSX // [macOS]
+       _imageView.contentMode = UIViewContentModeScaleToFill;
+ #else // [macOS
+-      _imageView.imageScaling = NSImageScaleAxesIndependently;
++      _imageView.contentMode = UIViewContentModeScaleToFill;
+ #endif // macOS]
+     } else {
+ #if !TARGET_OS_OSX // [macOS]
+       _imageView.contentMode = (UIViewContentMode)resizeMode;
+ #else // [macOS
+-      // This relies on having previously resampled the image to a size that exceeds the image view.
+-      if (resizeMode == RCTResizeModeCover) {
+-        resizeMode = RCTResizeModeCenter;
++      switch (resizeMode) {
++        case RCTResizeModeCover:
++          _imageView.contentMode = UIViewContentModeScaleAspectFill;
++          break;
++        case RCTResizeModeContain:
++          _imageView.contentMode = UIViewContentModeScaleAspectFit;
++          break;
++        case RCTResizeModeStretch:
++          _imageView.contentMode = UIViewContentModeScaleToFill;
++          break;
++        case RCTResizeModeNone:
++          _imageView.contentMode = UIViewContentModeTopLeft;
++          break;
++        default:
++          _imageView.contentMode = UIViewContentModeCenter;
++          break;
+       }
+-      _imageView.imageScaling = (NSImageScaling)resizeMode;
+ #endif // macOS]
+     }
+ 
+@@ -629,10 +641,6 @@ - (RCTPlatformView *)reactAccessibilityElement
+   return _imageView;
+ }
+ 
+-- (NSCell *)reactAccessibilityElementCell
+-  {
+-    return _imageView.cell;
+-  }
+ 
+ - (NSColor *)tintColor
+ {
+diff --git a/node_modules/react-native-macos/Libraries/Image/RCTImageViewManager.mm b/node_modules/react-native-macos/Libraries/Image/RCTImageViewManager.mm
+index f4b80a5..e8cb22b 100644
+--- a/node_modules/react-native-macos/Libraries/Image/RCTImageViewManager.mm
++++ b/node_modules/react-native-macos/Libraries/Image/RCTImageViewManager.mm
+@@ -30,10 +30,6 @@ - (RCTPlatformView *)view // [macOS]
+   return [[RCTImageView alloc] initWithBridge:self.bridge];
+ }
+ 
+-#if TARGET_OS_OSX // [macOS
+-// setting accessibilityElement on NSImageView has no effect, must be set on NSImageCell
+-RCT_REMAP_VIEW_PROPERTY(accessible, reactAccessibilityElementCell.accessibilityElement, BOOL)
+-#endif // macOS]
+ RCT_EXPORT_VIEW_PROPERTY(blurRadius, CGFloat)
+ RCT_EXPORT_VIEW_PROPERTY(capInsets, UIEdgeInsets)
+ RCT_REMAP_VIEW_PROPERTY(defaultSource, defaultImage, UIImage)
+diff --git a/node_modules/react-native-macos/React/Base/RCTUIKit.h b/node_modules/react-native-macos/React/Base/RCTUIKit.h
+index 8f1094a..084bf72 100644
+--- a/node_modules/react-native-macos/React/Base/RCTUIKit.h
++++ b/node_modules/react-native-macos/React/Base/RCTUIKit.h
+@@ -744,7 +744,8 @@ typedef UITouch RCTUITouch;
+ #if !TARGET_OS_OSX
+ typedef UIImageView RCTUIImageView;
+ #else
+-@interface RCTUIImageView : NSImageView
++@interface RCTUIImageView : RCTUIView
++@property (nonatomic, strong, nullable) RCTPlatformImage *image;
+ NS_ASSUME_NONNULL_BEGIN
+ @property (nonatomic, strong) RCTUIColor *tintColor;
+ @property (nonatomic, assign) UIViewContentMode contentMode;
+diff --git a/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m b/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
+index a37a1c1..dbfb810 100644
+--- a/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
++++ b/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
+@@ -809,14 +809,25 @@ - (void)setHidden:(BOOL)hidden
+ // RCTUIImageView
+ 
+ @implementation RCTUIImageView {
++  RCTPlatformImage *_image;
++  CALayer *_imageLayer;
+   CALayer *_tintingLayer;
+ }
+ 
+ - (instancetype)initWithFrame:(CGRect)frame
+ {
+   if (self = [super initWithFrame:frame]) {
+-    [self setLayer:[[CALayer alloc] init]];
+-    [self setWantsLayer:YES];
++    // Keep image pixels off AppKit's managed backing layer. Its contents can
++    // acquire a crossfade when a view is remounted or changes backing scale.
++    _imageLayer = [CALayer layer];
++    _imageLayer.actions = @{
++      @"contents": NSNull.null, @"bounds": NSNull.null, @"position": NSNull.null,
++      @"contentsScale": NSNull.null, @"contentsGravity": NSNull.null,
++      @"backgroundColor": NSNull.null, @"sublayers": NSNull.null
++    };
++    _imageLayer.frame = self.bounds;
++    _imageLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
++    [self.layer addSublayer:_imageLayer];
+   }
+   
+   return self;
+@@ -826,7 +837,7 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+ {
+   _contentMode = contentMode;
+   
+-  CALayer *layer = [self layer];
++  CALayer *layer = _imageLayer;
+   switch (contentMode) {
+     case UIViewContentModeScaleAspectFill:
+       [layer setContentsGravity:kCAGravityResizeAspectFill];
+@@ -844,6 +855,10 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+       [layer setContentsGravity:kCAGravityCenter];
+       break;
+ 
++    case UIViewContentModeTopLeft:
++      [layer setContentsGravity:kCAGravityTopLeft];
++      break;
++
+     default:
+       break;
+   }
+@@ -851,39 +866,81 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+ 
+ - (RCTPlatformImage *)image
+ {
+-  return [[self layer] contents];
++  return _image;
+ }
+ 
+-- (void)setImage:(RCTPlatformImage *)image
++// Image pixels belong to this view, not AppKit's drawRect backing store. A
++// display or backing-scale change must not replace them with an empty bitmap.
++- (BOOL)wantsUpdateLayer
+ {
+-  CALayer *layer = [self layer];
++  return YES;
++}
+ 
+-  if ([layer contents] != image || [layer backgroundColor] != nil) {
+-    if (_tintColor) {
+-      if (!_tintingLayer) {
+-        _tintingLayer = [CALayer new];
+-        [_tintingLayer setFrame:self.bounds];
+-        [_tintingLayer setAutoresizingMask:kCALayerWidthSizable | kCALayerHeightSizable];
+-        [_tintingLayer setZPosition:1.0];
+-        CIFilter *sourceInCompositingFilter = [CIFilter filterWithName:@"CISourceInCompositing"];
+-        [sourceInCompositingFilter setDefaults];
+-        [_tintingLayer setCompositingFilter:sourceInCompositingFilter];
+-        [layer addSublayer:_tintingLayer];
+-      }
+-      [_tintingLayer setBackgroundColor:_tintColor.CGColor];
+-    } else {
+-      [_tintingLayer removeFromSuperlayer];
+-      _tintingLayer = nil;
++- (void)updateLayer
++{
++  [super updateLayer];
++  [self updateImageLayer];
++}
++
++// React owns transitions. Replace the image and template tint together.
++- (void)updateTintLayer
++{
++  CALayer *layer = _imageLayer;
++  if (_tintColor && _image) {
++    if (!_tintingLayer) {
++      _tintingLayer = [CALayer new];
++      _tintingLayer.actions = _imageLayer.actions;
++      _tintingLayer.frame = self.bounds;
++      _tintingLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
++      _tintingLayer.zPosition = 1.0;
++      CIFilter *filter = [CIFilter filterWithName:@"CISourceInCompositing"];
++      [filter setDefaults];
++      _tintingLayer.compositingFilter = filter;
++      [layer addSublayer:_tintingLayer];
+     }
++    _tintingLayer.backgroundColor = _tintColor.CGColor;
++  } else {
++    [_tintingLayer removeFromSuperlayer];
++    _tintingLayer = nil;
++  }
++}
+ 
+-    if (image != nil && [image resizingMode] == NSImageResizingModeTile) {
+-      [layer setContents:nil];
+-      [layer setBackgroundColor:[NSColor colorWithPatternImage:image].CGColor];
+-    } else {
+-      [layer setContents:image];
+-      [layer setBackgroundColor:nil];
+-    }
++- (void)setTintColor:(NSColor *)tintColor
++{
++  if ([_tintColor isEqual:tintColor]) return;
++  _tintColor = tintColor;
++  [CATransaction begin];
++  [CATransaction setDisableActions:YES];
++  [self updateTintLayer];
++  [CATransaction commit];
++}
++
++- (void)setImage:(RCTPlatformImage *)image
++{
++  if (_image == image) return;
++  _image = image;
++  [self updateImageLayer];
++}
++
++- (void)updateImageLayer
++{
++  CALayer *layer = _imageLayer;
++  RCTPlatformImage *image = _image;
++  [CATransaction begin];
++  [CATransaction setDisableActions:YES];
++  _imageLayer.frame = self.bounds;
++  [self updateTintLayer];
++  if (image != nil && image.resizingMode == NSImageResizingModeTile) {
++    layer.contents = nil;
++    layer.backgroundColor = [NSColor colorWithPatternImage:image].CGColor;
++  } else {
++    // Use the decoded bitmap directly instead of asking Core Animation to
++    // rasterize an NSImage again at the display's previous scale.
++    layer.contents = (__bridge id)UIImageGetCGImageRef(image);
++    layer.contentsScale = image ? UIImageGetScale(image) : 1;
++    layer.backgroundColor = nil;
+   }
++  [CATransaction commit];
+ }
+ 
+ @end
+diff --git a/node_modules/react-native-macos/React/CoreModules/RCTDeviceInfo.mm b/node_modules/react-native-macos/React/CoreModules/RCTDeviceInfo.mm
+index 088263d..93627a4 100644
+--- a/node_modules/react-native-macos/React/CoreModules/RCTDeviceInfo.mm
++++ b/node_modules/react-native-macos/React/CoreModules/RCTDeviceInfo.mm
+@@ -84,6 +84,13 @@ - (void)initialize
+ 
+   _currentInterfaceDimensions = [self _exportedDimensions];
+ 
++#if TARGET_OS_OSX
++  [[NSNotificationCenter defaultCenter] addObserver:self
++                                           selector:@selector(interfaceFrameDidChange)
++                                               name:NSWindowDidChangeBackingPropertiesNotification
++                                             object:_applicationWindow];
++#endif
++
+ #if TARGET_OS_IOS // [macOS] [visionOS]
+   [[NSNotificationCenter defaultCenter] addObserver:self
+                                            selector:@selector(interfaceOrientationDidChange)
+@@ -151,6 +158,11 @@ - (void)_cleanupObservers
+ 
+   [[NSNotificationCenter defaultCenter] removeObserver:self name:RCTBridgeWillInvalidateModulesNotification object:nil];
+ 
++#if TARGET_OS_OSX
++  [[NSNotificationCenter defaultCenter] removeObserver:self
++                                                  name:NSWindowDidChangeBackingPropertiesNotification
++                                                object:_applicationWindow];
++#endif
+   [_applicationWindow removeObserver:self forKeyPath:kFrameKeyPath];
+ 
+ #if TARGET_OS_IOS
+@@ -192,16 +204,16 @@ static BOOL RCTIsIPhoneNotched()
+ #endif // visionOS]
+   UIView *mainWindow = RCTKeyWindow();
+ #else // [macOS
+-  NSScreen *mainScreen = NSScreen.mainScreen;
+-  CGSize screenSize = mainScreen.frame.size;
+   NSWindow *mainWindow = RCTKeyWindow();
++  NSScreen *mainScreen = mainWindow.screen ?: NSScreen.mainScreen;
++  CGSize screenSize = mainScreen.frame.size;
+ #endif // macOS]
+ 
+   // We fallback to screen size if a key window is not found.
+ #if !TARGET_OS_OSX // [macOS]
+   CGSize windowSize = mainWindow ? mainWindow.bounds.size : screenSize; //[macOS]
+ #else // [macOS
+-  CGSize windowSize = mainWindow ? mainWindow.frame.size : screenSize; //[macOS]
++  CGSize windowSize = mainWindow ? mainWindow.contentView.bounds.size : screenSize; //[macOS]
+ #endif // macOS]
+ 
+ 
+@@ -212,7 +224,7 @@ static BOOL RCTIsIPhoneNotched()
+   CGFloat scale = [UITraitCollection currentTraitCollection].displayScale;
+ #endif // visionOS]
+ #else //  [macOS
+-  const CGFloat scale = mainScreen != nil ? mainScreen.backingScaleFactor : [NSScreen mainScreen].backingScaleFactor;
++  const CGFloat scale = mainWindow ? mainWindow.backingScaleFactor : mainScreen.backingScaleFactor;
+ #endif // macOS]
+ 
+   NSDictionary<NSString *, NSNumber *> *dimsWindow = @{
+diff --git a/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/Image/RCTImageComponentView.mm b/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/Image/RCTImageComponentView.mm
+index 8b7467a..15755b0 100644
+--- a/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/Image/RCTImageComponentView.mm
++++ b/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/Image/RCTImageComponentView.mm
+@@ -120,6 +120,10 @@ - (void)prepareForRecycle
+   [super prepareForRecycle];
+   [self _setStateAndResubscribeImageResponseObserver:nullptr];
+   _imageView.image = nil;
++#if TARGET_OS_OSX
++  // A photo must not inherit the previous icon's template tint when recycled.
++  _imageView.tintColor = nil;
++#endif
+ }
+ 
+ #pragma mark - RCTImageResponseDelegate
+diff --git a/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm b/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm
+index 5950929..ccfa995 100644
+--- a/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm
++++ b/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm
+@@ -66,7 +66,15 @@ - (instancetype)initWithSurfacePresenter:(RCTSurfacePresenter *)surfacePresenter
+ 
+     [self _updateLayoutContext];
+ 
+-#if !TARGET_OS_OSX // [macOS]
++#if TARGET_OS_OSX
++    for (NSNotificationName name in @[NSWindowDidChangeBackingPropertiesNotification,
++                                      NSWindowDidChangeScreenNotification,
++                                      NSWindowDidBecomeKeyNotification]) {
++      [[NSNotificationCenter defaultCenter] addObserver:self
++                                               selector:@selector(handleWindowBackingPropertiesDidChange:)
++                                                   name:name object:nil];
++    }
++#else
+     [[NSNotificationCenter defaultCenter] addObserver:self
+                                              selector:@selector(handleContentSizeCategoryDidChangeNotification:)
+                                                  name:UIContentSizeCategoryDidChangeNotification
+@@ -86,6 +94,7 @@ - (void)resetWithSurfacePresenter:(RCTSurfacePresenter *)surfacePresenter
+ 
+ - (void)dealloc
+ {
++  [[NSNotificationCenter defaultCenter] removeObserver:self];
+   [_surfacePresenter unregisterSurface:self];
+ }
+ 
+@@ -179,7 +188,11 @@ - (void)_updateLayoutContext
+ 
+   auto layoutContext = _surfaceHandler->getLayoutContext();
+ 
++#if TARGET_OS_OSX
++  layoutContext.pointScaleFactor = _view.window ? _view.window.backingScaleFactor : RCTScreenScale();
++#else
+   layoutContext.pointScaleFactor = RCTScreenScale();
++#endif
+   layoutContext.swapLeftAndRightInRTL =
+       [[RCTI18nUtil sharedInstance] isRTL] && [[RCTI18nUtil sharedInstance] doLeftAndRightSwapInRTL];
+   layoutContext.fontSizeMultiplier = RCTFontSizeMultiplier();
+@@ -187,6 +200,16 @@ - (void)_updateLayoutContext
+   _surfaceHandler->constraintLayout(layoutConstraints, layoutContext);
+ }
+ 
++#if TARGET_OS_OSX
++- (void)handleWindowBackingPropertiesDidChange:(NSNotification *)notification
++{
++  if (notification.object == _view.window &&
++      _surfaceHandler->getLayoutContext().pointScaleFactor != _view.window.backingScaleFactor) {
++    [self _updateLayoutContext];
++  }
++}
++#endif
++
+ #pragma mark - Properties Management
+ 
+ - (NSDictionary *)properties
+diff --git a/node_modules/react-native-macos/ReactCommon/react/renderer/components/root/RootShadowNode.cpp b/node_modules/react-native-macos/ReactCommon/react/renderer/components/root/RootShadowNode.cpp
+index 860ec2b..17e3f40 100644
+--- a/node_modules/react-native-macos/ReactCommon/react/renderer/components/root/RootShadowNode.cpp
++++ b/node_modules/react-native-macos/ReactCommon/react/renderer/components/root/RootShadowNode.cpp
+@@ -49,7 +49,11 @@ RootShadowNode::Unshared RootShadowNode::clone(
+           /* .props = */ props,
+       });
+ 
+-  if (layoutConstraints != getConcreteProps().layoutConstraints) {
++  // A window can move between 1x/2x displays without changing its point size.
++  // Recompute image requests and pixel rounding even when constraints match.
++  if (layoutConstraints != getConcreteProps().layoutConstraints ||
++      layoutContext.pointScaleFactor !=
++          getConcreteProps().layoutContext.pointScaleFactor) {
+     newRootShadowNode->dirtyLayout();
+   }
+ 

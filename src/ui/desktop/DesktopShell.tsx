@@ -16,6 +16,7 @@ import {SettingsNavigator} from '../settings/SettingsNavigator';
 import type {SettingsDestination} from '../settings/OtherSettings';
 import {createBackTransition} from '../backTransition';
 import {DesktopPane} from './DesktopPane';
+import {desktopMetrics} from './desktopMetrics';
 import {desktopActiveTab, desktopLayout, desktopRailWidth, desktopTabView} from './desktopLayout';
 import {DesktopCardDetail, DesktopCardPreview, DesktopChats, DesktopCreation, DesktopEmpty, DesktopHeader, DesktopLibrary, desktopScale as scale} from './DesktopPages';
 
@@ -72,14 +73,14 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
     if (w > 0 && h > 0) setFrame(old => old.width === w && old.height === h ? old : {width: w, height: h});}}
     style={{flex: 1, minWidth: 0, minHeight: 0, backgroundColor: colors.background}}>
     <View style={{flex: 1, minHeight: 0, flexDirection: 'row'}}>
-      <View testID="ui-desktop-rail" accessibilityRole="tablist" style={{width: desktopRailWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: colors.separator, alignItems: 'center', paddingTop: 20, paddingBottom: 20, gap: 12}}>
-        <Text accessible={false} style={{height: 52, fontSize: 24, fontWeight: '800', color: colors.foreground, paddingTop: 4}}>P</Text>
-        {tabs.map(item => <View key={item} style={{width: 50, height: 50, borderRadius: 15, backgroundColor: tab === item ? colors.surface : 'transparent'}}>
-          <TabButton name={item} selected={item === tab} size={30} reducedMotion={reducedMotion} onChange={changeTab}/>
+      <View testID="ui-desktop-rail" accessibilityRole="tablist" style={{width: desktopRailWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: colors.separator, alignItems: 'center', paddingTop: 16, paddingBottom: 16, gap: 10}}>
+        <Text accessible={false} style={{height: 42, fontSize: 22, fontWeight: '800', color: colors.foreground, paddingTop: 4}}>P</Text>
+        {tabs.map(item => <View key={item} style={{width: 42, height: 42, borderRadius: 12, backgroundColor: tab === item ? colors.surface : 'transparent'}}>
+          <TabButton name={item} selected={item === tab} size={desktopMetrics.icon} reducedMotion={reducedMotion} onChange={changeTab}/>
         </View>)}
         <View style={{flex: 1}}/>
         <Pressable testID="ui-desktop-profile" accessibilityRole="button" accessibilityLabel="프로필 편집" onPress={() => {changeTab('settings'); setSettingsDetail('profile');}}
-          style={{width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center'}}><Icon name="user" size={25}/></Pressable>
+          style={{width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center'}}><Icon name="user" size={22}/></Pressable>
       </View>
       <DesktopPane width={layout.content} height={height} testID="ui-desktop-content">
         {tab === 'library' && (detail ? <>

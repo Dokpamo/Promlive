@@ -13,15 +13,16 @@ import {formatChatTimestamp} from '../chatTimestamp';
 import type {ChatRow, ScreenView} from '../screenState';
 import type {ScreenMemory} from '../ScreenMemory';
 import {usePlainScrollMemory} from '../usePlainScrollMemory';
+import {desktopMetrics} from './desktopMetrics';
 
-export const desktopScale = 2 / 3;
+export const desktopScale = desktopMetrics.scale;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase();
 type SearchProps = {view: ScreenView; search: (scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => void};
 
 export function DesktopHeader({tab, children}: {tab: Tab; children?: ReactNode}) {
   const colors = usePalette();
-  return <View testID="ui-desktop-header" style={{height: 78, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: 28, paddingRight: 16}}>
-    <Text accessibilityRole="header" style={{fontSize: 26, fontWeight: '700', color: colors.foreground, flex: 1}}>{tabLabels[tab]}</Text>{children}
+  return <View testID="ui-desktop-header" style={{height: 64, flexShrink: 0, flexDirection: 'row', alignItems: 'center', paddingLeft: 28, paddingRight: 16}}>
+    <Text accessibilityRole="header" style={{...desktopMetrics.heading, fontWeight: '700', color: colors.foreground, flex: 1}}>{tabLabels[tab]}</Text>{children}
   </View>;
 }
 function SearchToggle({scope, view, search}: SearchProps & {scope: 'library' | 'chats' | 'create'}) {
@@ -35,7 +36,7 @@ function Search({scope, view, search}: SearchProps & {scope: 'library' | 'chats'
 export function DesktopEmpty({children}: {children: string}) {
   const colors = usePalette();
   return <View style={{flex: 1, minHeight: 180, padding: 32, alignItems: 'center', justifyContent: 'center'}}>
-    <Text style={{fontSize: 16, lineHeight: 26, textAlign: 'center', color: colors.secondaryForeground}}>{children}</Text>
+    <Text style={{...desktopMetrics.body, textAlign: 'center', color: colors.secondaryForeground}}>{children}</Text>
   </View>;
 }
 export function DesktopLibrary({items, width, columns, memory, view, search, onOpen}: SearchProps & {
@@ -75,8 +76,8 @@ function LibraryGrid({items, width, columns, memory, filter, onOpen}: {items: Li
       <View style={{width: cardWidth, height: cardWidth * 4 / 3, borderRadius: 10, backgroundColor: colors.surface, overflow: 'hidden'}}>
         <PreviewArtwork tile={item.tile} width={cardWidth} height={cardWidth * 4 / 3}/>
       </View>
-      <Text numberOfLines={2} style={{fontSize: 16, lineHeight: 23, fontWeight: '600', marginTop: 11, color: colors.foreground}}>{item.title}</Text>
-      <Text numberOfLines={1} style={{fontSize: 14, lineHeight: 21, marginTop: 4, color: colors.secondaryForeground}}>{item.creator}</Text>
+      <Text numberOfLines={2} style={{...desktopMetrics.body, fontWeight: '600', marginTop: 11, color: colors.foreground}}>{item.title}</Text>
+      <Text numberOfLines={1} style={{...desktopMetrics.secondary, marginTop: 4, color: colors.secondaryForeground}}>{item.creator}</Text>
     </Pressable>}/>;
 }
 function useNow() {
@@ -122,7 +123,7 @@ export function DesktopCardPreview({content, width}: {content: CardContent; widt
   const colors = usePalette(), imageWidth = width - 48;
   return <ScrollView testID="ui-desktop-card-preview" style={{width, flexGrow: 0, borderLeftWidth: 1, borderLeftColor: colors.separator}} contentContainerStyle={{padding: 24, paddingTop: 84, gap: 12}}>
     <View style={{width: imageWidth, height: imageWidth * 4 / 3, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface}}><PreviewArtwork tile={content.tile} width={imageWidth} height={imageWidth * 4 / 3}/></View>
-    <Text numberOfLines={2} style={{fontSize: 19, fontWeight: '600', lineHeight: 27, color: colors.foreground}}>{content.title || '제목 없는 카드'}</Text>
+    <Text numberOfLines={2} style={{fontSize: 17, fontWeight: '600', lineHeight: 27, color: colors.foreground}}>{content.title || '제목 없는 카드'}</Text>
     <Text numberOfLines={1} style={{fontSize: 14, color: colors.secondaryForeground}}>{content.creator}</Text>
     <Text style={{fontSize: 15, lineHeight: 24, color: colors.foreground}}>{content.summary}</Text>
     <Text style={{fontSize: 14, lineHeight: 22, color: colors.secondaryForeground}}>{content.tags.map(tag => `#${tag}`).join('  ')}</Text>
@@ -143,21 +144,21 @@ export function DesktopCardDetail({card, width, memory, onClose, onEdit, onImage
           <PreviewArtwork tile={card.tile} width={coverWidth} height={coverWidth / previewArtworkRatio(card.tile)} fullImage/>
         </Pressable>
         <View style={{flex: split ? 1 : undefined, width: split ? undefined : '100%', minWidth: 0, gap: 22}}>
-          <View style={{gap: 10}}><Text style={{fontSize: 30, lineHeight: 40, fontWeight: '700', color: colors.foreground}}>{card.title}</Text>
-            <Text style={{fontSize: 16, color: colors.secondaryForeground}}>{card.creator}</Text></View>
+          <View style={{gap: 10}}><Text style={{fontSize: 26, lineHeight: 34, fontWeight: '700', color: colors.foreground}}>{card.title}</Text>
+            <Text style={{fontSize: 14, color: colors.secondaryForeground}}>{card.creator}</Text></View>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>{card.tags.map(tag => <View key={tag} style={{borderRadius: 20, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 8}}>
             <Text style={{fontSize: 14, color: colors.foreground}}>{tag}</Text></View>)}</View>
-          <Text style={{fontSize: 16, lineHeight: 27, color: colors.foreground}}>{card.summary}</Text>
-          <Pressable testID="ui-card-start-chat" accessibilityRole="button" accessibilityLabel="대화 시작" onPress={onChat} style={{height: 54, borderRadius: 18, backgroundColor: colors.selectedBackground, alignItems: 'center', justifyContent: 'center'}}>
-            <Text style={{fontSize: 16, fontWeight: '600', color: colors.selectedForeground}}>대화 시작</Text></Pressable>
-          <Text style={{fontSize: 19, fontWeight: '600', color: colors.foreground}}>갤러리</Text>
+          <Text style={{fontSize: 15, lineHeight: 24, color: colors.foreground}}>{card.summary}</Text>
+          <Pressable testID="ui-card-start-chat" accessibilityRole="button" accessibilityLabel="대화 시작" onPress={onChat} style={{height: 44, borderRadius: 14, backgroundColor: colors.selectedBackground, alignItems: 'center', justifyContent: 'center'}}>
+            <Text style={{fontSize: 14, fontWeight: '600', color: colors.selectedForeground}}>대화 시작</Text></Pressable>
+          <Text style={{fontSize: 17, fontWeight: '600', color: colors.foreground}}>갤러리</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10}}>
             {card.gallery.map((picture, index) => <Pressable key={picture.id} testID={`ui-card-gallery-${index}`} accessibilityRole="button" accessibilityLabel={picture.title} onPress={() => onImage(index)}
               style={{width: 124, height: 140, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface}}><PreviewArtwork tile={picture.tile} width={124} height={140}/></Pressable>)}
           </ScrollView>
-          <Text style={{fontSize: 19, fontWeight: '600', color: colors.foreground}}>인트로</Text>
-          <Text style={{fontSize: 16, lineHeight: 28, color: colors.foreground}}>{card.introduction}</Text>
-          {!!card.guide && <><Text style={{fontSize: 19, fontWeight: '600', color: colors.foreground}}>가이드</Text><Text style={{fontSize: 16, lineHeight: 27, color: colors.foreground}}>{card.guide}</Text></>}
+          <Text style={{fontSize: 17, fontWeight: '600', color: colors.foreground}}>인트로</Text>
+          <Text style={{fontSize: 15, lineHeight: 24, color: colors.foreground}}>{card.introduction}</Text>
+          {!!card.guide && <><Text style={{fontSize: 17, fontWeight: '600', color: colors.foreground}}>가이드</Text><Text style={{fontSize: 15, lineHeight: 24, color: colors.foreground}}>{card.guide}</Text></>}
         </View>
       </View>
     </ScrollView>

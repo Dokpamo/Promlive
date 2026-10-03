@@ -20,7 +20,7 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-safe-area-context', () => ({SafeAreaProvider: ({children}: {children: ReactNode}) => <>{children}</>, useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})}));
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
-beforeEach(() => {viewport.width = 1280; installBrowserScreenStorage();});
+beforeEach(() => {viewport.width = 1280; viewport.scale = 1; installBrowserScreenStorage();});
 afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks();});
 const get = (id: string) => [...document.querySelectorAll(`[data-testid="${id}"]`)].find(el => !el.closest('[aria-hidden="true"]')) as HTMLElement | undefined;
 async function click(id: string) {expect(get(id), id).toBeTruthy(); await act(async () => get(id)!.click());}
@@ -110,4 +110,24 @@ it('restores a mobile detail snapshot into the correct desktop tab without trapp
   await click('ui-tab-create');
   expect(get('ui-create-list')).toBeTruthy(); expect(get('ui-chat-room')).toBeUndefined();
   expect(memory.getSnapshot().view.detailCardId).toBeNull();
+});
+
+it('keeps the same desktop pane and draft when only display density changes', async () => {
+  const {memory, services} = await fixture();
+  await click('ui-tab-chats'); await click('ui-chat-row-night-library');
+  await type('ui-chat-input', '모니터를 옮겨도 유지할 초안');
+  const input = get('ui-chat-input') as HTMLTextAreaElement;
+  const pane = get('ui-desktop-chat-detail-pane');
+  const composerWidth = get('ui-chat-composer')!.style.width;
+  await act(async () => input.focus());
+  for (const density of [2, 1.25, 1]) {
+    viewport.scale = density;
+    await act(async () => root!.render(<App memory={memory} settingsServices={services}/>));
+    expect(get('ui-desktop-chat-detail-pane')).toBe(pane);
+    expect(get('ui-chat-input')).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('모니터를 옮겨도 유지할 초안');
+    expect(get('ui-chat-composer')!.style.width).toBe(composerWidth);
+    expect(get('ui-tab-chats')?.getAttribute('aria-selected')).toBe('true');
+  }
 });

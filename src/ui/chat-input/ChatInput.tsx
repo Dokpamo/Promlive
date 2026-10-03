@@ -23,7 +23,7 @@ export function ChatInput(p: Props) {
   const colors = usePalette();
   const window = useWindowDimensions(), insets = useSafeAreaInsets(), pane = useDesktopPane();
   const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
-  const paneWidth = pane?.width ?? window.width, m = inputMetrics(paneWidth, window.fontScale);
+  const paneWidth = pane?.width ?? window.width, m = inputMetrics(paneWidth, window.fontScale, !!pane);
   const [measured, setMeasured] = useState(m.line);
   const [focused, setFocused] = useState(false);
   const reportHeight = useCallback((height: number) => setMeasured(old => Math.abs(old - height) > 0.5 ? height : old), []);

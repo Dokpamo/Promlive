@@ -6,6 +6,8 @@ import {pickProfileImage} from '../../adapters/profile/pickProfileImage';
 import {cropProfileImage} from '../../adapters/profile/cropProfileImage';
 import {usePalette} from '../Theme';
 import {settingsDetailLayout} from '../tokens';
+import {useDesktopPane} from '../desktop/DesktopPane';
+import {desktopMetrics} from '../desktop/desktopMetrics';
 import {FilterChips} from '../FilterChips';
 import {NavigationButton} from '../Navigation';
 import {Icon} from '../Icon';
@@ -93,7 +95,7 @@ function ProfileFields({services, nav}: {services: SettingsServices; nav: Settin
 
 export function PersonasSettings({services, nav}: {services: SettingsServices; nav: SettingsNavigation}) {
   const {value, ready, error} = useSyncExternalStore(services.personas.subscribe, services.personas.snapshot);
-  const colors = usePalette();
+  const colors = usePalette(), desktop = useDesktopPane();
   const [query, setQuery] = useState(''), [managing, setManaging] = useState(false), [selected, setSelected] = useState<string[]>([]), [notice, setNotice] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const setFocused = useContext(SettingsFocusContext);
@@ -150,7 +152,7 @@ export function PersonasSettings({services, nav}: {services: SettingsServices; n
       onPress={() => managing ? toggle(`p:${persona.id}`) : nav.push(child => <PersonaEditor services={services} nav={child} id={persona.id} folderId={persona.folderId}/>)}
       style={{paddingHorizontal: settingsDetailLayout.horizontalInset, paddingVertical: 14, minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 16,
         backgroundColor: managing && selected.includes(`p:${persona.id}`) ? colors.surface : 'transparent'}}>
-      <Avatar image={persona.image} name={persona.name}/><View style={{flex: 1, gap: 4}}><Text numberOfLines={1} style={{fontSize: 16, lineHeight: 22, color: colors.foreground}}>{persona.name}</Text>
+      <Avatar image={persona.image} name={persona.name} size={desktop ? 40 : 52}/><View style={{flex: 1, gap: 4}}><Text numberOfLines={1} style={{...(desktop ? desktopMetrics.body : {fontSize: 16, lineHeight: 22}), color: colors.foreground}}>{persona.name}</Text>
         <Text numberOfLines={1} style={{fontSize: 14, lineHeight: 20, color: colors.secondaryForeground}}>{persona.description || '설명을 추가해 보세요.'}</Text></View>
       {managing && selected.includes(`p:${persona.id}`) && <Icon name="check" size={settingsDetailLayout.selectionIconSize}/>}
     </ListPressable>)}
