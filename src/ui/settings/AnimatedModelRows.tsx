@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, View} from 'react-native';
+import {AccessibilityInfo, Animated, Platform, View} from 'react-native';
 import type {AiModelPreview} from '../../features/settings/aiSettingsModel';
 import {settingsListLayout} from '../tokens';
 import {SettingRow} from './controls';
@@ -10,6 +10,7 @@ type Row = {
 };
 type Frame = {rows: Row[]; height: number; animate: boolean; moveStart: number; moveDuration: number};
 const rowHeight = settingsListLayout.rowHeight;
+const useNativeDriver = Platform.OS === 'ios' || Platform.OS === 'android';
 const smooth = (value: number) => value * value * (3 - 2 * value);
 
 function initialFrame(models: AiModelPreview[]): Frame {
@@ -89,14 +90,14 @@ export function AnimatedModelRows({models, selected, onChoose}: {
     })];
     frame.rows.forEach(row => {
       if (!row.present) {
-        motions.push(Animated.timing(row.opacity, {toValue: 0, duration: 140, easing: smooth, useNativeDriver: true, isInteraction: false}));
+        motions.push(Animated.timing(row.opacity, {toValue: 0, duration: 140, easing: smooth, useNativeDriver, isInteraction: false}));
         return;
       }
       motions.push(Animated.timing(row.y, {toValue: row.targetY,
         delay: row.fresh ? revealStart : frame.moveStart, duration: row.fresh ? 240 : frame.moveDuration,
-        easing: smooth, useNativeDriver: true, isInteraction: false}));
+        easing: smooth, useNativeDriver, isInteraction: false}));
       motions.push(Animated.timing(row.opacity, {toValue: 1, delay: row.fresh ? revealStart : 0,
-        duration: 240, easing: smooth, useNativeDriver: true, isInteraction: false}));
+        duration: 240, easing: smooth, useNativeDriver, isInteraction: false}));
     });
     const batch = Animated.parallel(motions);
     animation.current = batch;

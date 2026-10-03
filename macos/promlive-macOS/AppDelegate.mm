@@ -16,6 +16,17 @@
   return [super applicationDidFinishLaunching:notification];
 }
 
+- (NSDictionary<NSString *, Class<RCTComponentViewProtocol>> *)thirdPartyFabricComponents
+{
+  // Codegen also discovers iOS-only blur/gesture components in the shared package.json.
+  // They are not linked on macOS; registering a nil class aborts the first render.
+  return @{
+    @"RNCSafeAreaProvider": NSClassFromString(@"RNCSafeAreaProviderComponentView"),
+    @"RNCSafeAreaView": NSClassFromString(@"RNCSafeAreaViewComponentView"),
+    @"RNCWebView": NSClassFromString(@"RNCWebView"),
+  };
+}
+
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
 {
   return [self bundleURL];

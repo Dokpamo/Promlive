@@ -15,6 +15,7 @@ import {FilterChips} from './FilterChips';
 import {EditorTextInput} from './EditorTextInput';
 import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
+import {useDesktopPane} from './desktop/DesktopPane';
 
 /** Edits the new UI's draft. Only Complete updates the library's published snapshot. */
 export function CardEditor({card, scale, topInset, bottomInset, onChange, onGalleryChange, onComplete, onClose, memory, backTransition}: {
@@ -30,7 +31,12 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onGall
   backTransition: BackTransition;
 }) {
   const colors = usePalette();
-  const styles = useStyles();
+  const baseStyles = useStyles(), desktop = useDesktopPane();
+  const styles = desktop ? {...baseStyles,
+    body: {...baseStyles.body, paddingHorizontal: 28},
+    label: {...baseStyles.label, fontSize: 16, lineHeight: 23},
+    input: {...baseStyles.input, borderBottomWidth: 0, backgroundColor: colors.inputSurface, borderRadius: 14, paddingHorizontal: 14},
+  } : baseStyles;
   const [group, setGroup] = useState<'basic' | 'story' | 'images'>('basic');
   const [titleError, setTitleError] = useState(false);
   const [tagText, setTagText] = useState(card.draft.tags.join(', '));

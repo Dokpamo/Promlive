@@ -101,7 +101,7 @@ export function useMessageSendMotion(scroll: RefObject<ScrollView | null>, reser
     if (flight?.phase !== 'flying') return;
     const id = flight.id;
     const animation = Animated.timing(progress, {toValue: 1, duration: messageSendDuration,
-      easing: Easing.linear, useNativeDriver: Platform.OS !== 'web'});
+      easing: Easing.linear, useNativeDriver: Platform.OS === 'ios' || Platform.OS === 'android'});
     animation.start(({finished}) => {if (finished && active.current?.id === id) finish();});
     return () => animation.stop();
   }, [flight, progress, finish]);

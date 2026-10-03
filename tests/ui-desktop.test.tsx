@@ -1,0 +1,113 @@
+// @vitest-environment jsdom
+import './ui-image-fixtures';
+import {act, type ReactNode} from 'react';
+import {createRoot, type Root} from 'react-dom/client';
+import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import App from '../App';
+import {ScreenMemory} from '../src/ui/ScreenMemory';
+import {createSettingsServices} from '../src/ui/settings/SettingsServices';
+import {createScreenStorage} from '../src/ui/screenStorage.web';
+import {installBrowserScreenStorage} from './browser-screen-storage';
+import {desktopLayout, isDesktopLayout} from '../src/ui/desktop/desktopLayout';
+
+const viewport = vi.hoisted(() => ({width: 1280, height: 800, fontScale: 1, scale: 1}));
+vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
+vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
+vi.mock('react-native', async () => {
+  const native = await vi.importActual<typeof import('react-native')>('react-native-web');
+  return {...native, AccessibilityInfo: {...native.AccessibilityInfo, isReduceMotionEnabled: async () => true}, useWindowDimensions: () => viewport};
+});
+vi.mock('react-native-safe-area-context', () => ({SafeAreaProvider: ({children}: {children: ReactNode}) => <>{children}</>, useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})}));
+(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
+let root: Root | undefined;
+beforeEach(() => {viewport.width = 1280; installBrowserScreenStorage();});
+afterEach(async () => {if (root) await act(async () => root!.unmount()); root = undefined; document.body.replaceChildren(); vi.restoreAllMocks();});
+const get = (id: string) => [...document.querySelectorAll(`[data-testid="${id}"]`)].find(el => !el.closest('[aria-hidden="true"]')) as HTMLElement | undefined;
+async function click(id: string) {expect(get(id), id).toBeTruthy(); await act(async () => get(id)!.click());}
+async function type(id: string, value: string) {
+  const el = get(id) as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('input', {bubbles: true}));
+  });
+}
+async function fixture(memory = new ScreenMemory(createScreenStorage())) {
+  const values = new Map<string, string>();
+  const services = createSettingsServices({getSetting: async key => values.get(key), setSetting: async (key, value) => {values.set(key, value);}},
+    {get: async () => null, set: async () => {}, remove: async () => {}});
+  await services.load();
+  const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
+  await act(async () => root!.render(<App memory={memory} settingsServices={services}/>));
+  return {memory, services};
+}
+
+it('uses a rail for desktop hosts and wide web only, with split panes that fit the available width', () => {
+  for (const platform of ['macos', 'windows']) expect(isDesktopLayout(platform, 700)).toBe(true);
+  for (const platform of ['ios', 'android']) expect(isDesktopLayout(platform, 1400)).toBe(false);
+  expect(isDesktopLayout('web', 412)).toBe(false);
+  expect(desktopLayout(840).split).toBe(false);
+  const wide = desktopLayout(1280);
+  expect(wide.content - wide.chatList).toBeGreaterThan(500);
+  expect(wide.columns).toBe(6);
+});
+it('keeps drafts editable across rail changes and publishes only after completion', async () => {
+  const {memory} = await fixture();
+  expect(get('ui-desktop-rail')).toBeTruthy(); expect(get('ui-tab-bar')).toBeUndefined();
+  expect(get('ui-card-draft-1')).toBeUndefined();
+  await click('ui-tab-create'); await click('ui-creation-row-draft-1');
+  await type('ui-card-editor-title', '데스크톱에서 이어 쓰는 이야기');
+  expect(get('ui-desktop-card-preview')?.textContent).toContain('데스크톱에서 이어 쓰는 이야기');
+  await click('ui-tab-library');
+  expect(get('ui-card-draft-1')).toBeUndefined(); expect(memory.getSnapshot().view.openedCardId).toBeNull();
+  await click('ui-tab-create'); await click('ui-creation-row-draft-1');
+  expect((get('ui-card-editor-title') as HTMLTextAreaElement).value).toBe('데스크톱에서 이어 쓰는 이야기');
+  await click('ui-card-editor-complete'); await click('ui-tab-library');
+  expect(get('ui-card-draft-1')?.textContent).toContain('데스크톱에서 이어 쓰는 이야기');
+});
+it('keeps the chat list beside its selected conversation and binds input to the conversation pane', async () => {
+  const {memory} = await fixture(); await click('ui-tab-chats'); await click('ui-chat-row-night-library');
+  expect(get('ui-desktop-chat-list-pane')).toBeTruthy();
+  expect(get('ui-chat-row-night-library')?.getAttribute('aria-current')).toBe('true');
+  const composer = get('ui-chat-composer')!;
+  expect(Number.parseFloat(composer.style.width)).toBeLessThan(800);
+  await type('ui-chat-input', '아직 보내지 않은 이야기');
+  const other = memory.getSnapshot().data.chats.find(chat => chat.id !== 'night-library')!;
+  await click(`ui-chat-row-${other.id}`);
+  expect((get('ui-chat-input') as HTMLTextAreaElement).value).not.toBe('아직 보내지 않은 이야기');
+  await click('ui-tab-settings'); await click('ui-tab-chats'); await click('ui-chat-row-night-library');
+  expect((get('ui-chat-input') as HTMLTextAreaElement).value).toBe('아직 보내지 않은 이야기');
+  await click('ui-chat-send');
+  const chat = memory.getSnapshot().data.chats.find(item => item.id === 'night-library')!;
+  expect(chat.draft).toBe(''); expect(chat.messages.at(-1)?.text).toBe('아직 보내지 않은 이야기');
+});
+it('retains the settings list while editing a persisted setting and returns from nested pages', async () => {
+  const {services} = await fixture(); await click('ui-tab-settings'); await click('ui-settings-user');
+  expect(get('ui-desktop-settings-list-pane')).toBeTruthy();
+  await type('ui-profile-name', '데스크톱 사용자');
+  expect(services.profile.snapshot().value.name).toBe('데스크톱 사용자');
+  await click('ui-settings-back');
+  expect(get('ui-profile-name')).toBeUndefined();
+  await click('ui-settings-row-ai');
+  const provider = [...document.querySelectorAll('[role="button"]')].find(el => el.textContent?.includes('프로바이더') && !el.closest('[aria-hidden="true"]')) as HTMLElement;
+  expect(provider).toBeTruthy(); await act(async () => provider.click());
+  expect(get('ui-desktop-settings-list-pane')).toBeTruthy();
+  await click('ui-settings-back');
+  expect(get('ui-settings-row-ai')?.getAttribute('aria-current')).toBe('page');
+});
+it('uses one content pane in a narrow desktop window and returns to the chat list', async () => {
+  viewport.width = 840;
+  await fixture(); await click('ui-tab-chats'); await click('ui-chat-row-night-library');
+  expect(get('ui-desktop-rail')).toBeTruthy(); expect(get('ui-desktop-chat-list-pane')).toBeUndefined();
+  await click('ui-chat-room-back');
+  expect(get('ui-desktop-chat-list-pane')).toBeTruthy(); expect(get('ui-chat-room')).toBeUndefined();
+});
+it('restores a mobile detail snapshot into the correct desktop tab without trapping rail navigation', async () => {
+  const memory = new ScreenMemory(createScreenStorage());
+  memory.updateView(view => ({...view, tab: 'library', detailCardId: 'night-library', chatId: 'night-library'}));
+  await fixture(memory);
+  expect(get('ui-tab-chats')?.getAttribute('aria-selected')).toBe('true');
+  expect(get('ui-chat-room')).toBeTruthy();
+  await click('ui-tab-create');
+  expect(get('ui-create-list')).toBeTruthy(); expect(get('ui-chat-room')).toBeUndefined();
+  expect(memory.getSnapshot().view.detailCardId).toBeNull();
+});

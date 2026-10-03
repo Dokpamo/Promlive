@@ -8,7 +8,7 @@ import {releaseWaveFrame, waveSamples} from './tabReleaseWave';
 type Scalar = Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedAddition<number>;
 const sum = (values: Scalar[], initial = 0): Scalar => values.reduce<Scalar>((total, value) => Animated.add(total, value), new Animated.Value(initial));
 
-/** Approved icon masks, with a small travelling wave entirely on the UI thread. */
+/** Approved icon masks, with a travelling wave (native animation on mobile). */
 export function TabIcon({name, selection, waves, size}: {name: Tab; selection: Animated.Value; waves: Animated.Value[]; size: number}) {
   const colors = usePalette();
   const unselected = useMemo(() => Animated.subtract(1, selection), [selection]);

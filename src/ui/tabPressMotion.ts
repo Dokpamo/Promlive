@@ -6,7 +6,7 @@ export function createTabPressMotion(initialSelected: boolean) {
   const fill = new Animated.Value(initialSelected ? 1 : 0);
   const lanes = Array.from({length: 3}, () => ({value: new Animated.Value(1), active: false, revision: 0}));
   const waves = lanes.map(lane => lane.value);
-  const driver = {useNativeDriver: Platform.OS !== 'web', isInteraction: false};
+  const driver = {useNativeDriver: Platform.OS === 'ios' || Platform.OS === 'android', isInteraction: false};
   let selected = initialSelected, reduced = false, disposed = false, nextLane = 0, revision = 0;
   let phase: 'idle' | 'pressed' | 'released' = 'idle';
   const settleFill = () => {fill.stopAnimation(); fill.setValue(selected ? 1 : 0);};

@@ -29,6 +29,8 @@ import {ScreenLayer} from './ScreenLayer';
 import {SettingsServicesProvider, type SettingsServices} from './settings/SettingsServices';
 import {SettingsNavigator} from './settings/SettingsNavigator';
 import type {SettingsDestination} from './settings/OtherSettings';
+import {DesktopShell} from './desktop/DesktopShell';
+import {isDesktopLayout} from './desktop/desktopLayout';
 
 /** First render uses the local snapshot; background refresh never replaces it with a loader. */
 export default function App({memory: provided, settingsServices}: {memory?: ScreenMemory; settingsServices?: SettingsServices} = {}) {
@@ -36,6 +38,7 @@ export default function App({memory: provided, settingsServices}: {memory?: Scre
   return <SettingsServicesProvider services={settingsServices}><ThemeProvider memory={memory}><AppFrame memory={memory}/></ThemeProvider></SettingsServicesProvider>;
 }
 function AppFrame({memory}: {memory: ScreenMemory}) {
+  const {width} = useWindowDimensions();
   const {colors, appearance: uiAppearance} = useTheme();
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -44,7 +47,7 @@ function AppFrame({memory}: {memory: ScreenMemory}) {
   }, [uiAppearance]);
   return <GestureRoot style={{flex: 1}}><SafeAreaProvider style={{flex: 1, backgroundColor: colors.background}}>
     <StatusBar barStyle={uiAppearance === 'light' ? 'dark-content' : 'light-content'}/>
-    <Shell memory={memory}/>
+    {isDesktopLayout(Platform.OS, width) ? <DesktopShell memory={memory}/> : <Shell memory={memory}/>}
   </SafeAreaProvider></GestureRoot>;
 }
 

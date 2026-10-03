@@ -9,13 +9,16 @@ import {SwipeBack} from './SwipeBack';
 import type {BackTransition} from './backTransition';
 import {colorPalettes, navigationActionMetrics} from './tokens';
 import {PreviewArtwork} from './PreviewArtwork';
+import {useDesktopPane} from './desktop/DesktopPane';
 
 export function ImageViewer({card, width, scale, onClose, transition, galleryIndex = null, onSelectImage}: {
   card: LibraryCard; width: number; scale: number; onClose: () => void; transition: BackTransition;
   galleryIndex?: number | null; onSelectImage?: (index: number) => void;
 }) {
-  const {height} = useWindowDimensions();
-  const safe = useSafeAreaInsets(), actions = navigationActionMetrics(scale);
+  const window = useWindowDimensions(), pane = useDesktopPane();
+  const height = pane?.height ?? window.height;
+  const insets = useSafeAreaInsets(), actions = navigationActionMetrics(scale);
+  const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
   const [zoomed, setZoomed] = useState(false);
   const surface = useRef<ImageSurfaceHandle>(null);
   const pages = useRef<ScrollView>(null), strip = useRef<ScrollView>(null);

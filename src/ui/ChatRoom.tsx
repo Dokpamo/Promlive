@@ -18,6 +18,7 @@ import {groupedMessage, type ChatMessage} from './chatConversation';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {useMessageSendMotion} from './useMessageSendMotion';
 import {useChatChrome} from './useChatChrome';
+import {useDesktopPane} from './desktop/DesktopPane';
 
 type Props = {chat: ChatRow; gallery: GalleryImage[]; memory: ScreenMemory; scale: number; onClose: () => void; transition: BackTransition};
 export function ChatRoom(p: Props) {
@@ -33,9 +34,10 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
 }) {
   const colors = usePalette();
   const styles = useStyles();
-  const safe = useSafeAreaInsets(), actions = navigationActionMetrics(scale), window = useWindowDimensions();
+  const insets = useSafeAreaInsets(), pane = useDesktopPane(), actions = navigationActionMetrics(scale), window = useWindowDimensions();
+  const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
   const [attachments, setAttachments] = useState(false), [menu, setMenu] = useState(false);
-  const geometry = inputMetrics(window.width, window.fontScale);
+  const geometry = inputMetrics(pane?.width ?? window.width, window.fontScale);
   const [composerHeight, setComposerHeight] = useState(inputLayout(geometry, geometry.line, !!chat.draftImage).height + safe.bottom + geometry.gap + 10);
   useEffect(() => onPanelChange(attachments || menu), [attachments, menu, onPanelChange]);
   const scroll = useRef<ScrollView>(null);
@@ -75,10 +77,10 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
   }
   return <View testID="ui-chat-room" style={styles.screen}>
     <View style={{flex: 1, paddingTop: safe.top}}>
-      <Animated.View testID="ui-chat-header-visibility" pointerEvents={chrome.headerHidden ? 'none' : 'auto'} accessibilityElementsHidden={chrome.headerHidden}
-        importantForAccessibility={chrome.headerHidden ? 'no-hide-descendants' : 'auto'}
+      <Animated.View testID="ui-chat-header-visibility" pointerEvents={!pane && chrome.headerHidden ? 'none' : 'auto'} accessibilityElementsHidden={!pane && chrome.headerHidden}
+        importantForAccessibility={!pane && chrome.headerHidden ? 'no-hide-descendants' : 'auto'}
         style={{position: 'absolute', top: safe.top, left: 0, right: 0, zIndex: 2, height: navigation.headerHeight * scale,
-          opacity: chrome.header, transform: [{translateY: chrome.header.interpolate({inputRange: [0, 1], outputRange: [-10, 0]})}], overflow: 'hidden'}}>
+          opacity: pane ? 1 : chrome.header, transform: [{translateY: pane ? 0 : chrome.header.interpolate({inputRange: [0, 1], outputRange: [-10, 0]})}], overflow: 'hidden'}}>
       <View testID="ui-chat-room-header" style={[styles.header, {height: navigation.headerHeight * scale, paddingLeft: actions.backInset, paddingRight: actions.endInset}]}>
         <NavigationButton testID="ui-chat-room-back" icon="back" label="이전 화면으로 돌아가기" scale={scale} onPress={onClose}/>
         <View style={styles.headerAvatar}><PreviewArtwork tile={chat.tile} width={36} height={36}/></View>
@@ -89,9 +91,9 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
       <ChatKeyboardBody onViewport={updateViewport}><Animated.ScrollView ref={scroll} {...scrolling} scrollEventThrottle={16} testID="ui-chat-messages" style={styles.messages}
         contentContainerStyle={[styles.messageBody, {paddingTop: navigation.headerHeight * scale + 6, paddingBottom: (sending.flight ? compactComposer : composerHeight) + 12}]}
         contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false}
-        {...chrome.touchHandlers} removeClippedSubviews={false} onScrollBeginDrag={() => {chrome.cancel(); sending.finish();}}
+        {...(pane ? {} : chrome.touchHandlers)} removeClippedSubviews={false} onScrollBeginDrag={() => {chrome.cancel(); sending.finish();}}
         keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: chrome.scrollY}}}], {useNativeDriver: Platform.OS !== 'web', listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        onScroll={Animated.event([{nativeEvent: {contentOffset: {y: chrome.scrollY}}}], {useNativeDriver: Platform.OS === 'ios' || Platform.OS === 'android', listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
           const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
           const height = scrollFrame.current.height || layoutMeasurement.height;
           scrolling.onScroll({...event, nativeEvent: {...event.nativeEvent, layoutMeasurement: {...layoutMeasurement, height}}});
@@ -160,7 +162,7 @@ function ChatRoomContent({chat, gallery, memory, scale, onClose, blocker, onPane
         <Pressable accessibilityRole="button" accessibilityLabel="메뉴 닫기" onPress={() => setMenu(false)} style={styles.menuItem}><Text style={styles.panelTitle}>닫기</Text></Pressable>
       </View>}
     </View>
-    <ChatInput value={chat.draft} image={chat.draftImage} blocker={blocker} sendPhase={sending.flight?.phase} hidden={chrome.composerHidden} translateY={chrome.composerTranslateY}
+    <ChatInput value={chat.draft} image={chat.draftImage} blocker={blocker} sendPhase={sending.flight?.phase} hidden={!pane && chrome.composerHidden} {...(!pane ? {translateY: chrome.composerTranslateY} : {})}
       onChange={text => {sending.finish(); memory.updateChatDraft(chat.id, text);}}
       onSend={send} onAttach={() => {dismissChatKeyboard(); setAttachments(value => !value);}}
       onRemoveImage={() => memory.updateChatImage(chat.id, null)} onHeight={setComposerHeight}

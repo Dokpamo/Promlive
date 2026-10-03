@@ -5,7 +5,7 @@ import {PreviewArtwork} from './PreviewArtwork';
 import {listTypography} from './tokens';
 
 /** Chat and creation rows use the same avatar, text alignment, and hit area. */
-export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessibilityLabel, onPress}: {
+export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessibilityLabel, onPress, compact = false, selected = false}: {
   scope: 'chat' | 'creation';
   id: string;
   title: string;
@@ -14,11 +14,15 @@ export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessi
   tile: number;
   accessibilityLabel: string;
   onPress?: () => void;
+  compact?: boolean;
+  selected?: boolean;
 }) {
   const styles = useStyles();
+  const size = compact ? 44 : 60;
+  const rowStyle = [styles.row, compact && {minHeight: 82, paddingHorizontal: 12, gap: 12, borderRadius: 14, marginHorizontal: 10}, selected && styles.selected];
   const content = <>
-    <View testID={`ui-${scope}-avatar-${id}`} style={styles.avatar}>
-      <PreviewArtwork tile={tile} width={60} height={60}/>
+    <View testID={`ui-${scope}-avatar-${id}`} style={[styles.avatar, {width: size, height: size}]}>
+      <PreviewArtwork tile={tile} width={size} height={size}/>
     </View>
     <View style={styles.text}>
       <View style={styles.titleRow}>
@@ -31,11 +35,12 @@ export function ContentRow({scope, id, title, subtitle, timestamp, tile, accessi
   </>;
   return onPress
     ? <ListPressable testID={`ui-${scope}-row-${id}`} accessibilityRole="button" accessibilityLabel={accessibilityLabel}
-        onPress={onPress} style={styles.row}>{content}</ListPressable>
+        accessibilityState={{selected}} aria-current={selected ? 'true' : undefined} onPress={onPress} style={rowStyle}>{content}</ListPressable>
     : <View testID={`ui-${scope}-row-${id}`} accessible accessibilityLabel={accessibilityLabel} style={styles.row}>{content}</View>;
 }
 
 const useStyles = themedStyles(colors => ({
+  selected: {backgroundColor: colors.surface},
   row: {minHeight: 88, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingLeft: 22, paddingRight: 20, gap: 20},
   avatar: {width: 60, height: 60, flexShrink: 0, borderRadius: 30, overflow: 'hidden', backgroundColor: colors.surface},
   text: {flex: 1, minWidth: 0, gap: 4},

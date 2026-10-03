@@ -23,7 +23,7 @@ export function ToggleIndicator({value}: {value: boolean}) {
     }
     const animation = Animated.timing(progress, {
       toValue: value ? 1 : 0, duration: 180, easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== 'web', isInteraction: false,
+      useNativeDriver: Platform.OS === 'ios' || Platform.OS === 'android', isInteraction: false,
     });
     animation.start();
     return () => animation.stop();

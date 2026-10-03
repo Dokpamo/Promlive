@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useEffect, useRef, type ReactNode} from 'react';
 import {Animated, Platform, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {HorizontalGesture} from './HorizontalGesture';
@@ -6,16 +6,28 @@ import {useSwipeMotion} from './useSwipeMotion';
 import {usePalette} from './Theme';
 import type {GestureBlockRef} from './HorizontalGesture.types';
 import type {BackTransition} from './backTransition';
+import {useDesktopPane} from './desktop/DesktopPane';
 
 /** The previous route stays mounted underneath, including its exact scroll position. */
-export function SwipeBack({children, identity, enabled = true, dismiss = false, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor: background}: {
+type Props = {
   children: ReactNode; identity: string; enabled?: boolean; onBack: () => void;
   dismiss?: boolean;
   blockers?: GestureBlockRef[];
   transition: BackTransition;
   drawBehindStatusBar?: boolean;
   backgroundColor?: string;
-}) {
+};
+export function SwipeBack(props: Props) {
+  const pane = useDesktopPane();
+  return pane ? <DesktopBack {...props}/> : <MobileSwipeBack {...props}/>;
+}
+function DesktopBack({children, dismiss, onBack, backgroundColor}: Props) {
+  const colors = usePalette();
+  const callback = useRef(onBack); callback.current = onBack;
+  useEffect(() => {if (dismiss) callback.current();}, [dismiss]);
+  return <View style={{flex: 1, minHeight: 0, backgroundColor: backgroundColor ?? colors.background}}>{children}</View>;
+}
+function MobileSwipeBack({children, identity, enabled = true, dismiss = false, onBack, blockers, transition, drawBehindStatusBar = false, backgroundColor: background}: Props) {
   const colors = usePalette();
   const backgroundColor = background ?? colors.background;
   const {width} = useWindowDimensions();

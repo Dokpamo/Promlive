@@ -10,6 +10,7 @@ import {InputField} from './InputField';
 import {ChatKeyboardDock} from './KeyboardDock'; // Native dock owns keyboard motion on both mobile platforms.
 import {inputLayout, inputMetrics, type InputMetrics} from './geometry';
 import {messageSendDuration, messageSendProgress} from '../messageSendMotion';
+import {useDesktopPane} from '../desktop/DesktopPane';
 
 type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRef;
   onChange: (value: string) => void; onSend: () => void; onAttach: () => void; onRemoveImage: () => void;
@@ -20,7 +21,9 @@ type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRe
 
 export function ChatInput(p: Props) {
   const colors = usePalette();
-  const window = useWindowDimensions(), safe = useSafeAreaInsets(), m = inputMetrics(window.width, window.fontScale);
+  const window = useWindowDimensions(), insets = useSafeAreaInsets(), pane = useDesktopPane();
+  const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
+  const paneWidth = pane?.width ?? window.width, m = inputMetrics(paneWidth, window.fontScale);
   const [measured, setMeasured] = useState(m.line);
   const [focused, setFocused] = useState(false);
   const reportHeight = useCallback((height: number) => setMeasured(old => Math.abs(old - height) > 0.5 ? height : old), []);
@@ -52,8 +55,8 @@ export function ChatInput(p: Props) {
   }, [motion, layout.height, reducedMotion, p.sendPhase]);
   const bottom = safe.bottom + m.gap;
   useLayoutEffect(() => p.onHeight(frameHeight + bottom + 10), [frameHeight, bottom, p.onHeight]);
-  const width = Math.min(800, window.width - safe.left - safe.right) - m.gap * 2;
-  const left = safe.left + (window.width - safe.left - safe.right - width) / 2;
+  const width = Math.min(800, paneWidth - safe.left - safe.right) - m.gap * 2;
+  const left = safe.left + (paneWidth - safe.left - safe.right - width) / 2;
   const canSend = !!p.value.trim() || !!p.image;
   const textTop = layout.photoHeight + m.textTop;
   const pinned = focused || !!p.sendPhase;

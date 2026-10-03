@@ -17,7 +17,7 @@ export function ListPressable({children, style, onPressIn, onPressOut, disabled,
     onPressOut={event => {
       opacity.stopAnimation();
       if (reduced) opacity.setValue(0);
-      else Animated.timing(opacity, {toValue: 0, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web', isInteraction: false}).start();
+      else Animated.timing(opacity, {toValue: 0, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS === 'ios' || Platform.OS === 'android', isInteraction: false}).start();
       onPressOut?.(event);
     }}>
     <Animated.View testID="ui-row-press-background" pointerEvents="none" accessible={false} aria-hidden
