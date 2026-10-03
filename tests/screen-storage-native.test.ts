@@ -4,7 +4,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {createScreenStorage} from '../src/ui/screenStorage';
-import {initialScreenData, decodeScreenSnapshot} from '../src/ui/screenState';
+import {ScreenMemory} from '../src/ui/ScreenMemory';
+import {initialScreenData, initialScreenView, decodeScreenSnapshot} from '../src/ui/screenState';
 import {screenStorageKey, ScreenStorageConflict} from '../src/ui/screenPersistence';
 
 const native = vi.hoisted(() => ({open: vi.fn()}));
@@ -28,6 +29,25 @@ beforeEach(() => {
 });
 afterEach(() => {for (const handle of handles) if (!handle.closed) handle.db.close(); rmSync(directory, {recursive: true, force: true});});
 const snapshot = (at: number) => JSON.stringify({version: 1, savedAt: at, data: initialScreenData()});
+
+it('recovers both the legacy screen and edited draft from SQLite when the separate view write fails', async () => {
+  const storage = createScreenStorage();
+  const view = {...initialScreenView(), tab: 'chats' as const, chatId: 'night-library'};
+  const positions = {'chat:night-library': {offset: 240, hidden: 0, height: 50, maxOffset: 800}};
+  await storage.write(JSON.stringify({...JSON.parse(snapshot(1)), view, positions}), null);
+  const writeView = storage.writeView;
+  storage.writeView = async () => {throw new Error('view write failed');};
+  const memory = new ScreenMemory(storage);
+  memory.updateChatDraft('night-library', 'SQLite에 남긴 초안'); await memory.flush();
+  expect(memory.getSnapshot().storageIssue).toBe('write');
+  const reopened = new ScreenMemory(createScreenStorage());
+  expect(reopened.getSnapshot().view).toEqual(view);
+  expect(reopened.getScroll('chat:night-library').offset).toBe(240);
+  expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('SQLite에 남긴 초안');
+  storage.writeView = writeView; await memory.flush();
+  expect(memory.getSnapshot().saveError).toBe(false);
+  expect(new ScreenMemory(createScreenStorage()).getSnapshot().view).toEqual(view);
+});
 
 it('closes a failed initialization candidate and retries on the same storage instance', async () => {
   failCreate = true; const storage = createScreenStorage();

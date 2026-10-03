@@ -51,6 +51,10 @@ export function createPreviewWorkspace(): WorkCard[] {
   return [...drafts, ...external];
 }
 
+export function parseCardTags(value: string): string[] {
+  return value.split(',').map(tag => tag.trim()).filter(Boolean);
+}
+
 export function cardWorkspaceReducer(cards: WorkCard[], action: CardAction): WorkCard[] {
   if (action.type === 'create') {
     if (cards.some(card => card.id === action.id)) return cards;
@@ -61,7 +65,7 @@ export function cardWorkspaceReducer(cards: WorkCard[], action: CardAction): Wor
     if (card.id !== action.id) return card;
     if (action.type === 'gallery') return {...card, draft: {...card.draft, gallery: action.images.map(image => ({...image}))}, working: true, updatedAt: action.now};
     if (action.type === 'edit') {
-      if (action.field === 'tags') return {...card, draft: {...card.draft, tags: action.value.split(',').map(tag => tag.trim()).filter(Boolean)}, working: true, updatedAt: action.now};
+      if (action.field === 'tags') return {...card, draft: {...card.draft, tags: parseCardTags(action.value)}, working: true, updatedAt: action.now};
       if (card.draft[action.field] === action.value) return card;
       return {...card, draft: {...card.draft, [action.field]: action.value}, working: true, updatedAt: action.now};
     }

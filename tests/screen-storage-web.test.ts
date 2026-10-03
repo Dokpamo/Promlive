@@ -11,6 +11,33 @@ const snapshot = (title: string) => {
   const data = initialScreenData(); data.cards = data.cards.map((card, index) => index === 0 ? {...card, draft: {...card.draft, title}} : card);
   return JSON.stringify({version: 1, savedAt: 1, data, view: initialScreenView(), positions: {}});
 };
+it.each(['localStorage', 'sessionStorage'] as const)('preserves legacy view and drafts across repeated reloads when %s rejects migration', async failingStore => {
+  const saved = JSON.parse(snapshot('구형 저장본'));
+  saved.view = {...initialScreenView(), tab: 'chats', chatId: 'night-library',
+    searches: {...initialScreenView().searches, chats: {open: true, query: '저장된 검색'}}};
+  saved.positions = {'chat:night-library': {offset: 240, hidden: 0, height: 50, maxOffset: 800}};
+  window.localStorage.setItem(screenStorageKey, JSON.stringify(saved));
+  const store = window[failingStore], set = store.setItem;
+  const failure = vi.spyOn(store, 'setItem').mockImplementation((key, value) => {
+    if (key === screenViewKey) throw new Error('view quota'); set(key, value);
+  });
+  const first = new ScreenMemory(createScreenStorage());
+  first.updateChatDraft('night-library', '첫 수정'); await first.flush();
+  expect(first.getSnapshot().storageIssue).toBe('write');
+  // Reload the same tab and edit again before ending the browser session.
+  const reloaded = new ScreenMemory(createScreenStorage());
+  reloaded.updateChatDraft('night-library', '두 번째 수정'); await reloaded.flush();
+  failure.mockRestore();
+  Object.defineProperty(window, 'sessionStorage', {configurable: true, value: browserStore()});
+  const reopened = new ScreenMemory(createScreenStorage());
+  expect(reopened.getSnapshot().view).toEqual(saved.view);
+  expect(reopened.getScroll('chat:night-library').offset).toBe(240);
+  expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('두 번째 수정');
+  await reopened.flush();
+  expect(window.localStorage.getItem(screenViewKey)).not.toBeNull();
+  expect(reopened.getSnapshot().saveError).toBe(false);
+});
+
 it('preserves a good recovery backup when repairing the primary fails for quota', async () => {
   const good = snapshot('유일한 정상본');
   window.localStorage.setItem(screenStorageKey, '{broken'); window.localStorage.setItem(screenStorageKey + ':backup', good);

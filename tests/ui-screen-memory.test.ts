@@ -16,6 +16,99 @@ function snapshot(): ScreenSnapshot {
   return {version: 1, savedAt: 1, data: initialScreenData(), view: initialScreenView(), positions: {}};
 }
 
+function legacySnapshot(): ScreenSnapshot {
+  const saved = snapshot();
+  saved.view.tab = 'chats'; saved.view.chatId = 'night-library';
+  saved.view.searches.chats = {open: true, query: '저장한 검색'};
+  saved.positions['chat:night-library'] = {offset: 240, hidden: 0, height: 50, maxOffset: 800};
+  return saved;
+}
+function expectLegacyView(memory: ScreenMemory, saved: ScreenSnapshot) {
+  expect(memory.getSnapshot().view).toEqual(saved.view);
+  expect(memory.getScroll('chat:night-library')).toEqual(saved.positions['chat:night-library']);
+}
+
+it.each(['normal', 'content read retry', 'view read retry', 'backup'])('migrates a legacy view before it can be lost by content-only edits: %s', async scenario => {
+  const saved = legacySnapshot(), raw = JSON.stringify(saved);
+  const disk = storage(scenario === 'backup' ? '{broken' : raw);
+  if (scenario === 'backup') disk.readBackupSync = () => raw;
+  if (scenario === 'content read retry') vi.spyOn(disk, 'readSync').mockImplementationOnce(() => {throw new Error('temporary read');});
+  if (scenario === 'view read retry') vi.spyOn(disk, 'readViewSync').mockImplementationOnce(() => {throw new Error('temporary view read');});
+  const memory = new ScreenMemory(disk);
+  await memory.refresh();
+  expectLegacyView(memory, saved);
+  memory.updateChatDraft('night-library', '이관 후에도 남을 초안'); await memory.flush();
+  const reopened = new ScreenMemory(disk);
+  expectLegacyView(reopened, saved);
+  expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('이관 후에도 남을 초안');
+  expect(disk.readViewSync()).not.toBeNull();
+  expect(memory.getSnapshot().saveError).toBe(false);
+});
+
+it('keeps both the draft and legacy view durable when view migration fails, then retries and resumes content-only saves', async () => {
+  const saved = legacySnapshot(), disk = storage(JSON.stringify(saved)), writeView = disk.writeView;
+  disk.writeView = vi.fn(async () => {throw new Error('view write failed');});
+  const memory = new ScreenMemory(disk);
+  memory.updateChatDraft('night-library', '이관 중 수정'); await memory.flush();
+  expect(memory.getSnapshot().storageIssue).toBe('write');
+  expectLegacyView(new ScreenMemory(disk), saved);
+  expect(decodeScreenSnapshot(disk.readSync())!.data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('이관 중 수정');
+  disk.writeView = writeView; await memory.flush();
+  expect(memory.getSnapshot().saveError).toBe(false);
+  memory.updateChatDraft('night-library', '이관 후 수정'); await memory.flush();
+  expect(JSON.parse(disk.readSync()!).view).toBeUndefined();
+  expectLegacyView(new ScreenMemory(disk), saved);
+});
+
+it('can reopen between the content write and completion of the first separate view write', async () => {
+  const saved = legacySnapshot(), disk = storage(JSON.stringify(saved)), writeView = disk.writeView;
+  let release!: () => void, start!: () => void;
+  const started = new Promise<void>(done => {start = done;});
+  disk.writeView = vi.fn(async value => {
+    await new Promise<void>(done => {release = done; start();}); await writeView(value);
+  });
+  const memory = new ScreenMemory(disk);
+  memory.updateChatDraft('night-library', '종료 직전 수정');
+  await started;
+  try {
+    expect(disk.readViewSync()).toBeNull();
+    const reopened = new ScreenMemory(disk);
+    expectLegacyView(reopened, saved);
+    expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('종료 직전 수정');
+  } finally {release(); await memory.flush();}
+});
+
+it('retains the recovered legacy fallback while the separate view store remains unreadable', async () => {
+  const saved = legacySnapshot(), disk = storage(JSON.stringify(saved)), readView = disk.readViewSync;
+  vi.spyOn(disk, 'readSync').mockImplementationOnce(() => {throw new Error('content read failed');});
+  disk.readViewSync = () => {throw new Error('view read still failing');};
+  const memory = new ScreenMemory(disk);
+  await memory.refresh();
+  expect(memory.getSnapshot().storageIssue).toBe('read');
+  memory.updateChatDraft('night-library', '읽기 복구 중 수정'); await memory.flush();
+  expect(disk.writeView).not.toHaveBeenCalled();
+  disk.readViewSync = readView;
+  const reopened = new ScreenMemory(disk);
+  expectLegacyView(reopened, saved);
+  expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('읽기 복구 중 수정');
+  await memory.refresh().then(memory.flush);
+  expectLegacyView(memory, saved);
+  expect(disk.readViewSync()).not.toBeNull();
+  expect(memory.getSnapshot().saveError).toBe(false);
+});
+
+it('keeps an already separate view authoritative over an older embedded view', async () => {
+  const disk = storage(JSON.stringify(legacySnapshot()));
+  const separate = {...initialScreenView(), tab: 'settings' as const};
+  await disk.writeView(JSON.stringify({version: 1, view: separate, positions: {}}));
+  vi.mocked(disk.writeView).mockClear();
+  const memory = new ScreenMemory(disk);
+  memory.updateChatDraft('night-library', '내용만 수정'); await memory.flush();
+  expect(JSON.parse(disk.readSync()!).view).toBeUndefined();
+  expect(new ScreenMemory(disk).getSnapshot().view).toEqual(separate);
+  expect(disk.writeView).not.toHaveBeenCalled();
+});
+
 function presentationFailure() {
   const disk = storage(JSON.stringify(snapshot()));
   const original = JSON.stringify({version: 1, view: {...initialScreenView(), themeMode: 'dark', tab: 'settings',

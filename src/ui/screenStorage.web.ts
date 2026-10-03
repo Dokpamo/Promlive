@@ -8,10 +8,11 @@ export function createScreenStorage(): ScreenStorage {
     read: async () => window.localStorage.getItem(screenStorageKey),
     readViewSync: () => window.sessionStorage.getItem(screenViewKey) ?? window.localStorage.getItem(screenViewKey),
     writeView: async value => {
-      window.sessionStorage.setItem(screenViewKey, value);
       // A new browser session restores the last screen; already-open tabs retain
       // their own presentation. Neither write includes shared card/chat content.
+      // Persist first so a failed durable write cannot look saved on a tab reload.
       window.localStorage.setItem(screenViewKey, value);
+      window.sessionStorage.setItem(screenViewKey, value);
     },
     async write(value, expected) {
       if (!decodeScreenSnapshot(value)) throw new Error('Invalid screen content');

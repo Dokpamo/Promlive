@@ -3,7 +3,7 @@ import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'reac
 import {BackHandler, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View, type LayoutChangeEvent} from 'react-native';
 import {KeyboardPage} from './KeyboardPage';
 import type {EditableCardField, WorkCard} from './cardWorkspace';
-import {missingCardFields} from './cardWorkspace';
+import {missingCardFields, parseCardTags} from './cardWorkspace';
 import {nightLibraryDetails, type GalleryImage} from './cardDetails';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork} from './PreviewArtwork';
@@ -41,7 +41,13 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onGall
   } : baseStyles;
   const [group, setGroup] = useState<'basic' | 'story' | 'images'>('basic');
   const [titleError, setTitleError] = useState(false);
-  const [tagText, setTagText] = useState(card.draft.tags.join(', '));
+  const tagsKey = JSON.stringify(card.draft.tags);
+  const [tagInput, setTagInput] = useState(() => ({cardId: card.id, tagsKey, text: card.draft.tags.join(', ')}));
+  // Keep raw local typing (including a trailing comma). Replace it before
+  // committing a render only when the accepted source tags or card change.
+  if (tagInput.cardId !== card.id || tagInput.tagsKey !== tagsKey) {
+    setTagInput({cardId: card.id, tagsKey, text: card.draft.tags.join(', ')});
+  }
   const titleInput = useRef<TextInput>(null);
   const blockers = useMemo(() => Array.from({length: 7}, () => createRef() as GestureBlockRef), []);
   const scroll = useRef<ScrollView>(null);
@@ -138,7 +144,10 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onGall
         {...inputEvents('creator')} value={card.draft.creator} onChangeText={value => onChange('creator', value)} style={styles.input}/>
       <Text style={styles.label}>태그</Text>
       <EditorTextInput blockerRef={blockers[5]!} testID="ui-card-editor-tags" accessibilityLabel="태그, 쉼표로 구분"
-        {...inputEvents('tags')} value={tagText} onChangeText={value => {setTagText(value); onChange('tags', value);}}
+        {...inputEvents('tags')} value={tagInput.text} onChangeText={value => {
+          setTagInput({cardId: card.id, tagsKey: JSON.stringify(parseCardTags(value)), text: value});
+          onChange('tags', value);
+        }}
         placeholder="일상, 판타지, 도서관" placeholderTextColor={colors.secondaryForeground} style={styles.input}/>
       </View>
       <View testID="ui-editor-story-fields" aria-hidden={group !== 'story'} style={{display: group === 'story' ? 'flex' : 'none'}}

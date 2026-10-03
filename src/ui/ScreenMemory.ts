@@ -56,7 +56,8 @@ export class ScreenMemory {
     issue = this.dataLoadIssue ?? this.viewLoadIssue;
     this.state = {data, view: presentation?.view ?? initialScreenView(), saveError: issue !== null, storageIssue: issue};
     this.positions = presentation?.positions ?? {};
-    if (!this.viewPending && (viewRead || (cached && this.savedDataRevision === 0))) this.savedViewRevision = 0;
+    // An embedded legacy view has not yet been saved to the separate view store.
+    if (!this.viewPending && viewRead) this.savedViewRevision = 0;
   }
 
   private get blockedLoad() {return this.dataLoadIssue !== null;}
@@ -72,6 +73,9 @@ export class ScreenMemory {
   /** Merge only edits made while the stored view was unavailable; keep its other fields. */
   private restorePresentation(data: ScreenData, fallback = this.viewFallback) {
     if (!this.viewPending || this.blockedLoad) return;
+    // A content retry can recover the legacy view while its separate store is
+    // still unreadable. Retain it across further retries and content writes.
+    this.viewFallback = fallback && {view: fallback.view, positions: fallback.positions};
     try {
       const result = inspectScreenView(this.storage.readViewSync(), data);
       if (result.kind === 'corrupt' || result.kind === 'unsupported') {this.viewLoadIssue = result.kind; this.publishIssue(); return;}
@@ -85,7 +89,7 @@ export class ScreenMemory {
       this.viewPending = false; this.viewLoadIssue = null; this.viewFallback = null;
       this.viewOverrides = {}; this.searchOverrides = {}; this.scrollOverrides = {};
       this.viewRevision++;
-      this.savedViewRevision = edited ? -1 : this.viewRevision;
+      this.savedViewRevision = result.kind === 'valid' && !edited ? this.viewRevision : -1;
       this.state = {...this.state, view}; this.publishIssue(); this.emit();
     } catch {this.viewLoadIssue = 'read'; this.publishIssue();}
   }
@@ -177,9 +181,15 @@ export class ScreenMemory {
         const data = this.state.data;
         // Never enqueue a recovery preview, even if a concurrent retry later succeeds.
         const presentation = this.viewPending ? null : JSON.stringify({version: 1, view: this.state.view, positions: this.positions});
+        // Until a separate view is durable, retain a recovery copy in content.
+        // This also survives failure/termination between the two writes. During
+        // a read failure only carry forward the recovered view, not the preview.
+        const fallback = this.savedViewRevision < 0
+          ? this.viewPending ? this.viewFallback : {view: this.state.view, positions: this.positions}
+          : null;
         try {
           if (this.savedDataRevision !== dataRevision) {
-            const content = JSON.stringify({version: 1, savedAt: Date.now(), data});
+            const content = JSON.stringify({version: 1, savedAt: Date.now(), data, ...fallback});
             await this.storage.write(content, this.source);
             this.source = content; this.savedDataRevision = dataRevision;
           }
