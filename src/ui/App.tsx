@@ -23,6 +23,7 @@ import {useScreenMemory} from './useScreenMemory';
 import type {LibraryFilter, ScreenView} from './screenState';
 import {creationFilters, type CreationFilter} from './creationPreview';
 import {navigationScale} from './tokens';
+import {TabBarContentInset, tabBarLayout} from './tabBarLayout';
 import {ThemeProvider, useTheme} from './Theme';
 import {ScreenLayer} from './ScreenLayer';
 import {SettingsServicesProvider, type SettingsServices} from './settings/SettingsServices';
@@ -81,6 +82,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const editorBack = useMemo(() => createBackTransition(editorBackX, width, corners), [editorBackX, width, corners]);
   const imageBack = useMemo(() => createBackTransition(imageBackX, width, corners), [imageBackX, width, corners]);
   const scale = navigationScale(contentWidth);
+  const tabLayout = tabBarLayout(Platform.OS, contentWidth, scale, safe.bottom);
   const openSettings = useCallback((page: SettingsDestination) => {editorBack.prepareOpen(); Keyboard.dismiss(); setSettingsDetail(page);}, [editorBack]);
   const closeSettings = useCallback(() => {editorBack.finish(); Keyboard.dismiss(); setSettingsDetail(null);}, [editorBack]);
   const search = useCallback((scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => {
@@ -161,9 +163,11 @@ function Shell({memory}: {memory: ScreenMemory}) {
         backTransition={detailBack} alternateTransition={editorBack} useAlternate={!detailCard}>
         <View testID="ui-root-safe-content" style={{flex: 1, minHeight: 0, backgroundColor: colors.background,
           paddingTop: safe.top, paddingLeft: safe.left, paddingRight: safe.right}}>
+        <TabBarContentInset.Provider value={tabLayout.contentInset}>
         <TabPages ref={rootPagesRef} view={view} width={contentWidth} enabled={!openedCard && !detailCard && !openedChat && !settingsDetail} onStep={stepPage}
           pages={{...libraryPages, ...creationPages, chats: chatsPage, settings: settingsPage} as Record<RootPageKey, ReactNode>}/>
-        <TabBar tab={tab} onChange={changeTab} scale={scale} bottomInset={safe.bottom}/>
+        </TabBarContentInset.Provider>
+        <TabBar tab={tab} onChange={changeTab} scale={scale} layout={tabLayout}/>
         </View>
       </ScreenLayer>
       {detailCard && <ScreenLayer testID="ui-detail-screen" hidden={!!openedCard || !!openedChat || viewingCover} prepared backTransition={editorBack} alternateTransition={imageBack} useAlternate={viewingCover}>

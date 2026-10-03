@@ -7,6 +7,7 @@ import type {ScreenMemory} from './ScreenMemory';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {Icon, type IconName} from './Icon';
 import {listTypography, navigation, settingsLayout as layout, settingsListLayout} from './tokens';
+import {useTabBarContentInset} from './tabBarLayout';
 
 const items: {id: SettingsDestination; title: string; icon: IconName}[] = [
   {id: 'profile', title: '사용자', icon: 'user'},
@@ -24,6 +25,7 @@ export function Settings({scale, memory, onOpen}: {scale: number; memory: Screen
   const colors = usePalette();
   const scroll = useRef<ScrollView>(null);
   const scrolling = usePlainScrollMemory(memory, 'settings', scroll);
+  const bottomInset = useTabBarContentInset();
   const iconSize = navigation.iconSize * scale;
   const horizontalInset = navigation.titleInset * scale;
   const labelStyle = {
@@ -32,7 +34,8 @@ export function Settings({scale, memory, onOpen}: {scale: number; memory: Screen
     fontFamily: Platform.OS === 'android' ? 'sans-serif' : undefined,
   };
   return <ScrollView ref={scroll} {...scrolling} testID="ui-settings-list" style={{flex: 1, backgroundColor: colors.background}}
-    contentContainerStyle={{paddingTop: settingsListLayout.topInset, paddingBottom: layout.rowVerticalInset * scale}}
+    contentContainerStyle={{paddingTop: settingsListLayout.topInset, paddingBottom: layout.rowVerticalInset * scale + bottomInset}}
+    contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}
     bounces={false} alwaysBounceVertical={false} overScrollMode="never" showsVerticalScrollIndicator={false}>
     {items.map(item => <ListPressable key={item.id} testID={item.id === 'profile' ? 'ui-settings-user' : `ui-settings-row-${item.id}`} accessibilityRole="button" accessibilityLabel={item.title} onPress={() => onOpen(item.id)}
       style={{minHeight: settingsListLayout.rowHeight, flexDirection: 'row', alignItems: 'center',

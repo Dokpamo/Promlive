@@ -46,6 +46,7 @@ export function Chats({items, width, scale, header, searchOpen, query, onQueryCh
 
   return <ScrollFrame scope="chats" header={listHeader} scrolling={scrolling}>
     <Animated.FlatList ref={list} testID="ui-chats-list" data={chats} extraData={now} keyExtractor={chat => chat.id}
+    contentContainerStyle={scrolling.minimumContentStyle}
     style={styles.list} ListHeaderComponent={<View testID="ui-chats-header-space" pointerEvents="none" style={{height: scrolling.headerHeight}}/>}
     {...scrolling.scrollProps}
     scrollEventThrottle={16}

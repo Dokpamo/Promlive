@@ -4,11 +4,13 @@ import {advanceHeaderScroll, headerSettleTarget, type HeaderScrollPosition} from
 import {createScrollHeaderAnimation} from './scrollHeaderAnimation';
 import type {ScreenMemory} from './ScreenMemory';
 import {emptyScrollMemory, type ScrollScope} from './screenState';
+import {useTabBarContentInset} from './tabBarLayout';
 
 type ScrollTarget = {scrollToOffset: (options: {offset: number; animated?: boolean}) => void};
 
 /** Keep content overscroll separate from header visibility and its settle animation. */
 export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHeight: number, resetKey: string, memory?: ScreenMemory, scope?: ScrollScope) {
+  const bottomInset = useTabBarContentInset();
   const saved = useRef(memory && scope ? memory.getScroll(scope) : emptyScrollMemory).current;
   const {height: windowHeight} = useWindowDimensions();
   const position = useRef<HeaderScrollPosition>({...saved, height: saved.height || initialHeight,
@@ -180,13 +182,16 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
   return {
     holdForHorizontalGesture,
     readHidden, adoptHidden,
-    minimumContentStyle: minimumContentHeight > 0 ? {minHeight: minimumContentHeight} : undefined,
+    minimumContentStyle: minimumContentHeight > 0 || bottomInset > 0
+      ? {...(minimumContentHeight > 0 ? {minHeight: minimumContentHeight} : {}), ...(bottomInset > 0 ? {paddingBottom: bottomInset} : {})} : undefined,
     onHeaderLayout,
     headerHeight,
     headerStyle: {transform: [{translateY: animation.translateY}]},
     headerGestureProps: {...headerPan.panHandlers, onTouchStart: beginTouch, onTouchEnd: endTouch, onTouchCancel: endTouch},
     scrollProps: {
       contentOffset,
+      contentInsetAdjustmentBehavior: 'never' as const,
+      automaticallyAdjustContentInsets: false,
       maintainVisibleContentPosition: {minIndexForVisible: 1},
       bounces: true,
       alwaysBounceVertical: false,
