@@ -16,12 +16,38 @@
   so image requests and pixel rounding use the new display.
 - Publish content-view dimensions (excluding window chrome) and current window
   scale to JavaScript, including when only the backing properties change.
+- Keep a non-scrolling text editor's clip viewport at the document origin,
+  preserving its size. AppKit can give the document a negative origin; pinning
+  it to zero or collapsing its bounds hides the first line while a composer
+  grows. Update scrollbar visibility when scrolling is enabled/disabled, and
+  reveal the caret after the composer reaches its height limit.
+- Vertically center single-line text (including secure fields) inside the
+  padded content rect using the actual font metrics. Drawing and editing use
+  the same rect so focusing a field does not move its baseline.
+- Keep single-line field cells scrollable without wrapping. Long API keys,
+  search queries and names follow the caret horizontally inside the field.
+- Back secure inputs with `NSSecureTextField`, sharing the regular field's React
+  implementation with a secure cell. AppKit rejects a secure field editor whose
+  delegate only inherits from `NSTextField`; editing can then lose React's
+  focus/change/blur events and leave a detached editor when a settings column
+  resizes. Keep the secure header's properties aligned with `RCTUITextField`.
+  Preserve the text-field accessibility role and attributed text when toggling
+  visibility, and apply the foreground color to masking glyphs and the caret.
 
 After upgrading RN macOS, verify navigation between library, chat and settings,
 then move the same window between 1x and 2x displays in both directions. Check
 image sharpness, card proportions, scroll position, and an unsent chat draft.
 The shared tab icon recalculates its pixel-aligned strips when density changes.
 Also verify Hangul followed by a space and overflowing drafts in the native app.
+Record one → four lines and back to one, checking every frame for a missing
+first line. Continue past seven lines to verify caret visibility and internal
+scrolling, then shrink again and check that the scrollbar disappears. Check
+single-line setting fields and search both before and after focus, including
+caret movement through values wider than the field and secure-key visibility.
+Focus an API field, open a provider/model page to its right, then close that page.
+Check that focus clears, the field stays vertically centered, and a disposable
+test value survives both transitions and visibility toggles. Verify this in the
+native macOS app; web input tests cannot detect AppKit delegate failures.
 
 For image flashing, record the native app while switching settings → chat →
 library, then inspect the first visible frames. Settled screenshots miss the

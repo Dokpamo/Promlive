@@ -63,6 +63,275 @@ index f4b80a5..e8cb22b 100644
  RCT_EXPORT_VIEW_PROPERTY(blurRadius, CGFloat)
  RCT_EXPORT_VIEW_PROPERTY(capInsets, UIEdgeInsets)
  RCT_REMAP_VIEW_PROPERTY(defaultSource, defaultImage, UIImage)
+diff --git a/node_modules/react-native-macos/Libraries/Text/TextInput/Multiline/RCTWrappedTextView.m b/node_modules/react-native-macos/Libraries/Text/TextInput/Multiline/RCTWrappedTextView.m
+index 5e18d72..1040ba9 100644
+--- a/node_modules/react-native-macos/Libraries/Text/TextInput/Multiline/RCTWrappedTextView.m
++++ b/node_modules/react-native-macos/Libraries/Text/TextInput/Multiline/RCTWrappedTextView.m
+@@ -153,14 +153,27 @@ - (BOOL)scrollEnabled
+ 
+ - (void)setScrollEnabled:(BOOL)scrollEnabled
+ {
++  BOOL wasEnabled = _scrollView.isScrollEnabled;
+   _scrollView.scrollEnabled = scrollEnabled;
+   [_clipView setConstrainScrolling:!scrollEnabled];
++  [_scrollView setHasVerticalScroller:[self shouldShowVerticalScrollbar]];
++  if (scrollEnabled && !wasEnabled) {
++    // The auto-growing viewport has reached its limit. Reveal the caret now,
++    // after the resize, rather than scrolling away the first line beforehand.
++    [_forwardingTextView scrollRangeToVisible:_forwardingTextView.selectedRange];
++  }
++}
++
++- (void)setHideVerticalScrollIndicator:(BOOL)hideVerticalScrollIndicator
++{
++  _hideVerticalScrollIndicator = hideVerticalScrollIndicator;
++  [_scrollView setHasVerticalScroller:[self shouldShowVerticalScrollbar]];
+ }
+ 
+ - (BOOL)shouldShowVerticalScrollbar
+ {
+   // Hide vertical scrollbar if explicity set to NO
+-  if (self.hideVerticalScrollIndicator) {
++  if (!self.scrollEnabled || self.hideVerticalScrollIndicator) {
+     return NO;
+   }
+ 
+diff --git a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/RCTUITextField.mm b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
+index 137d0ee..4299dc5 100644
+--- a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
++++ b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
+@@ -17,7 +17,11 @@
+ 
+ #if TARGET_OS_OSX // [macOS
+ 
++#if defined(RCT_MACOS_SECURE_TEXT_FIELD)
++@interface RCTUITextFieldCell : NSSecureTextFieldCell
++#else
+ @interface RCTUITextFieldCell : NSTextFieldCell
++#endif
+ 
+ @property (nonatomic, assign) UIEdgeInsets textContainerInset;
+ @property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
+@@ -33,7 +37,14 @@ @implementation RCTUITextFieldCell
+ 
+ - (NSRect)titleRectForBounds:(NSRect)rect
+ {
+-  return UIEdgeInsetsInsetRect([super titleRectForBounds:rect], self.textContainerInset);
++  NSRect content = UIEdgeInsetsInsetRect([super titleRectForBounds:rect], self.textContainerInset);
++  // Center the natural line box in the padded field for both display and edit.
++  CGFloat height = ceil(self.attributedStringValue.size.height);
++  if (height <= 0) height = ceil(self.font.ascender - self.font.descender + self.font.leading);
++  CGFloat inset = MAX(0, (content.size.height - height) / 2);
++  content.origin.y += inset;
++  content.size.height -= inset * 2;
++  return content;
+ }
+ 
+ - (void)editWithFrame:(NSRect)rect inView:(NSView *)controlView editor:(NSText *)textObj delegate:(id)delegate event:(NSEvent *)event
+@@ -66,7 +77,7 @@ - (NSText *)setUpFieldEditorAttributes:(NSText *)textObj
+   NSMutableDictionary *selectTextAttributes = fieldEditor.selectedTextAttributes.mutableCopy;
+   selectTextAttributes[NSBackgroundColorAttributeName] = self.selectionColor ?: [NSColor selectedControlColor];
+   fieldEditor.selectedTextAttributes = selectTextAttributes;
+-  fieldEditor.insertionPointColor = self.insertionPointColor ?: [NSColor textColor];
++  fieldEditor.insertionPointColor = self.insertionPointColor ?: self.textColor ?: [NSColor textColor];
+   return fieldEditor;
+ }
+ 
+@@ -110,6 +121,12 @@ - (instancetype)initWithFrame:(CGRect)frame
+     [self setBordered:NO];
+     [self setAllowsEditingTextAttributes:YES];
+     [self setBackgroundColor:[NSColor clearColor]];
++    // A single-line field scrolls its editor horizontally instead of wrapping
++    // long keys, model IDs and search queries into a clipped second line.
++    self.cell.usesSingleLineMode = YES;
++    self.cell.wraps = NO;
++    self.cell.scrollable = YES;
++    self.cell.lineBreakMode = NSLineBreakByClipping;
+ #endif // macOS]
+ 
+     _textInputDelegateAdapter = [[RCTBackedTextFieldDelegateAdapter alloc] initWithTextField:self];
+@@ -367,6 +384,8 @@ - (void)setDefaultTextAttributes:(NSDictionary<NSAttributedStringKey, id> *)defa
+                                                           attributes:[self defaultTextAttributes]]];
+ 
+   self.font = [[self defaultTextAttributes] objectForKey:NSFontAttributeName];
++  // Secure cells draw masking glyphs with the control color, not attributed text.
++  self.textColor = defaultTextAttributes[NSForegroundColorAttributeName] ?: [NSColor textColor];
+ #endif // macOS]
+ }
+ 
+diff --git a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.h b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.h
+index 8fb7ad6..f4454fd 100644
+--- a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.h
++++ b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.h
+@@ -11,7 +11,63 @@
+ 
+ #import <React/RCTUITextField.h>
+ 
+-@interface RCTUISecureTextField : RCTUITextField
++NS_ASSUME_NONNULL_BEGIN
++
++// AppKit requires the secure field editor's delegate to inherit from
++// NSSecureTextField. A secure cell inside an NSTextField does not qualify.
++// Keep these declarations aligned with RCTUITextField; the implementation is shared.
++@interface RCTUISecureTextField : NSSecureTextField <RCTBackedTextInputViewProtocol>
++
++- (instancetype)initWithCoder:(NSCoder *)decoder NS_UNAVAILABLE;
++
++@property (nonatomic, weak) id<RCTBackedTextInputDelegate> textInputDelegate;
++
++@property (nonatomic, assign) BOOL caretHidden;
++@property (nonatomic, assign) BOOL contextMenuHidden;
++#if !TARGET_OS_OSX // [macOS]
++@property (nonatomic, assign, readonly) BOOL textWasPasted;
++#else // [macOS
++@property (nonatomic, assign) BOOL textWasPasted;
++#endif // macOS]
++@property (nonatomic, assign, readonly) BOOL dictationRecognizing;
++@property (nonatomic, strong, nullable) RCTUIColor *placeholderColor; // [macOS]
++@property (nonatomic, assign) UIEdgeInsets textContainerInset;
++#if !TARGET_OS_OSX // [macOS]
++@property (nonatomic, assign, getter=isEditable) BOOL editable;
++#else // [macOS
++@property (atomic, assign, getter=isEditable) BOOL editable;
++#endif // macOS]
++@property (nonatomic, getter=isScrollEnabled) BOOL scrollEnabled;
++@property (nonatomic, strong, nullable) NSString *inputAccessoryViewID;
++@property (nonatomic, strong, nullable) NSString *inputAccessoryViewButtonLabel;
++@property (nonatomic, assign, readonly) CGFloat zoomScale;
++@property (nonatomic, assign, readonly) CGPoint contentOffset;
++@property (nonatomic, assign, readonly) UIEdgeInsets contentInset;
++@property (nonatomic, assign) BOOL disableKeyboardShortcuts;
++
++#if TARGET_OS_OSX // [macOS
++@property (nonatomic, copy, nullable) NSString *text;
++@property (nonatomic, copy, nullable) NSAttributedString *attributedText;
++@property (nonatomic, strong, nullable) NSDictionary<NSAttributedStringKey, id> *defaultTextAttributes;
++@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *typingAttributes;
++@property (nonatomic, assign) NSTextAlignment textAlignment;
++@property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
++@property (nonatomic, getter=isAutomaticSpellingCorrectionEnabled) BOOL automaticSpellingCorrectionEnabled;
++@property (nonatomic, getter=isContinuousSpellCheckingEnabled) BOOL continuousSpellCheckingEnabled;
++@property (nonatomic, getter=isGrammarCheckingEnabled) BOOL grammarCheckingEnabled;
++@property (nonatomic, assign) BOOL enableFocusRing;
++@property (nonatomic, strong, nullable) RCTUIColor *selectionColor;
++@property (weak, nullable) id<RCTUITextFieldDelegate> delegate;
++@property (nonatomic, assign) CGFloat pointScaleFactor;
++
++- (void)setReadablePasteBoardTypes:(NSArray<NSPasteboardType> *)readablePasteboardTypes;
++#endif // macOS]
++
++@property (nonatomic, getter=isGhostTextChanging) BOOL ghostTextChanging; // [macOS]
++
++
+ @end
+ 
++NS_ASSUME_NONNULL_END
++
+ #endif
+diff --git a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.mm b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.mm
+index 6f332dc..cf35390 100644
+--- a/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.mm
++++ b/node_modules/react-native-macos/Libraries/Text/TextInput/Singleline/macOS/RCTUISecureTextField.mm
+@@ -10,74 +10,16 @@
+ #if TARGET_OS_OSX
+ 
+ #import <React/RCTUISecureTextField.h>
+-#import <React/RCTUIKit.h>
+ 
+-#pragma mark - RCTUISecureTextFieldCell
+-
+-@interface RCTUISecureTextFieldCell : NSSecureTextFieldCell
+-
+-@property (nonatomic, assign) UIEdgeInsets textContainerInset;
+-@property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
+-@property (nonatomic, getter=isAutomaticSpellingCorrectionEnabled) BOOL automaticSpellingCorrectionEnabled;
+-@property (nonatomic, getter=isContinuousSpellCheckingEnabled) BOOL continuousSpellCheckingEnabled;
+-@property (nonatomic, getter=isGrammarCheckingEnabled) BOOL grammarCheckingEnabled;
+-@property (nonatomic, strong, nullable) RCTPlatformColor *selectionColor;
+-@property (nonatomic, strong, nullable) RCTPlatformColor *insertionPointColor;
+-
+-@end
+-
+-@implementation RCTUISecureTextFieldCell
+-
+-- (NSRect)titleRectForBounds:(NSRect)rect
+-{
+-  return UIEdgeInsetsInsetRect([super titleRectForBounds:rect], self.textContainerInset);
+-}
+-
+-- (void)editWithFrame:(NSRect)rect inView:(NSView *)controlView editor:(NSText *)textObj delegate:(id)delegate event:(NSEvent *)event
+-{
+-  [super editWithFrame:[self titleRectForBounds:rect] inView:controlView editor:textObj delegate:delegate event:event];
+-}
+-
+-- (void)selectWithFrame:(NSRect)rect inView:(NSView *)controlView editor:(NSText *)textObj delegate:(id)delegate start:(NSInteger)selStart length:(NSInteger)selLength
+-{
+-  [super selectWithFrame:[self titleRectForBounds:rect] inView:controlView editor:textObj delegate:delegate start:selStart length:selLength];
+-}
+-
+-- (void)drawInteriorWithFrame:(NSRect)cellFrame inView:(NSView *)controlView
+-{
+-  if (self.drawsBackground && self.backgroundColor && self.backgroundColor.alphaComponent > 0) {
+-    [self.backgroundColor set];
+-    NSRectFill(cellFrame);
+-  }
+-
+-  [super drawInteriorWithFrame:[self titleRectForBounds:cellFrame] inView:controlView];
+-}
+-
+-- (NSText *)setUpFieldEditorAttributes:(NSText *)textObj
+-{
+-  NSTextView *fieldEditor = (NSTextView *)[super setUpFieldEditorAttributes:textObj];
+-  fieldEditor.automaticSpellingCorrectionEnabled = self.isAutomaticSpellingCorrectionEnabled;
+-  fieldEditor.automaticTextReplacementEnabled = self.isAutomaticTextReplacementEnabled;
+-  fieldEditor.continuousSpellCheckingEnabled = self.isContinuousSpellCheckingEnabled;
+-  fieldEditor.grammarCheckingEnabled = self.isGrammarCheckingEnabled;
+-  NSMutableDictionary *selectTextAttributes = fieldEditor.selectedTextAttributes.mutableCopy;
+-  selectTextAttributes[NSBackgroundColorAttributeName] = self.selectionColor ?: [NSColor selectedControlColor];
+-  fieldEditor.selectedTextAttributes = selectTextAttributes;
+-  fieldEditor.insertionPointColor = self.insertionPointColor ?: [NSColor textColor];
+-  return fieldEditor;
+-}
+-
+-@end
+-
+-#pragma mark - RCTUISecureTextField
+-
+-@implementation RCTUISecureTextField
+-
+-+ (Class)cellClass
+-{
+-  return RCTUISecureTextFieldCell.class;
+-}
+-
+-@end
++// Compile the same React input behavior against AppKit's real secure control.
++// This preserves focus/change/blur forwarding and layout without replacing the
++// secure editor or duplicating the text-input implementation.
++#define RCT_MACOS_SECURE_TEXT_FIELD 1
++#define RCTUITextField RCTUISecureTextField
++#define RCTUITextFieldCell RCTUISecureTextFieldCell
++#include "../RCTUITextField.mm"
++#undef RCTUITextFieldCell
++#undef RCTUITextField
++#undef RCT_MACOS_SECURE_TEXT_FIELD
+ 
+ #endif // TARGET_OS_OSX
+diff --git a/node_modules/react-native-macos/React/Base/RCTTouchHandler.m b/node_modules/react-native-macos/React/Base/RCTTouchHandler.m
+index b85ee3d..1543705 100644
+--- a/node_modules/react-native-macos/React/Base/RCTTouchHandler.m
++++ b/node_modules/react-native-macos/React/Base/RCTTouchHandler.m
+@@ -144,8 +144,8 @@ - (void)_recordNewTouches:(NSSet *)touches
+     } else if ([targetView isKindOfClass:[NSText class]]) {
+       _shouldSendMouseUpOnSystemBehalf = [(NSText*)targetView isSelectable];
+     }
+-    else if ([targetView.superview isKindOfClass:[RCTUITextField class]]) {
+-      _shouldSendMouseUpOnSystemBehalf = [(RCTUITextField*)targetView.superview isSelectable];
++    else if ([targetView.superview isKindOfClass:[NSTextField class]]) {
++      _shouldSendMouseUpOnSystemBehalf = [(NSTextField*)targetView.superview isSelectable];
+     } else {
+       _shouldSendMouseUpOnSystemBehalf = NO;
+     }
 diff --git a/node_modules/react-native-macos/React/Base/RCTUIKit.h b/node_modules/react-native-macos/React/Base/RCTUIKit.h
 index 8f1094a..084bf72 100644
 --- a/node_modules/react-native-macos/React/Base/RCTUIKit.h
@@ -78,10 +347,23 @@ index 8f1094a..084bf72 100644
  @property (nonatomic, strong) RCTUIColor *tintColor;
  @property (nonatomic, assign) UIViewContentMode contentMode;
 diff --git a/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m b/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
-index a37a1c1..dbfb810 100644
+index a37a1c1..b17a9a7 100644
 --- a/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
 +++ b/node_modules/react-native-macos/React/Base/macOS/RCTUIKit.m
-@@ -809,14 +809,25 @@ - (void)setHidden:(BOOL)hidden
+@@ -634,7 +634,11 @@ - (instancetype)initWithFrame:(NSRect)frameRect
+ - (NSRect)constrainBoundsRect:(NSRect)proposedBounds
+ {
+   if (self.constrainScrolling) {
+-    return NSMakeRect(0, 0, 0, 0);
++    // Disable scrolling without collapsing the text editor's viewport. Keep
++    // the origin pinned while an auto-growing input catches up with its text.
++    // NSTextView can have a negative document origin after initial layout.
++    proposedBounds.origin = self.documentView.frame.origin;
++    return [super constrainBoundsRect:proposedBounds];
+   }
+   
+   return [super constrainBoundsRect:proposedBounds];
+@@ -809,14 +813,25 @@ - (void)setHidden:(BOOL)hidden
  // RCTUIImageView
  
  @implementation RCTUIImageView {
@@ -109,7 +391,7 @@ index a37a1c1..dbfb810 100644
    }
    
    return self;
-@@ -826,7 +837,7 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+@@ -826,7 +841,7 @@ - (void)setContentMode:(UIViewContentMode)contentMode
  {
    _contentMode = contentMode;
    
@@ -118,7 +400,7 @@ index a37a1c1..dbfb810 100644
    switch (contentMode) {
      case UIViewContentModeScaleAspectFill:
        [layer setContentsGravity:kCAGravityResizeAspectFill];
-@@ -844,6 +855,10 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+@@ -844,6 +859,10 @@ - (void)setContentMode:(UIViewContentMode)contentMode
        [layer setContentsGravity:kCAGravityCenter];
        break;
  
@@ -129,7 +411,7 @@ index a37a1c1..dbfb810 100644
      default:
        break;
    }
-@@ -851,39 +866,81 @@ - (void)setContentMode:(UIViewContentMode)contentMode
+@@ -851,39 +870,81 @@ - (void)setContentMode:(UIViewContentMode)contentMode
  
  - (RCTPlatformImage *)image
  {
@@ -311,6 +593,29 @@ index 8b7467a..15755b0 100644
  }
  
  #pragma mark - RCTImageResponseDelegate
+diff --git a/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/TextInput/RCTTextInputComponentView.mm b/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/TextInput/RCTTextInputComponentView.mm
+index e725490..9c19ca5 100644
+--- a/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/TextInput/RCTTextInputComponentView.mm
++++ b/node_modules/react-native-macos/React/Fabric/Mounting/ComponentViews/TextInput/RCTTextInputComponentView.mm
+@@ -1370,13 +1370,13 @@ - (void)_setSecureTextEntry:(BOOL)secureTextEntry
+   RCTPlatformView<RCTBackedTextInputViewProtocol> *backedTextInputView = secureTextEntry ? [RCTUISecureTextField new] : [RCTUITextField new];
+   backedTextInputView.frame = _backedTextInputView.frame;
+   RCTCopyBackedTextInput(_backedTextInputView, backedTextInputView);
++  backedTextInputView.accessibilityRole = NSAccessibilityTextFieldRole;
+ 
+   // Copy the text field specific properties if we came from a single line input before the switch
+-  if ([_backedTextInputView isKindOfClass:[RCTUITextField class]]) {
+-    RCTUITextField *previousTextField = (RCTUITextField *)_backedTextInputView;
+-    RCTUITextField *newTextField = (RCTUITextField *)backedTextInputView;
+-    newTextField.textAlignment = previousTextField.textAlignment;
+-    newTextField.text = previousTextField.text;
++  if ([_backedTextInputView isKindOfClass:[NSTextField class]]) {
++    NSTextField *previousTextField = (NSTextField *)_backedTextInputView;
++    NSTextField *newTextField = (NSTextField *)backedTextInputView;
++    newTextField.alignment = previousTextField.alignment;
+   }
+ 
+   _backedTextInputView = backedTextInputView;
 diff --git a/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm b/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm
 index 5950929..ccfa995 100644
 --- a/node_modules/react-native-macos/React/Fabric/Surface/RCTFabricSurface.mm

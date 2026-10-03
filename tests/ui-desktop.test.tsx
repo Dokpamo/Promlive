@@ -31,6 +31,9 @@ async function type(id: string, value: string) {
     el.dispatchEvent(new Event('input', {bubbles: true}));
   });
 }
+async function hover(element: HTMLElement, inside = true) {
+  await act(async () => element.dispatchEvent(new MouseEvent(inside ? 'mouseenter' : 'mouseleave')));
+}
 async function fixture(memory = new ScreenMemory(createScreenStorage())) {
   const values = new Map<string, string>();
   const services = createSettingsServices({getSetting: async key => values.get(key), setSetting: async (key, value) => {values.set(key, value);}},
@@ -91,8 +94,32 @@ it('retains the settings list while editing a persisted setting and returns from
   const provider = [...document.querySelectorAll('[role="button"]')].find(el => el.textContent?.includes('프로바이더') && !el.closest('[aria-hidden="true"]')) as HTMLElement;
   expect(provider).toBeTruthy(); await act(async () => provider.click());
   expect(get('ui-desktop-settings-list-pane')).toBeTruthy();
-  await click('ui-settings-back');
+  const back = get('ui-desktop-settings-column-1')!.querySelector<HTMLElement>('[data-testid="ui-settings-back"]')!;
+  await act(async () => back.click());
   expect(get('ui-settings-row-ai')?.getAttribute('aria-current')).toBe('page');
+});
+
+it('opens child settings on the right, preserves the parent editor, and replaces only the child branch', async () => {
+  const {services} = await fixture(); await click('ui-tab-settings'); await click('ui-settings-row-ai');
+  const parent = get('ui-desktop-settings-column-0'), field = get('ui-ai-maxTokens');
+  await type('ui-ai-maxTokens', '12345');
+  await click('ui-ai-provider');
+  expect(get('ui-desktop-settings-column-0')).toBe(parent);
+  expect(get('ui-ai-maxTokens')).toBe(field);
+  expect(get('ui-desktop-settings-column-1')).toBeTruthy();
+  expect(get('ui-ai-provider')).toBeTruthy();
+  await click('ui-choice-openai');
+  expect(services.ai.snapshot().value.service).toBe('openai');
+  expect(get('ui-ai-provider')?.textContent).toContain('OpenAI');
+  await click('ui-ai-model');
+  expect(get('ui-desktop-settings-column-1')).toBeUndefined();
+  expect(get('ui-desktop-settings-column-2')).toBeTruthy();
+  expect(get('ui-desktop-settings-column-0')).toBe(parent);
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})));
+  expect(get('ui-desktop-settings-column-2')).toBeUndefined();
+  expect(get('ui-desktop-settings-column-0')).toBe(parent);
+  await click('ui-ai-provider'); await click('ui-choice-xai');
+  expect((get('ui-ai-maxTokens') as HTMLInputElement).value).toBe('12,345');
 });
 it('uses one content pane in a narrow desktop window and returns to the chat list', async () => {
   viewport.width = 840;
@@ -130,4 +157,66 @@ it('keeps the same desktop pane and draft when only display density changes', as
     expect(get('ui-chat-composer')!.style.width).toBe(composerWidth);
     expect(get('ui-tab-chats')?.getAttribute('aria-selected')).toBe('true');
   }
+});
+
+it('previews desktop hover without navigating or changing the chosen pill', async () => {
+  const {memory} = await fixture();
+  const tab = get('ui-tab-chats')!, before = memory.getSnapshot().view, idle = tab.style.backgroundColor;
+  await hover(tab);
+  expect(tab.style.backgroundColor).not.toBe(idle);
+  expect(tab.getAttribute('aria-selected')).toBe('false');
+  expect(memory.getSnapshot().view).toBe(before);
+  await hover(tab, false);
+  expect(tab.style.backgroundColor).toBe(idle);
+  const pills = get('ui-library-filters')!.querySelectorAll<HTMLElement>('[role="button"]');
+  const selected = [...pills].find(el => el.getAttribute('aria-pressed') === 'true')!;
+  const other = [...pills].find(el => el.getAttribute('aria-pressed') === 'false')!;
+  const selectedBackground = (selected.firstElementChild as HTMLElement).style.backgroundColor;
+  await hover(other);
+  expect((other.firstElementChild as HTMLElement).style.backgroundColor).toBe(selectedBackground);
+  expect(other.getAttribute('aria-pressed')).toBe('false');
+  expect(selected.getAttribute('aria-pressed')).toBe('true');
+  await hover(selected);
+  expect((selected.firstElementChild as HTMLElement).style.backgroundColor).toBe(selectedBackground);
+  expect(memory.getSnapshot().view).toBe(before);
+});
+
+it('outlines cards on desktop hover and keeps field focus visible without changing their geometry', async () => {
+  await fixture();
+  const card = get('ui-card-night-library')!;
+  const outline = card.querySelector<HTMLElement>('[data-testid="ui-card-night-library-hover"]')!;
+  const width = card.style.width, idleBorder = getComputedStyle(outline).borderTopColor;
+  await hover(card);
+  expect(getComputedStyle(outline).borderTopColor).not.toBe(idleBorder);
+  expect(card.style.width).toBe(width);
+  await hover(card, false);
+  expect(getComputedStyle(outline).borderTopColor).toBe(idleBorder);
+  await click('ui-tab-settings'); await click('ui-settings-row-ai');
+  for (const id of ['ui-ai-api-key', 'ui-ai-maxTokens']) {
+    const input = get(id) as HTMLInputElement;
+    const fieldOutline = document.querySelector<HTMLElement>(`[data-testid="${id}-outline"]`)!;
+    const field = fieldOutline.parentElement!, height = input.style.minHeight;
+    const idleBorder = getComputedStyle(fieldOutline).borderTopColor;
+    await hover(field);
+    const hoverColor = getComputedStyle(fieldOutline).borderTopColor;
+    expect(hoverColor).not.toBe(idleBorder);
+    await act(async () => input.focus());
+    expect(getComputedStyle(fieldOutline).borderTopColor).not.toBe(hoverColor);
+    await hover(field, false);
+    expect(getComputedStyle(fieldOutline).borderTopColor).not.toBe(idleBorder);
+    expect(document.activeElement).toBe(input);
+    expect(input.style.minHeight).toBe(height);
+    await act(async () => input.blur());
+    expect(getComputedStyle(fieldOutline).borderTopColor).toBe(idleBorder);
+  }
+});
+
+it('does not add desktop hover on the mobile shell', async () => {
+  viewport.width = 412;
+  await fixture();
+  const tab = get('ui-tab-chats')!, idle = tab.style.backgroundColor;
+  await hover(tab);
+  expect(tab.style.backgroundColor).toBe(idle);
+  expect(tab.getAttribute('aria-selected')).toBe('false');
+  expect(get('ui-card-night-library-hover')).toBeUndefined();
 });

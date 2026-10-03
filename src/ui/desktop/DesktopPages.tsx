@@ -14,6 +14,7 @@ import type {ChatRow, ScreenView} from '../screenState';
 import type {ScreenMemory} from '../ScreenMemory';
 import {usePlainScrollMemory} from '../usePlainScrollMemory';
 import {desktopMetrics} from './desktopMetrics';
+import {HoverPressable} from './DesktopFeedback';
 
 export const desktopScale = desktopMetrics.scale;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase();
@@ -72,13 +73,13 @@ function LibraryGrid({items, width, columns, memory, filter, onOpen}: {items: Li
     onScroll={event => {if (!restoring.current) {const e = event.nativeEvent, maxOffset = Math.max(0, e.contentSize.height - e.layoutMeasurement.height);
       memory.rememberScroll(scope, {offset: Math.max(0, Math.min(e.contentOffset.y, maxOffset)), maxOffset, hidden: 0, height: 0});}}}
     ListEmptyComponent={<DesktopEmpty>조건에 맞는 카드가 없어요.</DesktopEmpty>}
-    renderItem={({item}) => <Pressable testID={`ui-card-${item.id}`} accessibilityRole="button" accessibilityLabel={`${item.title}, ${item.creator}`} onPress={() => onOpen(item.id)} style={{width: cardWidth}}>
+    renderItem={({item}) => <HoverPressable feedback="border" outlineInset={-5} testID={`ui-card-${item.id}`} accessibilityRole="button" accessibilityLabel={`${item.title}, ${item.creator}`} onPress={() => onOpen(item.id)} style={{width: cardWidth, borderRadius: 12}}>
       <View style={{width: cardWidth, height: cardWidth * 4 / 3, borderRadius: 10, backgroundColor: colors.surface, overflow: 'hidden'}}>
         <PreviewArtwork tile={item.tile} width={cardWidth} height={cardWidth * 4 / 3}/>
       </View>
       <Text numberOfLines={2} style={{...desktopMetrics.body, fontWeight: '600', marginTop: 11, color: colors.foreground}}>{item.title}</Text>
       <Text numberOfLines={1} style={{...desktopMetrics.secondary, marginTop: 4, color: colors.secondaryForeground}}>{item.creator}</Text>
-    </Pressable>}/>;
+    </HoverPressable>}/>;
 }
 function useNow() {
   const [now, setNow] = useState(Date.now);
@@ -139,10 +140,10 @@ export function DesktopCardDetail({card, width, memory, onClose, onEdit, onImage
     </View>
     <ScrollView ref={scroll} {...scrolling} testID="ui-card-detail" style={{flex: 1}} contentContainerStyle={{paddingHorizontal: 28, paddingBottom: 40, alignItems: 'center'}}>
       <View style={{width: '100%', maxWidth: 1100, flexDirection: split ? 'row' : 'column', gap: 36, alignItems: split ? 'flex-start' : 'center'}}>
-        <Pressable testID="ui-card-detail-cover" accessibilityRole="button" accessibilityLabel="대표 이미지 보기" onPress={() => onImage()}
+        <HoverPressable feedback="border" testID="ui-card-detail-cover" accessibilityRole="button" accessibilityLabel="대표 이미지 보기" onPress={() => onImage()}
           style={{width: coverWidth, height: coverWidth / previewArtworkRatio(card.tile), borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surface}}>
           <PreviewArtwork tile={card.tile} width={coverWidth} height={coverWidth / previewArtworkRatio(card.tile)} fullImage/>
-        </Pressable>
+        </HoverPressable>
         <View style={{flex: split ? 1 : undefined, width: split ? undefined : '100%', minWidth: 0, gap: 22}}>
           <View style={{gap: 10}}><Text style={{fontSize: 26, lineHeight: 34, fontWeight: '700', color: colors.foreground}}>{card.title}</Text>
             <Text style={{fontSize: 14, color: colors.secondaryForeground}}>{card.creator}</Text></View>
@@ -153,8 +154,8 @@ export function DesktopCardDetail({card, width, memory, onClose, onEdit, onImage
             <Text style={{fontSize: 14, fontWeight: '600', color: colors.selectedForeground}}>대화 시작</Text></Pressable>
           <Text style={{fontSize: 17, fontWeight: '600', color: colors.foreground}}>갤러리</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10}}>
-            {card.gallery.map((picture, index) => <Pressable key={picture.id} testID={`ui-card-gallery-${index}`} accessibilityRole="button" accessibilityLabel={picture.title} onPress={() => onImage(index)}
-              style={{width: 124, height: 140, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface}}><PreviewArtwork tile={picture.tile} width={124} height={140}/></Pressable>)}
+            {card.gallery.map((picture, index) => <HoverPressable feedback="border" key={picture.id} testID={`ui-card-gallery-${index}`} accessibilityRole="button" accessibilityLabel={picture.title} onPress={() => onImage(index)}
+              style={{width: 124, height: 140, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface}}><PreviewArtwork tile={picture.tile} width={124} height={140}/></HoverPressable>)}
           </ScrollView>
           <Text style={{fontSize: 17, fontWeight: '600', color: colors.foreground}}>인트로</Text>
           <Text style={{fontSize: 15, lineHeight: 24, color: colors.foreground}}>{card.introduction}</Text>

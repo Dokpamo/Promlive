@@ -6,8 +6,9 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {ChatInput} from '../src/ui/chat-input/ChatInput';
 import type {InputFieldProps} from '../src/ui/chat-input/InputField.types';
 import type {GalleryImage} from '../src/ui/cardDetails';
+import {DesktopPane} from '../src/ui/desktop/DesktopPane';
 
-const measured = vi.hoisted(() => ({height: 25, props: null as InputFieldProps | null}));
+const measured = vi.hoisted(() => ({height: 25, line: undefined as number | undefined, props: null as InputFieldProps | null}));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
   return {...native, useWindowDimensions: () => ({width: 412, height: 892, fontScale: 1, scale: 1}),
@@ -17,7 +18,7 @@ vi.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top
 vi.mock('../src/ui/chat-input/KeyboardDock', () => ({ChatKeyboardDock: ({children}: {children: ReactNode}) => <div>{children}</div>}));
 vi.mock('../src/ui/chat-input/InputField', () => ({InputField: (p: InputFieldProps) => {
   measured.props = p;
-  useLayoutEffect(() => p.onMeasure(measured.height), [p.onMeasure, p.value, measured.height]);
+  useLayoutEffect(() => p.onMeasure(measured.height, measured.line), [p.onMeasure, p.value, measured.height, measured.line]);
   return <textarea data-testid="ui-chat-input" value={p.value} onChange={e => p.onChange(e.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}/>;
 }}));
 vi.mock('../src/ui/PreviewArtwork', () => ({PreviewArtwork: () => <span>첨부 미리보기</span>}));
@@ -26,14 +27,15 @@ let root: Root | undefined;
 const send = vi.fn(), attach = vi.fn(), removeImage = vi.fn(), focus = vi.fn(), change = vi.fn();
 const blocker = {current: null};
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.querySelector<T>(`[data-testid="${id}"]`)!;
-async function render(value = '', image: GalleryImage | null = null, extra: Partial<ComponentProps<typeof ChatInput>> = {}) {
+async function render(value = '', image: GalleryImage | null = null, extra: Partial<ComponentProps<typeof ChatInput>> = {}, desktop = false) {
   if (!root) {const container = document.createElement('div'); document.body.append(container); root = createRoot(container);}
-  await act(async () => root!.render(<ChatInput value={value} image={image} blocker={blocker} onChange={change} onSend={send}
-    onAttach={attach} onRemoveImage={removeImage} onFocus={focus} onHeight={() => {}} {...extra}/>));
+  const composer = <ChatInput value={value} image={image} blocker={blocker} onChange={change} onSend={send}
+    onAttach={attach} onRemoveImage={removeImage} onFocus={focus} onHeight={() => {}} {...extra}/>;
+  await act(async () => root!.render(desktop ? <DesktopPane width={700} height={800}>{composer}</DesktopPane> : composer));
 }
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
-  root = undefined; measured.height = 25; measured.props = null; vi.clearAllMocks(); document.body.replaceChildren();
+  root = undefined; measured.height = 25; measured.line = undefined; measured.props = null; vi.clearAllMocks(); document.body.replaceChildren();
 });
 
 it('starts with text above both controls and keeps the same layout when focused or blurred', async () => {
@@ -115,4 +117,32 @@ it('keeps a draft in the same input while adding and removing an attachment', as
   expect(element('ui-chat-input')).toBe(input);
   await render('', image);
   expect(element('ui-chat-send').getAttribute('aria-disabled')).not.toBe('true');
+});
+
+it('pins desktop input until seven actual font lines, then preserves selection while scrolling and shrinking', async () => {
+  measured.height = 19; measured.line = 19;
+  await render('첫 줄', null, {}, true);
+  const input = element<HTMLTextAreaElement>('ui-chat-input');
+  const bottom = element('ui-chat-composer').style.bottom;
+  const buttons = element('ui-chat-send').parentElement!.style.bottom;
+  measured.height = 76;
+  await render('첫 줄\n둘\n셋\n넷', null, {}, true);
+  expect(element('ui-chat-input')).toBe(input);
+  expect(measured.props!.scrollable).toBe(false);
+  expect(parseFloat(element('ui-chat-input-area').style.height)).toBe(76);
+  const long = Array.from({length: 11}, (_, i) => `이야기 ${i}`).join('\n');
+  measured.height = 209;
+  await render(long, null, {}, true);
+  await act(async () => {input.focus(); input.setSelectionRange(3, 8);});
+  expect(measured.props!.scrollable).toBe(true);
+  expect(parseFloat(element('ui-chat-input-area').style.height)).toBe(133);
+  expect(element('ui-chat-input')).toBe(input);
+  expect([input.selectionStart, input.selectionEnd]).toEqual([3, 8]);
+  measured.height = 19;
+  await render('짧은 줄', null, {}, true);
+  expect(measured.props!.scrollable).toBe(false);
+  expect(element('ui-chat-input')).toBe(input);
+  expect(document.activeElement).toBe(input);
+  expect(element('ui-chat-composer').style.bottom).toBe(bottom);
+  expect(element('ui-chat-send').parentElement!.style.bottom).toBe(buttons);
 });

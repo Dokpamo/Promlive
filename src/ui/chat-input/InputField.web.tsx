@@ -1,9 +1,11 @@
 import {usePalette} from '../Theme';
 import {useLayoutEffect, useRef} from 'react';
 import type {InputFieldProps} from './InputField.types';
+import {useDesktopPane} from '../desktop/DesktopPane';
 
 export function InputField(p: InputFieldProps) {
   const colors = usePalette();
+  const pane = useDesktopPane();
   const measurement = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     if (measurement.current) p.onMeasure(measurement.current.scrollHeight);
@@ -17,6 +19,6 @@ export function InputField(p: InputFieldProps) {
       style={{...style, position: 'absolute', pointerEvents: 'none', opacity: 0, width: p.measurementWidth, height: 0, overflow: 'hidden'}}/>
     <textarea data-testid="ui-chat-input" aria-label="메시지" value={p.value} onChange={event => p.onChange(event.target.value)} onFocus={p.onFocus} onBlur={p.onBlur}
       placeholder="메시지 보내기…" rows={1} maxLength={p.metrics.maxLength}
-      style={{...style, display: 'block', width: '100%', height: '100%', outlineOffset: 3, overflowY: p.scrollable ? 'auto' : 'hidden'}}/>
+      style={{...style, display: 'block', width: '100%', height: '100%', outlineOffset: 3, ...(pane ? {outline: 'none'} : {}), overflowY: p.scrollable ? 'auto' : 'hidden'}}/>
   </>;
 }

@@ -1,5 +1,5 @@
 import {createContext, useContext, useState, type ReactNode} from 'react';
-import {Platform, Pressable, ScrollView, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle} from 'react-native';
+import {Platform, ScrollView, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle} from 'react-native';
 import {NavigationButton} from '../Navigation';
 import {Icon} from '../Icon';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import {ListPressable} from '../ListPressable';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
 import {useDesktopPane} from '../desktop/DesktopPane';
 import {desktopMetrics} from '../desktop/desktopMetrics';
+import {FieldOutline, HoverPressable, HoverSurface, desktopInputProps, desktopInputStyle} from '../desktop/DesktopFeedback';
 export const SettingsFocusContext = createContext((_focused: boolean) => {});
 export type Choice = {value: string; label: string; detail?: string};
 export type SettingsPageOptions = {swipeBack?: boolean};
@@ -69,10 +70,10 @@ export function SettingToggle({label, value, onChange, testID}: {label: string; 
 }
 export function TextAction({label, onPress, disabled = false, danger = false, testID}: {label: string; onPress: () => void; disabled?: boolean; danger?: boolean; testID?: string}) {
   const colors = usePalette(), desktop = useDesktopPane();
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
-    style={{minWidth: 48, minHeight: 48, paddingHorizontal: settingsDetailLayout.textActionInset, justifyContent: 'center', alignItems: 'center', opacity: disabled ? .4 : 1}}>
+  return <HoverPressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
+    style={{minWidth: 48, minHeight: 48, borderRadius: 12, paddingHorizontal: settingsDetailLayout.textActionInset, justifyContent: 'center', alignItems: 'center', opacity: disabled ? .4 : 1}}>
     <Text style={{fontSize: desktop ? 14 : 16, fontWeight: '600', color: danger ? colors.error : colors.foreground}}>{label}</Text>
-  </Pressable>;
+  </HoverPressable>;
 }
 export function Section({children}: {children: ReactNode}) {
   const colors = usePalette();
@@ -92,23 +93,29 @@ export function Field({label, value, onChange, search = false, secret = false, g
   return <View style={{paddingHorizontal: settingsDetailLayout.horizontalInset,
     paddingTop: search ? 0 : 14, paddingBottom: search ? settingsDetailLayout.searchListGap : 10}}>
     {!search && <Text style={{...(desktop ? desktopMetrics.body : listTypography), marginBottom: 8, color: colors.foreground}}>{label}</Text>}
-    <View style={{flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface,
+    <HoverSurface style={{flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: colors.surface,
       paddingLeft: settingsDetailLayout.inputInset, paddingRight: secret ? 0 : settingsDetailLayout.inputInset}}>
+      {hovered => <>
       <TextInput {...props} accessibilityLabel={label} value={groupDigits ? editing ? draft : grouped : value}
+        {...desktopInputProps(!!desktop, props.multiline)}
         onChangeText={next => {
           const raw = groupDigits ? next.replace(/,/g, '') : next;
           if (groupDigits) setDraft(raw);
           onChange(raw);
         }} secureTextEntry={secret && !visible}
         onFocus={event => {
-          if (groupDigits) {setDraft(value.replace(/,/g, '')); setEditing(true);}
+          if (groupDigits) setDraft(value.replace(/,/g, ''));
+          setEditing(true);
           setFocused(true); props.onFocus?.(event);
         }} onBlur={event => {setEditing(false); setFocused(false); props.onBlur?.(event);}}
         autoCapitalize={props.autoCapitalize ?? 'none'} autoCorrect={props.autoCorrect ?? false} placeholderTextColor={colors.secondaryForeground}
         underlineColorAndroid="transparent" textAlignVertical={props.multiline ? 'top' : 'center'}
-        style={[{flex: 1, minWidth: 0, minHeight: props.multiline ? 130 : desktop ? desktopMetrics.fieldHeight : 48, paddingVertical: desktop ? 9 : 12, paddingHorizontal: 0, fontSize: desktop ? 14 : 16, lineHeight: desktop ? 22 : 24, color: colors.foreground}, props.style]}/>
+        style={[{flex: 1, minWidth: 0, minHeight: props.multiline ? 130 : desktop ? desktopMetrics.fieldHeight : 48, paddingVertical: desktop ? 9 : 12, paddingHorizontal: 0, fontSize: desktop ? 14 : 16, lineHeight: desktop ? 22 : 24, color: colors.foreground},
+          desktop && Platform.OS === 'macos' && {fontFamily: 'Apple SD Gothic Neo', lineHeight: undefined}, props.style, desktopInputStyle(!!desktop)]}/>
       {secret && <NavigationButton testID="ui-api-key-visibility" icon={visible ? 'eyeOff' : 'eye'} label={visible ? 'API 키 숨기기' : 'API 키 표시'} scale={scale} onPress={() => setVisible(value => !value)}/>}
-    </View>
+      {!!desktop && <FieldOutline focused={editing} hovered={hovered} testID={props.testID ? `${props.testID}-outline` : undefined}/>}
+      </>}
+    </HoverSurface>
   </View>;
 }
 export function ChoicePage({nav, title, choices, value, onChoose, labelStyle}: {nav: SettingsNavigation; title: string; choices: Choice[]; value: string; onChoose: (value: string) => void; labelStyle?: StyleProp<TextStyle>}) {

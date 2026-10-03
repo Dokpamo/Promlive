@@ -1,5 +1,5 @@
 import {usePalette, useTheme} from './Theme';
-import {Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
+import {Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {Icon, type IconName} from './Icon';
 import {TabButton} from './TabButton';
 import {useReducedMotion} from './useReducedMotion';
@@ -7,6 +7,7 @@ import {navigation as m, navigationActionMetrics} from './tokens';
 import {tabs, tabLabels, type Tab} from './navigationRoutes';
 import type {TabBarLayout} from './tabBarLayout';
 import {useDesktopPane} from './desktop/DesktopPane';
+import {HoverPressable} from './desktop/DesktopFeedback';
 export {tabs, tabLabels, type Tab} from './navigationRoutes';
 const headerActions: Record<Tab, {icon: IconName; label: string}> = {
   library: {icon: 'plus', label: '카드 가져오기'},
@@ -21,12 +22,12 @@ export function NavigationButton({icon, label, scale, onPress, expanded, testID,
 }) {
   const desktop = useDesktopPane(), {size: mobileSize, iconSize} = navigationActionMetrics(scale);
   const size = desktop ? 40 : mobileSize;
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
+  return <HoverPressable testID={testID} accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={{disabled: !onPress, ...(expanded === undefined ? {} : {expanded})}} aria-expanded={expanded}
     disabled={!onPress} onPress={onPress}
-    style={[{width: size, height: size, flexShrink: 0, alignItems: 'center', justifyContent: 'center'}, style]}>
+    style={[{width: size, height: size, borderRadius: 12, flexShrink: 0, alignItems: 'center', justifyContent: 'center'}, style]}>
     <Icon name={icon} size={iconSize} color={color}/>
-  </Pressable>;
+  </HoverPressable>;
 }
 
 export function Header({tab, scale: s, onSearch, searchOpen, onAction}: {tab: Tab; scale: number; onSearch: () => void; searchOpen: boolean; onAction?: () => void}) {

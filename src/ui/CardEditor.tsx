@@ -36,7 +36,8 @@ export function CardEditor({card, scale, topInset, bottomInset, onChange, onGall
   const styles = desktop ? {...baseStyles,
     body: {...baseStyles.body, paddingHorizontal: 28},
     label: {...baseStyles.label, ...desktopMetrics.body},
-    input: {...baseStyles.input, ...desktopMetrics.body, minHeight: 40, borderBottomWidth: 0, backgroundColor: colors.inputSurface, borderRadius: 12, paddingHorizontal: 12},
+    input: {...baseStyles.input, ...desktopMetrics.body, minHeight: 40, borderBottomWidth: 0, backgroundColor: colors.inputSurface, borderRadius: 12, paddingHorizontal: 12,
+      ...(Platform.OS === 'macos' ? {fontFamily: 'Apple SD Gothic Neo', lineHeight: undefined} : {})},
   } : baseStyles;
   const [group, setGroup] = useState<'basic' | 'story' | 'images'>('basic');
   const [titleError, setTitleError] = useState(false);

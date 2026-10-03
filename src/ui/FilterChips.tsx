@@ -1,11 +1,12 @@
 import {useTheme} from './Theme';
 import {useCallback, useEffect, useRef} from 'react';
-import {Pressable, type ScrollView, StyleSheet, Text, View} from 'react-native';
+import {type ScrollView, StyleSheet, Text, View} from 'react-native';
 import {FilterScrollView} from './FilterScrollView';
 import type {GestureBlockRef} from './HorizontalGesture.types';
 import {Icon, type IconName} from './Icon';
 import {filterChipColors, filterChips as m, navigation} from './tokens';
 import {useDesktopPane} from './desktop/DesktopPane';
+import {HoverPressable} from './desktop/DesktopFeedback';
 
 /** Rounded filters share the same touch targets and header spacing across lists. */
 export function FilterChips<T extends string>({scope, items, selected, onChange, scale, appearance, horizontalInset = navigation.titleInset * scale, blockerRef, trailingAction}: {
@@ -54,7 +55,7 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
     {items.map(item => {
       const checkable = typeof selected !== 'string';
       const active = typeof selected === 'string' ? selected === item.id : selected.includes(item.id);
-      return <Pressable key={item.id} testID={`ui-${scope}-filter-${item.id}`}
+      return <HoverPressable key={item.id} testID={`ui-${scope}-filter-${item.id}`} selected={active} feedback="none"
         onLayout={event => {measurements.current.items[item.id] = event.nativeEvent.layout; if (active) revealSelection();}}
         accessibilityRole={checkable ? 'checkbox' : 'button'} accessibilityLabel={item.label}
         accessibilityState={{disabled: !!item.disabled, ...(checkable ? {checked: active} : {selected: active})}}
@@ -64,22 +65,22 @@ export function FilterChips<T extends string>({scope, items, selected, onChange,
           onAccessibilityAction: (event: {nativeEvent: {actionName: string}}) => {if (event.nativeEvent.actionName === 'longpress') item.onLongPress?.();}} : {})}
         disabled={item.disabled} onPress={() => onChange(item.id)}
         style={[styles.target, {minHeight: Math.max(desktop ? 36 : 48, m.targetHeight * scale), opacity: item.disabled ? .4 : 1}]}>
-        <View style={[styles.chip, chip, {backgroundColor: active ? palette.selectedBackground : palette.background,
-          borderColor: active ? 'transparent' : palette.border}]}>
+        {hovered => <View style={[styles.chip, chip, {backgroundColor: active || hovered ? palette.selectedBackground : palette.background,
+          borderColor: active || hovered ? 'transparent' : palette.border}]}>
           <Text numberOfLines={1} style={[styles.text, {fontSize: m.fontSize * scale, lineHeight: m.lineHeight * scale,
             transform: [{translateY: m.textOffsetY * scale}],
-            color: active ? palette.selectedForeground : palette.foreground}]}>{item.label}</Text>
-        </View>
-      </Pressable>;
+            color: active || hovered ? palette.selectedForeground : palette.foreground}]}>{item.label}</Text>
+        </View>}
+      </HoverPressable>;
     })}
-    {trailingAction && <Pressable testID={trailingAction.testID} accessibilityRole="button" accessibilityLabel={trailingAction.label}
+    {trailingAction && <HoverPressable feedback="none" testID={trailingAction.testID} accessibilityRole="button" accessibilityLabel={trailingAction.label}
       accessibilityState={{disabled: !!trailingAction.disabled}} disabled={trailingAction.disabled} onPress={trailingAction.onPress}
       style={[styles.target, {minHeight: Math.max(desktop ? 36 : 48, m.targetHeight * scale), opacity: trailingAction.disabled ? .4 : 1}]}>
-      <View style={[styles.chip, {height: m.height * scale, minWidth: m.height * scale, paddingHorizontal: 16 * scale,
-        borderWidth: m.borderWidth * scale, backgroundColor: palette.background, borderColor: palette.border}]}>
-        <Icon name={trailingAction.icon} size={36 * scale} color={palette.foreground}/>
-      </View>
-    </Pressable>}
+      {hovered => <View style={[styles.chip, {height: m.height * scale, minWidth: m.height * scale, paddingHorizontal: 16 * scale,
+        borderWidth: m.borderWidth * scale, backgroundColor: hovered ? palette.selectedBackground : palette.background, borderColor: hovered ? 'transparent' : palette.border}]}>
+        <Icon name={trailingAction.icon} size={36 * scale} color={hovered ? palette.selectedForeground : palette.foreground}/>
+      </View>}
+    </HoverPressable>}
   </FilterScrollView>;
 }
 

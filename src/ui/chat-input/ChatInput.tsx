@@ -1,6 +1,6 @@
 import {usePalette} from '../Theme';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {AccessibilityInfo, Animated, Easing, Pressable, View, useWindowDimensions} from 'react-native';
+import {AccessibilityInfo, Animated, Easing, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
 import type {GalleryImage} from '../cardDetails';
@@ -11,6 +11,7 @@ import {ChatKeyboardDock} from './KeyboardDock'; // Native dock owns keyboard mo
 import {inputLayout, inputMetrics, type InputMetrics} from './geometry';
 import {messageSendDuration, messageSendProgress} from '../messageSendMotion';
 import {useDesktopPane} from '../desktop/DesktopPane';
+import {FieldOutline, HoverPressable, HoverSurface} from '../desktop/DesktopFeedback';
 
 type Props = {value: string; image: GalleryImage | null; blocker: GestureBlockRef;
   onChange: (value: string) => void; onSend: () => void; onAttach: () => void; onRemoveImage: () => void;
@@ -25,9 +26,14 @@ export function ChatInput(p: Props) {
   const safe = pane ? {top: 0, bottom: 0, left: 0, right: 0} : insets;
   const paneWidth = pane?.width ?? window.width, m = inputMetrics(paneWidth, window.fontScale, !!pane);
   const [measured, setMeasured] = useState(m.line);
+  const [nativeLineHeight, setNativeLineHeight] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
-  const reportHeight = useCallback((height: number) => setMeasured(old => Math.abs(old - height) > 0.5 ? height : old), []);
-  const layout = inputLayout(m, p.value ? measured : m.line, !!p.image);
+  const reportHeight = useCallback((height: number, lineHeight?: number) => {
+    setMeasured(old => Math.abs(old - height) > 0.5 ? height : old);
+    if (lineHeight && lineHeight > 0) setNativeLineHeight(lineHeight);
+  }, []);
+  const line = pane && nativeLineHeight ? nativeLineHeight : m.line;
+  const layout = inputLayout({...m, line}, p.value ? measured : line, !!p.image);
   const [frameHeight, setFrameHeight] = useState(layout.height);
   const motion = useRef(new Animated.Value(layout.height)).current;
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
@@ -49,16 +55,20 @@ export function ChatInput(p: Props) {
     if (p.sendPhase === 'measuring') return;
     if (reducedMotion !== false || (wasSending && !p.sendPhase)) {motion.setValue(layout.height); return;}
     const animation = Animated.timing(motion, {toValue: layout.height,
-      duration: p.sendPhase === 'flying' ? messageSendDuration : 180,
-      easing: p.sendPhase === 'flying' ? t => Math.min(1, messageSendProgress(t)) : Easing.out(Easing.cubic), useNativeDriver: false});
+      duration: p.sendPhase === 'flying' ? messageSendDuration : pane ? 240 : 180,
+      easing: p.sendPhase === 'flying' ? t => Math.min(1, messageSendProgress(t)) : pane ? Easing.bezier(.2, .8, .2, 1) : Easing.out(Easing.cubic), useNativeDriver: false});
     animation.start(); return () => animation.stop();
-  }, [motion, layout.height, reducedMotion, p.sendPhase]);
+  }, [motion, layout.height, reducedMotion, p.sendPhase, !!pane]);
   const bottom = safe.bottom + m.gap;
   useLayoutEffect(() => p.onHeight(frameHeight + bottom + 10), [frameHeight, bottom, p.onHeight]);
   const width = Math.min(800, paneWidth - safe.left - safe.right) - m.gap * 2;
   const left = safe.left + (paneWidth - safe.left - safe.right - width) / 2;
   const canSend = !!p.value.trim() || !!p.image;
   const textTop = layout.photoHeight + m.textTop;
+  // The editor viewport and capsule share the same height animation. Keeping
+  // the text top-aligned avoids a native caret scroll before the shell grows.
+  const textHeight = pane ? Math.max(line, layout.textHeight + frameHeight - layout.height) : layout.textHeight;
+  const scrollable = layout.scrollable && (!pane || Math.abs(frameHeight - layout.height) < .5);
   const pinned = focused || !!p.sendPhase;
   const offscreen = !!p.hidden && !pinned;
   return <ChatKeyboardDock safeBottom={safe.bottom}>
@@ -66,15 +76,16 @@ export function ChatInput(p: Props) {
       importantForAccessibility={offscreen ? 'no-hide-descendants' : 'auto'}
       style={{position: 'absolute', inset: 0, transform: [{translateY: pinned ? 0 : p.translateY ?? 0}]}}>
     <View pointerEvents="none" style={{position: 'absolute', bottom: 0, left: 0, right: 0, height: frameHeight + bottom + 10, backgroundColor: colors.background}}/>
-    <View testID="ui-chat-composer" style={{position: 'absolute', left, width, bottom, height: frameHeight,
+    <HoverSurface testID="ui-chat-composer" style={{position: 'absolute', left, width, bottom, height: frameHeight,
       borderRadius: m.radius, borderCurve: 'continuous', backgroundColor: colors.inputSurface}}>
+      {hovered => <>
       {p.image && <View testID="ui-chat-input-photo" style={{position: 'absolute', top: m.textTop, left: m.textInset, right: m.actionSide, flexDirection: 'row', justifyContent: 'space-between'}}>
         <View style={{width: m.photoSize, height: m.photoSize, borderRadius: 12, overflow: 'hidden'}}><PreviewArtwork tile={p.image.tile} width={m.photoSize} height={m.photoSize}/></View>
         <InputAction testID="ui-chat-remove-image" label="첨부 이미지 제거" icon="close" metrics={m} onPress={p.onRemoveImage}/>
       </View>}
-      <View testID="ui-chat-input-area" style={{position: 'absolute', left: m.textInset, right: m.textInset, top: textTop, height: layout.textHeight}}>
+      <View testID="ui-chat-input-area" style={{position: 'absolute', left: m.textInset, right: m.textInset, top: textTop, height: textHeight, overflow: pane ? 'hidden' : undefined}}>
         <InputField value={p.value} onChange={p.onChange} onFocus={() => {setFocused(true); p.onFocus();}} onBlur={() => setFocused(false)} onMeasure={reportHeight} metrics={m}
-          measurementWidth={width - m.textInset * 2} scrollable={layout.scrollable} blocker={p.blocker}/>
+          measurementWidth={width - m.textInset * 2} scrollable={scrollable} blocker={p.blocker}/>
       </View>
       <View style={{position: 'absolute', left: m.actionSide, bottom: m.actionBottom}}>
         <InputAction testID="ui-chat-plus" label="이미지 첨부" icon="plus" metrics={m} onPress={p.onAttach}/>
@@ -82,7 +93,9 @@ export function ChatInput(p: Props) {
       <View style={{position: 'absolute', right: m.actionSide, bottom: m.actionBottom}}>
         <InputAction testID="ui-chat-send" label="메시지 전송" icon="send" metrics={m} filled disabled={!canSend} onPress={p.onSend}/>
       </View>
-    </View>
+      {!!pane && <FieldOutline focused={focused} hovered={hovered} radius={m.radius} testID="ui-chat-composer-outline"/>}
+      </>}
+    </HoverSurface>
     </Animated.View>
   </ChatKeyboardDock>;
 }
@@ -91,11 +104,11 @@ function InputAction({testID, label, icon, metrics: m, filled = false, disabled 
   testID: string; label: string; icon: IconName; metrics: InputMetrics; filled?: boolean; disabled?: boolean; onPress: () => void;
 }) {
   const colors = usePalette();
-  return <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
-    style={{width: m.actionSize, height: m.actionSize, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.25 : 1}}>
+  return <HoverPressable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{disabled}} disabled={disabled} onPress={onPress}
+    style={{width: m.actionSize, height: m.actionSize, borderRadius: m.actionSize / 2, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.25 : 1}}>
     <View style={{width: m.circleSize, height: m.circleSize, borderRadius: m.circleSize / 2, alignItems: 'center', justifyContent: 'center',
       backgroundColor: filled ? colors.selectedBackground : 'transparent'}}>
       <Icon name={icon} size={m.iconSize} color={filled ? colors.selectedForeground : colors.secondaryForeground}/>
     </View>
-  </Pressable>;
+  </HoverPressable>;
 }

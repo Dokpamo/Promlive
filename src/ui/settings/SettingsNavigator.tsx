@@ -9,10 +9,18 @@ import {useSettingsServices} from './SettingsServices';
 import {AiSettings} from './AiSettings';
 import {PersonasSettings, ProfileSettings} from './PeopleSettings';
 import {OtherSettings, type SettingsDestination} from './OtherSettings';
+import {useDesktopPane} from '../desktop/DesktopPane';
+import {DesktopSettingsNavigator} from './DesktopSettingsNavigator';
 import {Note, SettingsFocusContext, SettingsPage, TextAction, type SettingsNavigation, type SettingsPageOptions, type SettingsRender} from './controls';
 
 type Entry = {id: number; render: SettingsRender; transition: BackTransition; swipeBack: boolean};
-export function SettingsNavigator({initial, transition, onClose, scale, bottomInset}: {initial: SettingsDestination; transition: BackTransition; onClose: () => void; scale: number; bottomInset: number}) {
+type Props = {initial: SettingsDestination; transition: BackTransition; onClose: () => void; scale: number; bottomInset: number};
+export function SettingsNavigator(props: Props) {
+  const desktop = useDesktopPane();
+  return desktop ? <DesktopSettingsNavigator renderRoot={nav => <Destination page={props.initial} nav={nav}/>} onClose={props.onClose} scale={props.scale}/>
+    : <StackSettingsNavigator {...props}/>;
+}
+function StackSettingsNavigator({initial, transition, onClose, scale, bottomInset}: Props) {
   const {width} = useWindowDimensions(), corners = useScreenCorners();
   const nextId = useRef(0);
   const [stack, setStack] = useState<Entry[]>(() => [{id: 0, transition, swipeBack: true, render: nav => <Destination page={initial} nav={nav}/>}]);

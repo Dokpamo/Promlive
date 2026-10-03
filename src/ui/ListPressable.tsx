@@ -2,17 +2,19 @@ import {useEffect, useRef, type ReactNode} from 'react';
 import {Animated, Easing, Platform, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle} from 'react-native';
 import {usePalette} from './Theme';
 import {useReducedMotion} from './useReducedMotion';
+import {useDesktopHover} from './desktop/DesktopFeedback';
 
 type Props = Omit<PressableProps, 'children' | 'style'> & {children: ReactNode; style?: StyleProp<ViewStyle>};
 
 /** Only the row background responds; text, icons and the touch target stay still. */
 export function ListPressable({children, style, onPressIn, onPressOut, disabled, ...props}: Props) {
   const colors = usePalette();
+  const hover = useDesktopHover(!!disabled || !!props.accessibilityState?.selected);
   const reduced = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => () => opacity.stopAnimation(), [opacity]);
   useEffect(() => {if (disabled) {opacity.stopAnimation(); opacity.setValue(0);}}, [disabled, opacity]);
-  return <Pressable {...props} disabled={disabled} style={style}
+  return <Pressable {...props} disabled={disabled} {...hover.events} style={[style, hover.hovered && {backgroundColor: colors.surface}]}
     onPressIn={event => {opacity.stopAnimation(); opacity.setValue(1); onPressIn?.(event);}}
     onPressOut={event => {
       opacity.stopAnimation();
