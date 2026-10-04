@@ -2,9 +2,13 @@ import {useRef} from 'react';
 import type {FlatList} from 'react-native';
 
 export type ScrollController = {scrollTo(options: {y: number; animated?: boolean}): void; scrollToEnd(options?: {animated?: boolean}): void};
+export interface ListScrollHandle {
+  scrollToOffset(options: {offset: number; animated?: boolean}): void;
+  getScrollResponder(): unknown;
+}
 /** Keep the existing keyboard/chrome/motion controllers independent of list implementation. */
-export function useListScroll<T>() {
-  const list = useRef<FlatList<T>>(null);
+export function useListScroll<T, Handle extends ListScrollHandle = FlatList<T>>() {
+  const list = useRef<Handle>(null);
   const scroll = useRef<ScrollController>({scrollTo: options => list.current?.scrollToOffset({offset: options.y, animated: options.animated ?? false}),
     // FlatList.scrollToEnd estimates the final row and omits content-container
     // padding. The underlying ScrollView already knows the actual bottom.

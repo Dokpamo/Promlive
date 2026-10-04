@@ -1,15 +1,12 @@
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {AppState} from 'react-native';
-import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, connectionRoute, connectionRoutes,
-  dataPolicyLabels, effortLabels, filterLabels, lengthLabels, modelPresetCapabilities, modelPresetFor, previewModel,
-  routingLabels, safetyCategories, toolLabels, type AiConnectionPreview, type AiModelPresetPreview, type AiService,
-  type AiModelPreview} from '../../features/settings/aiSettingsModel';
+import {aiServices, chooseConnectionRoute, chooseMediaModel, choosePreviewModel, connectionRoute, connectionRoutes, dataPolicyLabels, effortLabels, filterLabels, lengthLabels, modelPresetCapabilities, modelPresetFor, previewModel, routingLabels, safetyCategories, toolLabels, type AiConnectionPreview, type AiModelPresetPreview, type AiService, type AiModelPreview} from '../../features/settings/aiSettingsModel';
 import {catalogKinds, catalogLabels, defaultCatalog, loadAiModels, reconcileCatalog} from '../../features/settings/aiModelCatalog';
 import {catalogScope} from '../../features/settings/aiCatalogCache';
 import type {AiCatalogKind} from '../../ports/aiCatalog';
 import {providerNameTypography} from '../tokens';
 import {useDesktopPane} from '../desktop/DesktopPane';
-import type {SettingsServices} from './SettingsServices';
+import type {SettingsServices} from '../../app/settingsServices';
 import {AnimatedModelRows} from './AnimatedModelRows';
 import {ChoicePage, choicesFrom, Field, Note, SettingRow, SettingsPage, SettingToggle, TextAction, type Choice, type SettingsNavigation} from './controls';
 

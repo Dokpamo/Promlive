@@ -1,8 +1,8 @@
+import type {ChatRow} from '../features/workspace/model';
 import {themedStyles} from './Theme';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, AppState, type FlatList, Text, View} from 'react-native';
-import type {ChatRow} from './screenState';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ContentRow} from './ContentRow';
 import {navigation} from './tokens';

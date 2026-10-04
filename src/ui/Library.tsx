@@ -1,13 +1,13 @@
+import type {LibraryCard} from '../features/workspace/model';
 import {usePalette, themedStyles} from './Theme';
 import {useRef, type ReactNode} from 'react';
 import {Animated, type FlatList, Pressable, Text, View} from 'react-native';
-import type {LibraryCard} from './cardWorkspace';
 import {PreviewArtwork} from './PreviewArtwork';
 import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
 import {FilterChips} from './FilterChips';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import type {LibraryFilter} from './screenState';
 import {libraryFilters} from './swipeNavigation';
 import {useWorkspaceRows} from './workspace/hooks';

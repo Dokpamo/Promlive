@@ -1,13 +1,13 @@
-import {createPreviewWorkspace, type CardContent, type WorkCard} from './cardWorkspace';
+import type {CardContent, WorkCard, GalleryImage, ChatMessage, ChatRow, WorkspaceData} from '../features/workspace/model';
+import {createPreviewWorkspace} from './cardWorkspace';
 import {chatPreviewRows} from './chatPreview';
 import type {CreationFilter} from './creationPreview';
 import type {Tab} from './Navigation';
-import {defaultCardDetails, nightLibraryDetails, type GalleryImage} from './cardDetails';
+import {defaultCardDetails, nightLibraryDetails} from './cardDetails';
 import {creationPreviewItems} from './creationPreview';
-import {previewConversation, type Conversation, type ChatMessage} from './chatConversation';
+import {previewConversation} from './chatConversation';
 
-export type ChatRow = {id: string; title: string; character: string; tile: number; lastChatAt: number; lastAssistantMessage: string} & Conversation;
-export type ScreenData = {cards: WorkCard[]; chats: ChatRow[]};
+export type ScreenData = WorkspaceData;
 export type SearchState = {open: boolean; query: string};
 export type LibraryFilter = 'all' | 'recent' | 'idle';
 export type ScreenView = {

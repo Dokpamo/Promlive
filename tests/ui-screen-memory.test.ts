@@ -1,7 +1,7 @@
 import {expect, it, vi} from 'vitest';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {decodeScreenSnapshot, initialScreenData, initialScreenView, type ScreenSnapshot} from '../src/ui/screenState';
-import {ScreenStorageConflict, type ScreenStorage} from '../src/ui/screenPersistence';
+import {ScreenStorageConflict, type ScreenStorage} from '../src/ports/screenStorage';
 
 function storage(initial: string | null = null) {
   let raw = initial;

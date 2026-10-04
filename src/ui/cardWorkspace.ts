@@ -1,33 +1,6 @@
+import type {CardContent, WorkCard, LibraryCard, CardAction} from '../features/workspace/model';
 import {creationPreviewItems, type CreationFilter} from './creationPreview';
-import {defaultCardDetails, nightLibraryDetails, type GalleryImage} from './cardDetails';
-
-export type CardContent = {
-  title: string;
-  character: string;
-  creator: string;
-  tile: number;
-  summary: string;
-  introduction: string;
-  tags: string[];
-  gallery: GalleryImage[];
-  guide: string;
-};
-export type EditableCardField = 'title' | 'character' | 'creator' | 'summary' | 'introduction' | 'guide' | 'tags';
-export type WorkCard = {
-  id: string;
-  origin: 'created' | 'external';
-  draft: CardContent;
-  published: CardContent | null;
-  working: boolean;
-  updatedAt: number;
-  activity: 'recent' | 'idle';
-};
-export type LibraryCard = CardContent & {id: string; activity: 'recent' | 'idle'};
-export type CardAction =
-  | {type: 'create'; id: string; now: number}
-  | {type: 'edit'; id: string; field: EditableCardField; value: string; now: number}
-  | {type: 'gallery'; id: string; images: GalleryImage[]; now: number}
-  | {type: 'complete'; id: string; now: number};
+import {defaultCardDetails, nightLibraryDetails} from './cardDetails';
 
 /** UI workspace model persisted by ScreenMemory. A draft never modifies the published library snapshot. */
 export function createPreviewWorkspace(): WorkCard[] {

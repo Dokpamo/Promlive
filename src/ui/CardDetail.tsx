@@ -1,12 +1,12 @@
+import type {LibraryCard} from '../features/workspace/model';
 import {usePalette, themedStyles} from './Theme';
 import {useEffect, useRef, useState} from 'react';
 import {BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {LibraryCard} from './cardWorkspace';
 import {Icon} from './Icon';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork, previewArtworkRatio} from './PreviewArtwork';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {listTypography, navigation, navigationActionMetrics} from './tokens';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {SwipeBack} from './SwipeBack';

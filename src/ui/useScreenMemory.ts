@@ -1,8 +1,8 @@
 import {useEffect} from 'react';
 import {AppState, Platform} from 'react-native';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
-import {screenStorageKey} from './screenPersistence';
-import {workspaceDatabase} from './workspace/types';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
+import {screenStorageKey} from '../ports/screenStorage';
+import {workspaceDatabase} from '../ports/workspace';
 
 export function useScreenMemory(memory: ScreenMemory) {
   useEffect(() => {

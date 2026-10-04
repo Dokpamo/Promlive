@@ -1,11 +1,13 @@
-import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {Animated, Keyboard, Platform, Pressable, Text, View, useWindowDimensions} from 'react-native';
+import {screenCommands} from '../workspace/commands';
+import {StorageIssueBanner} from '../StorageIssueBanner';
+import {useCallback, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
+import {Animated, Keyboard, Platform, Text, View, useWindowDimensions} from 'react-native';
 import {tabs, type Tab} from '../Navigation';
 import {TabButton} from '../TabButton';
 import {Icon} from '../Icon';
 import {useReducedMotion} from '../useReducedMotion';
 import {usePalette} from '../Theme';
-import type {ScreenMemoryController as ScreenMemory} from '../ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from '../ScreenController';
 import {useScreenMemory} from '../useScreenMemory';
 import {publishedLibraryCards} from '../cardWorkspace';
 import {CardEditor} from '../CardEditor';
@@ -35,15 +37,13 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
   const detail = library.find(item => item.id === view.detailCardId);
   const chat = data.chats.find(item => item.id === view.chatId);
   const [settingsDetail, setSettingsDetail] = useState<SettingsDestination | null>(null);
-  const nextCard = useRef(0);
+  const commands = useMemo(() => screenCommands(memory), [memory]);
   const transition = useMemo(() => createBackTransition(new Animated.Value(0), layout.content,
     {topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0}), [layout.content]);
   const changeTab = useCallback((next: Tab) => {
     Keyboard.dismiss(); memory.updateView(current => desktopTabView(current, next));
   }, [memory]);
-  const search = useCallback((scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => {
-    memory.updateView(current => ({...current, searches: {...current.searches, [scope]: {...current.searches[scope], ...change}}}));
-  }, [memory]);
+  const search = commands.search;
   const openEditor = (id: string) => {
     memory.resetScroll('editor');
     memory.updateView(current => ({...current, tab: 'create', openedCardId: id, detailCardId: null, chatId: null, coverOpen: false, galleryIndex: null}));
@@ -54,8 +54,7 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
   const closeImage = () => memory.updateView(current => ({...current, coverOpen: false, galleryIndex: null}));
   const openChat = (id: string) => memory.updateView(current => ({...current, tab: 'chats', chatId: id, detailCardId: null, openedCardId: null, coverOpen: false, galleryIndex: null}));
   const createCard = () => {
-    const id = `created-${Date.now()}-${++nextCard.current}`;
-    memory.dispatchCard({type: 'create', id, now: Date.now()}); openEditor(id);
+    openEditor(commands.createCard());
   };
   useEffect(() => {
     if (Platform.OS !== 'web' || tab === 'settings') return;
@@ -108,9 +107,9 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
         {tab === 'create' && (card ? <View style={{flex: 1, minHeight: 0, flexDirection: 'row'}}>
           <View style={{flex: 1, minWidth: 0, alignItems: 'center'}}><DesktopPane width={editorWidth} height={height}>
             <CardEditor key={card.id} card={card} memory={memory} scale={scale} topInset={0} bottomInset={0} backTransition={transition} onClose={closeEditor}
-              onChange={(field, value) => memory.dispatchCard({type: 'edit', id: card.id, field, value, now: Date.now()})}
-              onGalleryChange={images => memory.dispatchCard({type: 'gallery', id: card.id, images, now: Date.now()})}
-              onComplete={() => {memory.dispatchCard({type: 'complete', id: card.id, now: Date.now()}); closeEditor();}}/>
+              onChange={(field, value) => commands.editCard(card.id, field, value)}
+              onGalleryChange={images => commands.setGallery(card.id, images)}
+              onComplete={() => {commands.completeCard(card.id); closeEditor();}}/>
           </DesktopPane></View>
           {layout.preview > 0 && <DesktopCardPreview content={card.draft} width={layout.preview}/>}
         </View> : <DesktopCreation key={view.creationFilter} cards={data.cards} memory={memory} view={view} search={search} onOpen={openEditor} onCreate={createCard}/>)}
@@ -126,8 +125,6 @@ export function DesktopShell({memory}: {memory: ScreenMemory}) {
         </View>}
       </DesktopPane>
     </View>
-    {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.refresh().then(memory.flush);}} style={{padding: 12, backgroundColor: colors.surface}}>
-      <Text accessibilityRole="alert" style={{color: colors.error}}>{storageIssue === 'conflict' ? '다른 창의 변경과 충돌해 저장하지 못했어요. 눌러서 다시 시도' : '저장한 데이터를 확인하지 못했어요. 원본을 보존하고 있어요. 눌러서 다시 시도'}</Text>
-    </Pressable>}
+    {saveError && <StorageIssueBanner memory={memory} issue={storageIssue}/>}
   </DesktopSearchDismissal>;
 }

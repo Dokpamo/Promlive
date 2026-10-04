@@ -1,11 +1,12 @@
+import {inspectScreenSnapshot} from '../../src/ui/screenState';
 // Only bundled by isolated benchmark builds. Never included by the normal entry point.
 import React, {useEffect, useState} from 'react';
 import {AppRegistry, NativeModules, Text, View} from 'react-native';
 import App from '../../App';
 import {name as appName} from '../../app.json';
-import {createWorkspace} from '../../src/ui/workspace/createWorkspace';
+import {createWorkspace} from '../../src/app/createWorkspace';
 import {WorkspaceMemory} from '../../src/ui/workspace/WorkspaceMemory';
-import {createScreenStorage} from '../../src/ui/screenStorage';
+import {createScreenStorage} from '../../src/adapters/screen/screenStorage';
 import {workspaceTuning} from '../../src/ui/workspace/tuning';
 import {installWorkspaceProbe} from '../../src/ui/workspace/probe';
 
@@ -41,7 +42,7 @@ function BenchmarkApp() {
         };
       }
       // Controlled cold route/position. Real cache restoration is tested separately.
-      const value = new WorkspaceMemory(createScreenStorage(), store, {...cache, read: () => null});
+      const value = new WorkspaceMemory(createScreenStorage(inspectScreenSnapshot), store, {...cache, read: () => null});
       await value.initialize();
       const chatId = config.chatId ?? 'perf-00000';
       if (config.screen === 'chat') {

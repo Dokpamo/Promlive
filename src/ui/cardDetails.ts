@@ -1,5 +1,3 @@
-export type GalleryImage = {id: string; tile: number; title: string};
-
 export const nightLibraryDetails = {
   tags: ['일상 판타지', '도서관', '다정한 사서', '느린 이야기'],
   summary: '길을 잃은 밤에만 문을 여는 작은 도서관. 이곳의 책에는 누군가 미처 끝내지 못한 하루와 아직 전하지 못한 마음이 담겨 있어요.\n\n사서 서율은 당신을 재촉하지 않아요. 창가에 앉아 책을 한 권 고르고, 오늘 있었던 일을 들려주세요. 두 사람의 대화가 쌓일수록 비어 있던 책장에도 새로운 이야기가 생겨납니다.',

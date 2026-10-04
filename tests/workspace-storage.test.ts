@@ -1,12 +1,12 @@
 import {DatabaseSync} from 'node:sqlite';
 import {IDBFactory, IDBKeyRange} from 'fake-indexeddb';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {SerialDatabase} from '../src/ports/storage';
-import {SqliteWorkspace} from '../src/ui/workspace/SqliteWorkspace';
-import {IndexedWorkspace} from '../src/ui/workspace/IndexedWorkspace';
-import type {WorkspaceStorage, WorkspaceSeed} from '../src/ui/workspace/types';
+import {SerialDatabase} from '../src/adapters/sqlite/SerialDatabase';
+import {SqliteWorkspace} from '../src/adapters/sqlite/SqliteWorkspace';
+import {IndexedWorkspace} from '../src/adapters/indexeddb/IndexedWorkspace';
+import type {WorkspaceStorage, WorkspaceSeed} from '../src/ports/workspace';
 import {initialScreenData, initialScreenView} from '../src/ui/screenState';
-import {ScreenStorageConflict} from '../src/ui/screenPersistence';
+import {ScreenStorageConflict} from '../src/ports/screenStorage';
 
 const closing: WorkspaceStorage[] = [];
 afterEach(async () => {for (const store of closing.splice(0)) await store.close();});

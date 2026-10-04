@@ -1,3 +1,4 @@
+import type {CardContent, LibraryCard, WorkCard, ChatRow} from '../../features/workspace/model';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {AppState, FlatList, Pressable, ScrollView, Text, View} from 'react-native';
 import {usePalette} from '../Theme';
@@ -8,10 +9,10 @@ import {ContentRow} from '../ContentRow';
 import {PreviewArtwork, previewArtworkRatio} from '../PreviewArtwork';
 import {libraryFilters} from '../swipeNavigation';
 import {creationFilters} from '../creationPreview';
-import {filteredWorkCards, type CardContent, type LibraryCard, type WorkCard} from '../cardWorkspace';
+import {filteredWorkCards} from '../cardWorkspace';
 import {formatChatTimestamp} from '../chatTimestamp';
-import type {ChatRow, ScreenView} from '../screenState';
-import type {ScreenMemoryController as ScreenMemory} from '../ScreenMemory';
+import type {ScreenView} from '../screenState';
+import type {ScreenMemoryController as ScreenMemory} from '../ScreenController';
 import {usePlainScrollMemory} from '../usePlainScrollMemory';
 import {useCollectionProbe} from '../workspace/probe';
 import {desktopMetrics} from './desktopMetrics';

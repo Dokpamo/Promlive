@@ -6,7 +6,8 @@ import {migrate, migrations} from '../src/adapters/sqlite/migrations';
 import {Repository, RevisionConflict} from '../src/adapters/sqlite/repository';
 import {newCard, type Draft} from '../src/features/cards/model';
 import {nodeDatabase, repository} from './helpers';
-import {SerialDatabase, type SqlDatabase} from '../src/ports/storage';
+import {SerialDatabase} from '../src/adapters/sqlite/SerialDatabase';
+import {type SqlDatabase} from '../src/ports/storage';
 const opened: SqlDatabase[] = [];
 afterEach(async () => {for (const db of opened.splice(0)) await db.close();});
 async function repo() {const r = await repository(); opened.push(r.db); return r;}

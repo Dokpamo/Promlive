@@ -240,4 +240,9 @@ export class Repository implements StoryRepository {
   }
   async getSetting(key: string) { return (await this.db.execute('SELECT value FROM settings WHERE key=?', [key])).rows[0]?.value as string | undefined; }
   async setSetting(key: string, value: string) { await this.db.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [key, value]); }
+  async setSettings(entries: readonly {key: string; value: string}[]) {
+    await this.db.transaction(async tx => {
+      for (const {key, value} of entries) await tx.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', [key, value]);
+    });
+  }
 }

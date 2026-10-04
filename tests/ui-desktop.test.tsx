@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
+import {inspectScreenSnapshot} from '../src/ui/screenState';
 import './ui-image-fixtures';
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
-import {createSettingsServices} from '../src/ui/settings/SettingsServices';
-import {createScreenStorage} from '../src/ui/screenStorage.web';
+import {createSettingsServices} from '../src/app/settingsServices';
+import {createScreenStorage} from '../src/adapters/screen/screenStorage.web';
 import {installBrowserScreenStorage} from './browser-screen-storage';
 import {desktopLayout, isDesktopLayout} from '../src/ui/desktop/desktopLayout';
 
 const viewport = vi.hoisted(() => ({width: 1280, height: 800, fontScale: 1, scale: 1}));
-vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
+vi.mock('../src/adapters/screen/screenStorage', () => import('../src/adapters/screen/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
@@ -34,7 +35,7 @@ async function type(id: string, value: string) {
 async function hover(element: HTMLElement, inside = true) {
   await act(async () => element.dispatchEvent(new MouseEvent(inside ? 'mouseenter' : 'mouseleave')));
 }
-async function fixture(memory = new ScreenMemory(createScreenStorage())) {
+async function fixture(memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot))) {
   const values = new Map<string, string>();
   const services = createSettingsServices({getSetting: async key => values.get(key), setSetting: async (key, value) => {values.set(key, value);}},
     {get: async () => null, set: async () => {}, remove: async () => {}});
@@ -175,7 +176,7 @@ it('uses one content pane in a narrow desktop window and returns to the chat lis
   expect(get('ui-desktop-chat-list-pane')).toBeTruthy(); expect(get('ui-chat-room')).toBeUndefined();
 });
 it('restores a mobile detail snapshot into the correct desktop tab without trapping rail navigation', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   memory.updateView(view => ({...view, tab: 'library', detailCardId: 'night-library', chatId: 'night-library'}));
   await fixture(memory);
   expect(get('ui-tab-chats')?.getAttribute('aria-selected')).toBe('true');

@@ -1,18 +1,19 @@
 // @vitest-environment jsdom
+import {inspectScreenSnapshot} from '../src/ui/screenState';
 import './ui-image-fixtures';
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
-import {createScreenStorage} from '../src/ui/screenStorage.web';
-import {screenStorageKey} from '../src/ui/screenPersistence';
+import {createScreenStorage} from '../src/adapters/screen/screenStorage.web';
+import {screenStorageKey} from '../src/ports/screenStorage';
 import {decodeScreenSnapshot} from '../src/ui/screenState';
-import {createSettingsServices} from '../src/ui/settings/SettingsServices';
+import {createSettingsServices} from '../src/app/settingsServices';
 import {installBrowserScreenStorage} from './browser-screen-storage';
 
 const viewport = vi.hoisted(() => ({width: 1280, height: 800, fontScale: 1, scale: 1}));
-vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
+vi.mock('../src/adapters/screen/screenStorage', () => import('../src/adapters/screen/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 vi.mock('react-native', async () => {
   const native = await vi.importActual<typeof import('react-native')>('react-native-web');
@@ -40,7 +41,7 @@ async function typeTags(value: string, selection = value.length) {
   });
 }
 async function fixture() {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   memory.dispatchCard({type: 'edit', id: 'draft-1', field: 'tags', value: 'old-tag', now: 1});
   memory.updateView(view => ({...view, tab: 'create', openedCardId: 'draft-1'}));
   await memory.flush();
@@ -64,7 +65,7 @@ describe.each([412, 1280])('card editor at width %i', width => {
   beforeEach(() => {viewport.width = width;});
   it('updates the mounted field after an external refresh and appends to the latest tags', async () => {
     const memory = await fixture(), input = field('tags');
-    const remote = new ScreenMemory(createScreenStorage());
+    const remote = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
     remote.dispatchCard({type: 'edit', id: 'draft-1', field: 'tags', value: 'remote-tag', now: 2});
     remote.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: 'Remote title', now: 3});
     await remote.flush(); await storageChanged(memory);
@@ -82,7 +83,7 @@ describe.each([412, 1280])('card editor at width %i', width => {
     const raw = '  old-tag,  새 태그, ';
     await typeTags(raw, 6); await act(async () => {await memory.flush();});
     expect(input.value).toBe(raw); expect(input.selectionStart).toBe(6);
-    const remote = new ScreenMemory(createScreenStorage());
+    const remote = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
     remote.dispatchCard({type: 'edit', id: 'draft-1', field: 'title', value: '제목만 변경', now: 4});
     await remote.flush(); await storageChanged(memory);
     expect(field('tags')).toBe(input); expect(input.value).toBe(raw);
@@ -93,7 +94,7 @@ describe.each([412, 1280])('card editor at width %i', width => {
     expect(savedTags()).toEqual(['old-tag', '새 태그', '다음']);
   });
   it('preserves both a conflicting local edit and the other instance’s saved tags', async () => {
-    const memory = await fixture(), remote = new ScreenMemory(createScreenStorage());
+    const memory = await fixture(), remote = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
     remote.dispatchCard({type: 'edit', id: 'draft-1', field: 'tags', value: 'remote-tag', now: 5});
     await remote.flush();
     await typeTags('old-tag, local-tag, '); await storageChanged(memory);

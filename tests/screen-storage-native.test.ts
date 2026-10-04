@@ -1,12 +1,13 @@
+import {inspectScreenSnapshot} from '../src/ui/screenState';
 import {DatabaseSync} from 'node:sqlite';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {createScreenStorage} from '../src/ui/screenStorage';
+import {createScreenStorage} from '../src/adapters/screen/screenStorage';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {initialScreenData, initialScreenView, decodeScreenSnapshot} from '../src/ui/screenState';
-import {screenStorageKey, ScreenStorageConflict} from '../src/ui/screenPersistence';
+import {screenStorageKey, ScreenStorageConflict} from '../src/ports/screenStorage';
 
 const native = vi.hoisted(() => ({open: vi.fn()}));
 vi.mock('@op-engineering/op-sqlite', () => native);
@@ -31,7 +32,7 @@ afterEach(() => {for (const handle of handles) if (!handle.closed) handle.db.clo
 const snapshot = (at: number) => JSON.stringify({version: 1, savedAt: at, data: initialScreenData()});
 
 it('recovers both the legacy screen and edited draft from SQLite when the separate view write fails', async () => {
-  const storage = createScreenStorage();
+  const storage = createScreenStorage(inspectScreenSnapshot);
   const view = {...initialScreenView(), tab: 'chats' as const, chatId: 'night-library'};
   const positions = {'chat:night-library': {offset: 240, hidden: 0, height: 50, maxOffset: 800}};
   await storage.write(JSON.stringify({...JSON.parse(snapshot(1)), view, positions}), null);
@@ -40,17 +41,17 @@ it('recovers both the legacy screen and edited draft from SQLite when the separa
   const memory = new ScreenMemory(storage);
   memory.updateChatDraft('night-library', 'SQLite에 남긴 초안'); await memory.flush();
   expect(memory.getSnapshot().storageIssue).toBe('write');
-  const reopened = new ScreenMemory(createScreenStorage());
+  const reopened = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   expect(reopened.getSnapshot().view).toEqual(view);
   expect(reopened.getScroll('chat:night-library').offset).toBe(240);
   expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('SQLite에 남긴 초안');
   storage.writeView = writeView; await memory.flush();
   expect(memory.getSnapshot().saveError).toBe(false);
-  expect(new ScreenMemory(createScreenStorage()).getSnapshot().view).toEqual(view);
+  expect(new ScreenMemory(createScreenStorage(inspectScreenSnapshot)).getSnapshot().view).toEqual(view);
 });
 
 it('closes a failed initialization candidate and retries on the same storage instance', async () => {
-  failCreate = true; const storage = createScreenStorage();
+  failCreate = true; const storage = createScreenStorage(inspectScreenSnapshot);
   expect(() => storage.readSync()).toThrow('disk full'); expect(handles[0]!.closed).toBe(true);
   const content = snapshot(1);
   await storage.write(content, null);
@@ -59,7 +60,7 @@ it('closes a failed initialization candidate and retries on the same storage ins
   storage.readBackupSync(); expect(creates).toBe(2);
 });
 it('uses a SQLite conditional update so concurrent instances cannot overwrite a newer snapshot', async () => {
-  const a = createScreenStorage(), b = createScreenStorage(), first = snapshot(1), next = snapshot(2);
+  const a = createScreenStorage(inspectScreenSnapshot), b = createScreenStorage(inspectScreenSnapshot), first = snapshot(1), next = snapshot(2);
   await a.write(first, null);
   const results = await Promise.allSettled([a.write(next, first), b.write(snapshot(3), first)]);
   expect(results[0]!.status).toBe('fulfilled'); expect(results[1]).toMatchObject({status: 'rejected', reason: expect.any(ScreenStorageConflict)});
@@ -67,7 +68,7 @@ it('uses a SQLite conditional update so concurrent instances cannot overwrite a 
   await b.writeView('{"version":1,"view":{"tab":"settings"}}'); expect(a.readSync()).toBe(next);
 });
 it('does not rotate an invalid primary over the good backup when repairing it', async () => {
-  const storage = createScreenStorage(), first = snapshot(1), next = snapshot(2);
+  const storage = createScreenStorage(inspectScreenSnapshot), first = snapshot(1), next = snapshot(2);
   await storage.write(first, null); await storage.write(next, first);
   handles[0]!.db.prepare('UPDATE screen_memory SET value = ? WHERE id = ?').run('{broken', screenStorageKey);
   await storage.write(first, '{broken');

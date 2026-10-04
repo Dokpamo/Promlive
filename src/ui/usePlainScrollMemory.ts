@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, type RefObject} from 'react';
 import type {LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent} from 'react-native';
 import type {ScrollController} from './workspace/useListScroll';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import type {ScrollScope} from './screenState';
 import {useCollectionProbe} from './workspace/probe';
 

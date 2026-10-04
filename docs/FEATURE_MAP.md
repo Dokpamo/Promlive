@@ -1,37 +1,28 @@
 # 작업별 기능 지도
 
-새 UI의 화면·기능 구조는 [UI_STRUCTURE.md](UI_STRUCTURE.md)에 정리합니다. 시각 디자인은 미정이며, 아래 UI 파일들은 교체 전 구현을 찾기 위한 위치입니다. 기존 치수·배치·선택 방식은 새 디자인의 요구사항이 아닙니다.
+갱신: 2026-10-04. 현재 UI는 `src/ui`이며, 구형 화면은 제거했다. 현재 화면과 보존한 엔진의 책임을 구분한다.
 
-전체 파일 목록 대신 해당 행의 진입점·계약·테스트부터 읽습니다. 관련된 규칙이 바뀔 때만 다음 경계로 이동합니다.
-
-| 작업 | 먼저 읽을 파일 | 상태의 주인 / 검증 |
+| 작업 | 진입점·상태 | 검증 |
 |---|---|---|
-| 화면 구조·네 개 탭 | [UI 구조](UI_STRUCTURE.md), [MainNavigation](../src/app/MainNavigation.tsx), [CollectionScreens](../src/app/CollectionScreens.tsx) | 서재·채팅·생성·설정의 역할과 기능 연결을 유지하고, 새 시각 디자인은 별도로 정함. 데이터·저장은 `Workspace`/`FolderLibrary`. [내비 검사](../tests/main-navigation.test.tsx) |
-| 초안·전송·중단 | [ChatSession](../src/features/chat/ChatSession.ts), [저장 계약](../src/features/chat/sessionStore.ts) | 대화별 세션. [세션 회귀 검사](../tests/chat-session.test.ts), [방 이동·화면 검사](../tests/chat-screen.test.tsx) |
-| 메시지 표시·이전 기록 | [ChatScreen](../src/features/chat/ChatScreen.tsx), [MessageHistory](../src/features/chat/messageHistory.ts) | 화면 조회 범위. [페이지 검사](../tests/message-history.test.ts) |
-| 입력창 크기·키보드·제스처 | [ChatComposer](../src/features/chat/ChatComposer.tsx), [composerGeometry](../src/features/chat/composerGeometry.ts), [Android 키보드 프레임](../android/app/src/main/java/com/promlive/KeyboardInsetMotion.kt) | 표시만 담당, 전송 정책은 세션. Android의 최종 레이아웃 높이가 시작 신호보다 먼저 와도 실제 애니메이션 프레임이 우선. [편집기 유지 검사](../tests/composer-motion.test.tsx), [키보드 신호 순서 검사](../android/app/src/test/java/com/promlive/KeyboardInsetMotionTest.kt) |
-| 개인 요약 플러그인 | [작은 프로그램 계약](../src/extensions/summaryProgram.ts), [실행·버전 수명](../src/extensions/SummaryExtensions.ts) | 앱 소스를 바꾸지 않는 독립 문서. [권한·복원·실행 검사](../tests/summary-extensions.test.ts) |
-| 카드 편집·저장·초안 적용 | [CardEditor](../src/features/cards/CardEditor.ts), [카드 저장 계약](../src/features/cards/store.ts), [editorState](../src/features/cards/editorState.ts) | 편집 세션·복구 버퍼·AI 편집 폼. [소유자 검사](../tests/feature-owners.test.ts), [편집 UI 검사](../tests/card-editor-ui.test.tsx), [편집 경합 검사](../tests/workspace-regressions.test.ts) |
-| 채팅내역·고정·이름 변경·삭제 | [ConversationList](../src/features/chat/ConversationList.ts), [대화 저장 계약](../src/features/chat/store.ts), [CardConversationPanel](../src/features/chat/CardConversationPanel.tsx) | 조회 세대·선택 ID·삭제 후 선택. [대화 관리 검사](../tests/conversation-management.test.ts), [선택 UI 검사](../tests/history-selection.test.tsx) |
-| 카드 목록·고정·이름 변경·삭제 | [CardList](../src/features/cards/CardList.tsx), [카드 저장 계약](../src/features/cards/store.ts), [Workspace.cardActions](../src/app/workspace.ts) | `pinnedAt`은 즐겨찾기와 별개. 이름·고정은 최근 사용 순서를 바꾸지 않음. 카드 삭제는 편집·생성 쓰기 종료 후 대화까지 원자적으로 삭제. [저장·경합 검사](../tests/card-management.test.ts) |
-| 두 목록의 길게 누르기·다중 선택 | [ManagedItemList](../src/layout/ManagedItemList.tsx), [ItemActions](../src/layout/ItemActions.tsx), [메뉴 위치](../src/layout/itemMenuGeometry.ts), [itemListMotion](../src/layout/itemListMotion.ts) | 메뉴는 누른 항목에 붙여 중앙에 가까운 방향으로 배치. 선택 상태·오른쪽 체크 하나·아이콘으로 된 폴더/삭제 바·고정 이동을 공유. 선택 개수 제목은 표시하지 않음. 각 목록의 이미지·제목·여백 크기는 별도 입력. [카드·채팅 UI 검사](../tests/history-selection.test.tsx) |
-| 카드·채팅·페르소나 폴더 | [폴더 규칙](../src/features/library/folderTree.ts), [FolderLibrary](../src/features/library/FolderLibrary.ts), [공통 이동 팝업](../src/features/library/LibraryFolderSheet.tsx), [선택 UI](../src/layout/useLibrarySelection.ts) | 카드는 전체 라이브러리, 채팅은 카드별 범위. 카드·채팅의 위치는 [별도 SQLite 메타데이터](../src/adapters/sqlite/libraryFolderStore.ts)로 저장하며 카드 문서·채팅 내용과 분리. 선택 폴더 삭제 시 미선택 내용은 남아 있는 상위 폴더로 이동. 실제 항목 삭제와 폴더 변경은 같은 트랜잭션. 페르소나는 기존 설정 저장 형식을 유지. [저장·경계 검사](../tests/library-folders.test.ts), [페르소나 UI 검사](../tests/persona-library-ui.test.tsx) |
-| 이름 변경 입력 팝업 | [ItemRenameSheet](../src/layout/ItemRenameSheet.tsx), [SwipeBackModal](../src/layout/SwipeBackModal.tsx) | 카드와 채팅이 같은 작은 입력 팝업을 사용. 편집 중인 이름만 소유하며 확인 시 전달된 `rename` 작업 호출. [취소·저장·실패·닫기 검사](../tests/history-rename.test.tsx) |
-| 안내·오류·자동 닫기 | [Notifications](../src/app/Notifications.ts), [NotificationToast](../src/app/NotificationToast.tsx) | 알림 ID로 오래된 타이머를 무효화. [소유자 검사](../tests/feature-owners.test.ts) |
-| 화면 이동·기능 연결 | [Workspace](../src/app/workspace.ts), [WorkspaceChat](../src/app/WorkspaceChat.tsx) | 화면 이동 순서, 카드 목록, 기능 연결만 담당. 늦은 요청이 새 선택을 덮지 않는 [회귀 검사](../tests/workspace-regressions.test.ts) |
-| 행·버튼 눌림과 공통 치수 | [RowPressable](../src/layout/RowPressable.tsx), [PressSurface](../src/layout/PressSurface.tsx), [panelGeometry](../src/layout/panelGeometry.ts), [metrics](../src/layout/metrics.ts) | 설정·카드 목록·채팅내역이 같은 눌림·곡률·비율을 사용 |
-| 목록 복귀·채팅/포켓 경계·색상막 | [ChatNavigation](../src/features/chat/ChatNavigation.tsx), [EdgeTint](../src/layout/EdgeTint.tsx), [ScreenHeader](../src/layout/ScreenHeader.tsx) | 오른쪽 스와이프는 현재 하단 탭 목록으로 복귀. 왼쪽 스와이프는 포켓 열기. 채팅과 포켓은 바탕과 바깥쪽 잘림을 공유. [복귀·저장·포켓 검사](../tests/chat-navigation.test.tsx) |
-| 팝업·뒤로가기·드래그 인계 | [SwipeBackModal](../src/layout/SwipeBackModal.tsx), [sheetMotion](../src/layout/sheetMotion.ts), [panelAnimation](../src/layout/panelAnimation.ts) | 공통 방향 판정·저항·스프링. 상세 페이지·시트는 같은 창을 사용하고 닫기 시작 시 부모에 입력을 인계. [제스처 경합 검사](../tests/gesture-interruption.test.tsx), [방향 검사](../tests/sheet-motion.test.ts) |
-| 선택창 내부 스크롤→당김 | [SheetScrollView](../src/layout/SheetScrollView.touch.tsx), [경계 인계](../src/layout/sheetScrollHandoff.ts) | 스크롤 전에는 바로 당김. 스크롤 후 위·아래 끝의 첫 당김은 팝업의 탄성 이동·복귀만 허용하고, 다음 새 당김부터 닫기 판정. Android·iOS에서는 손을 떼지 않고 반대로 움직이면 당김을 되돌린 뒤 내부 스크롤을 재개하며, 그 터치 동안은 닫지 않음. 네이티브 동시 인식, 나머지는 responder. [경계 검사](../tests/sheet-scroll-handoff.test.ts), [네이티브 연결 검사](../tests/sheet-scroll-view.test.tsx) |
-| AI 연결·스트리밍 | [SelectedProvider](../src/adapters/ai/selectedProvider.ts), [GenerationCoordinator](../src/features/chat/generation.ts) | 호스트만 인증·주소 보유. [전송 검사](../tests/transport.test.ts), [생성 수명 검사](../tests/generation.test.ts) |
-| 사용자 이름·프로필 사진 | [UserProfilePreferences](../src/features/profile/userProfile.ts), [ProfileSheet](../src/features/profile/ProfileSheet.tsx), [ProfileEditor](../src/features/profile/ProfileEditor.tsx), [원형 사진 편집](../src/features/profile/ProfilePhotoCrop.tsx), [크롭 좌표](../src/features/profile/photoCrop.ts) | 이름은 직접 수정·자동 저장. 사진 전체를 누르면 갤러리 → 원형 틀에서 이동·두 손가락 또는 [슬라이더](../src/features/profile/PhotoZoomSlider.tsx)로 확대 → 확인 후 512px 이하 크롭 저장. 취소하면 기존 사진 유지. 설정과 카드 목록이 같은 [원형 이미지](../src/features/profile/UserAvatar.tsx)를 사용하며 이름·사진은 필드별로 병합. [저장·복원 검사](../tests/user-profile.test.ts), [편집 흐름 검사](../tests/profile-editor.test.tsx), [크롭 경계·핀치 검사](../tests/photo-crop.test.ts) |
+| 모바일 탭·스와이프 | `ui/App`, `TabPages`, `ScreenLayer`, `swipeNavigation` | `ui-shell`, `ui-swipe-*`, `ui-tab-*` |
+| PC 아이콘 레일·오른쪽 페이지 | `ui/desktop/DesktopShell`, `DesktopPages`, `DesktopSettingsNavigator` | `ui-desktop` |
+| 공통 데이터 명령·오류 | `ui/workspace/commands`, `StorageIssueBanner`, `ScreenController` | 현재 모바일·PC 통합 테스트 |
+| 서재·생성·채팅 목록 | `ui/workspace/Collection`, `hooks`, `features/workspace/indexing` | `workspace-storage`, `workspace-ui`, `list-scroll-restoration` |
+| 본문 제한·캐시·초안 | `ui/workspace/WorkspaceMemory`, `Room`, `tuning*` | `workspace-memory`, `workspace-regressions` |
+| 채팅 표시·기준점·이전 기록 | `ui/ChatRoom`, `chat/MessageList`, `chat/useMessageViewport`, `ScrollEventEpoch` | `workspace-ui`, `scroll-event-epoch`, 성능 러너 |
+| 입력바·키보드·전송 동작 | `ui/chat-input`, `useMessageSendMotion`, `useChatChrome` | `ui-chat-input`, `ui-message-send`, Android 키보드 단위 테스트 |
+| 카드 편집·공개 상태 | `ui/CardEditor`, `cardWorkspace`, `features/workspace/model` | `ui-card-editor`, `ui-card-workspace` |
+| 설정 조립·일반 설정 저장 | `app/settingsServices`, `features/settings/generalPreferences`, `ui/settings/SettingsServices` | `general-preferences`, `runtime-settings-integration` |
+| AI 연결·모델 선택·목록 변경 | `ui/settings/AiSettings`, `AnimatedModelRows`, `features/settings` | `ui-settings`, `ai-*`, `provider-catalog` |
+| 사용자·페르소나·사진 | `ui/settings/PeopleSettings`, `ProfilePhotoEditor`, `features/profile`, `features/personas` | `ui-settings`, `ui-profile-photo-editor`, `user-profile`, `personas`, `photo-crop` |
+| 테마·규격·SVG·호버 | `ui/Theme`, `tokens`, `icons`, `desktop/DesktopFeedback` | 현재 화면·탭 테스트 |
+| SQLite·IndexedDB 저장 | `ports/workspace`, `adapters/sqlite/SqliteWorkspace`, `adapters/indexeddb/IndexedWorkspace` | `workspace-storage`, `storage` |
+| 구형 스냅샷 이관·복구 | `ports/screenStorage`, `adapters/screen`, `ui/screenState` | `screen-storage-*`, `ui-screen-memory`, `workspace-memory` |
+| 플랫폼 의존성 경계 | `app/createWorkspace.*`, `metro.config`, `tests/source-graph` | `ui-boundary` (다섯 플랫폼), 네이티브 빌드 |
+| 기존 AI 채팅·편집 엔진 | `features/chat/ChatSession`, `service`, `generation`, `features/cards/CardEditor` | `chat-session`, `generation`, `feature-owners`, `card-management` |
+| 기존 Authoring·Creator·요약 엔진 | `features/authoring`, `creator-sdk`, `extensions/SummaryExtensions` | `authoring`, `creator`, `summary-extensions` |
+| 기존 폴더·대화 관리 | `features/library/FolderLibrary`, `features/chat/ConversationList`, `app/workspace` | `library-folders`, `conversation-management`, `workspace` |
 
-초안 버그를 고칠 때는 `ChatSession`과 `sessionStore` 및 관련 테스트가 우선입니다. 메시지 삽입·수락의 원자성을 바꾸는 경우에만 [SQLite 구현](../src/adapters/sqlite/chatSessionStore.ts)을 추가로 읽습니다. UI 수명이나 전체 `Workspace`를 초안의 기준으로 삼지 않습니다.
+위 테스트 이름은 `tests/` 안의 파일 접두사다. 기존 엔진을 새 화면에 연결하는 일은 구조 정리와 별도 작업이다. 새 채팅의 현재 로컬 저장 경로를 기존 생성 서비스와 동일한 것으로 취급하지 않는다.
 
-앱 안 AI에 제공하는 내용은 `summaryContract`와 현재 확장 문서, 사용자 요청뿐입니다. 기능을 만들기 위해 프로젝트 경로나 전체 SDK를 보내지 않습니다. 실제로 읽는 파일·문자 수가 줄어드는지는 대표 수정 작업으로 측정하며 절감 비율을 미리 보장하지 않습니다.
-
-## 저장 경계를 고칠 때
-
-`StoryRepository`는 앱 조립과 SQLite 구현에서만 사용하는 합성 계약입니다. 기능 코드는 카드 편집에는 `CardEditorStore`, 대화 관리에는 `ConversationStore`의 필요한 메서드, 메시지 조회에는 `MessageReader`, 생성에는 `CreationStore`, 설정에는 `SettingsStore`를 받습니다. 요약 확장은 메시지 읽기와 자신의 저장소만 받습니다. 조회 화면의 타입에는 메시지 삭제나 설정 쓰기 메서드를 함께 노출하지 않습니다. 이 내부 타입 경계 자체가 런타임 보안 격리를 제공하는 것은 아닙니다.
-
-카드 편집 화면은 `CardEditor`, 채팅내역 화면은 `ConversationList`, 안내 화면은 `Notifications`를 직접 구독합니다. 한 곳의 편집/알림 변경을 모든 화면에 전달하는 `Workspace.emit()`에 의존하지 않습니다. 공통 눌림·제스처 수치를 바꿀 때는 `layout`의 한 구현을 고치며 설정 또는 채팅 구현을 따로 복제하지 않습니다. 각 기능만의 목록 구성과 스크롤 정책은 해당 기능 안에 남깁니다.
+이전 렌더러·전용 제스처·시안의 삭제 근거와 검증 범위는 [정리 기록](UI_MAINTENANCE.md)에 있다. 이전 구현은 `cd2ff04`와 그 앞의 Git 이력에서 확인할 수 있다.

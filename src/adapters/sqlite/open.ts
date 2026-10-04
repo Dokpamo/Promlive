@@ -1,5 +1,6 @@
 import {open} from '@op-engineering/op-sqlite';
-import {SerialDatabase, type SqlRow} from '../../ports/storage';
+import {SerialDatabase} from './SerialDatabase';
+import {type SqlRow} from '../../ports/storage';
 export async function openDatabase() {
   // The on-disk name is stable across the Promlive branding rename.
   const native = open({name: 'storyloom.sqlite'});

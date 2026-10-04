@@ -1,9 +1,8 @@
-import type {ChatRow} from '../screenState';
+import type {ChatRow} from '../../features/workspace/model';
 import {workspaceTuning as tuning} from './tuning';
-import type {WorkspaceStorage, StoredMessage, MessagePage} from './types';
-
-export type RoomState = {chat: ChatRow; messages: StoredMessage[]; hasOlder: boolean; hasNewer: boolean; ready: boolean; loading: boolean; error: boolean};
-export class WorkspaceRoom {
+import type {WorkspaceStorage, StoredMessage, MessagePage} from '../../ports/workspace';
+import type {RoomState, RoomView} from './contracts';
+export class WorkspaceRoom implements RoomView {
   private state: RoomState;
   private listeners = new Set<() => void>();
   private pending: Promise<void> | undefined;

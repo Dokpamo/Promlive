@@ -1,8 +1,7 @@
 import {workspaceTuning as tuning} from './tuning';
-import type {WorkspaceStorage, CollectionQuery, CollectionPage, CollectionRow} from './types';
-
-export type CollectionState = CollectionPage & {ready: boolean; loading: boolean; error: boolean};
-export class WorkspaceCollection {
+import type {WorkspaceStorage, CollectionQuery, CollectionRow} from '../../ports/workspace';
+import type {CollectionState, CollectionView} from './contracts';
+export class WorkspaceCollection implements CollectionView {
   private state: CollectionState;
   private listeners = new Set<() => void>();
   private pending: Promise<void> | null = null;

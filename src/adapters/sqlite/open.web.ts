@@ -1,6 +1,7 @@
 import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
-import {SerialDatabase, type SqlRow} from '../../ports/storage';
+import {SerialDatabase} from './SerialDatabase';
+import {type SqlRow} from '../../ports/storage';
 
 function openStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

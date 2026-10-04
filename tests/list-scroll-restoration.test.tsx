@@ -3,7 +3,7 @@ import {act} from 'react';
 import {createRoot} from 'react-dom/client';
 import {expect, it, vi} from 'vitest';
 import {usePlainScrollMemory} from '../src/ui/usePlainScrollMemory';
-import type {ScreenMemoryController} from '../src/ui/ScreenMemory';
+import type {ScreenMemoryController} from '../src/ui/ScreenController';
 
 (globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 it('advances a virtualized tail before loading more, preserving the saved position until it fits', async () => {

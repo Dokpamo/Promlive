@@ -1,5 +1,8 @@
+import {inspectScreenSnapshot} from './screenState';
+import {screenCommands} from './workspace/commands';
+import {StorageIssueBanner} from './StorageIssueBanner';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {Animated, Keyboard, NativeModules, Platform, Pressable, StatusBar, Text, View, useWindowDimensions} from 'react-native';
+import {Animated, Keyboard, NativeModules, Platform, StatusBar, View, useWindowDimensions} from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {Header, TabBar, type Tab} from './Navigation';
 import {TabPages, type RootPageHandle} from './TabPages';
@@ -17,10 +20,10 @@ import {createBackTransition} from './backTransition';
 import {useScreenCorners} from './useScreenCorners';
 import {libraryFilters, stepRootView, type RootPageKey, type SwipeDirection} from './swipeNavigation';
 import {publishedLibraryCards} from './cardWorkspace';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {WorkspaceMemory} from './workspace/WorkspaceMemory';
-import {createWorkspace} from './workspace/createWorkspace';
-import {createScreenStorage} from './screenStorage';
+import {createWorkspace} from '../app/createWorkspace';
+import {createScreenStorage} from '../adapters/screen/screenStorage';
 import {useScreenMemory} from './useScreenMemory';
 import type {LibraryFilter, ScreenView} from './screenState';
 import {creationFilters, type CreationFilter} from './creationPreview';
@@ -28,7 +31,8 @@ import {navigationScale} from './tokens';
 import {TabBarContentInset, tabBarLayout} from './tabBarLayout';
 import {ThemeProvider, useTheme} from './Theme';
 import {ScreenLayer} from './ScreenLayer';
-import {SettingsServicesProvider, type SettingsServices} from './settings/SettingsServices';
+import {SettingsServicesProvider} from './settings/SettingsServices';
+import type {SettingsServices} from '../app/settingsServices';
 import {SettingsNavigator} from './settings/SettingsNavigator';
 import type {SettingsDestination} from './settings/OtherSettings';
 import {DesktopShell} from './desktop/DesktopShell';
@@ -36,7 +40,7 @@ import {isDesktopLayout} from './desktop/desktopLayout';
 
 /** First render uses the local snapshot; background refresh never replaces it with a loader. */
 export default function App({memory: provided, settingsServices}: {memory?: ScreenMemory; settingsServices?: SettingsServices} = {}) {
-  const [memory] = useState(() => provided ?? (() => {const {store, cache} = createWorkspace(); return new WorkspaceMemory(createScreenStorage(), store, cache);})());
+  const [memory] = useState(() => provided ?? (() => {const {store, cache} = createWorkspace(); return new WorkspaceMemory(createScreenStorage(inspectScreenSnapshot), store, cache);})());
   return <SettingsServicesProvider services={settingsServices}><ThemeProvider memory={memory}><AppFrame memory={memory}/></ThemeProvider></SettingsServicesProvider>;
 }
 function AppFrame({memory}: {memory: ScreenMemory}) {
@@ -67,7 +71,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
   useEffect(() => {
     if (Platform.OS === 'android') NativeModules.PromliveSystemBars?.setDarkIcons(!viewingCover && uiAppearance === 'light');
   }, [viewingCover, uiAppearance]);
-  const nextCardNumber = useRef(0);
+  const commands = useMemo(() => screenCommands(memory), [memory]);
   const rootPagesRef = useRef<RootPageHandle>(null);
   const navigateRoot = useCallback((update: (current: ScreenView) => ScreenView, animateTab = false) => {
     memory.updateView(current => {
@@ -90,9 +94,7 @@ function Shell({memory}: {memory: ScreenMemory}) {
   const tabLayout = tabBarLayout(Platform.OS, contentWidth, scale, safe.bottom);
   const openSettings = useCallback((page: SettingsDestination) => {editorBack.prepareOpen(); Keyboard.dismiss(); setSettingsDetail(page);}, [editorBack]);
   const closeSettings = useCallback(() => {editorBack.finish(); Keyboard.dismiss(); setSettingsDetail(null);}, [editorBack]);
-  const search = useCallback((scope: 'library' | 'chats' | 'create', change: Partial<{open: boolean; query: string}>) => {
-    memory.updateView(current => ({...current, searches: {...current.searches, [scope]: {...current.searches[scope], ...change}}}));
-  }, [memory]);
+  const search = commands.search;
   const closeSearch = useCallback(() => {Keyboard.dismiss(); search('library', {open: false, query: ''});}, [search]);
   const closeChatSearch = useCallback(() => {Keyboard.dismiss(); search('chats', {open: false, query: ''});}, [search]);
   const closeCreationSearch = useCallback(() => {Keyboard.dismiss(); search('create', {open: false, query: ''});}, [search]);
@@ -134,9 +136,8 @@ function Shell({memory}: {memory: ScreenMemory}) {
     memory.updateView(current => ({...current, chatId: null}));
   }, [editorBack, memory]);
   const createCard = useCallback(() => {
-    const id = `created-${Date.now()}-${++nextCardNumber.current}`;
-    memory.dispatchCard({type: 'create', id, now: Date.now()}); openCard(id);
-  }, [memory, openCard]);
+    openCard(commands.createCard());
+  }, [commands, openCard]);
   function changeTab(next: Tab) {
     // onPress remains as a keyboard/accessibility fallback after onPressIn.
     navigateRoot(current => current.tab === next ? current : {...current, tab: next}, true);
@@ -183,9 +184,9 @@ function Shell({memory}: {memory: ScreenMemory}) {
       {settingsDetail && <ScreenLayer testID="ui-settings-screen"><SettingsNavigator initial={settingsDetail} transition={editorBack} scale={scale} bottomInset={safe.bottom} onClose={closeSettings}/></ScreenLayer>}
       {openedCard && <ScreenLayer testID="ui-editor-screen">
         <CardEditor card={openedCard} scale={scale} memory={memory} topInset={safe.top} bottomInset={safe.bottom} onClose={closeEditor} backTransition={editorBack}
-          onChange={(field, value) => memory.dispatchCard({type: 'edit', id: openedCard.id, field, value, now: Date.now()})}
-          onGalleryChange={images => memory.dispatchCard({type: 'gallery', id: openedCard.id, images, now: Date.now()})}
-          onComplete={() => {memory.dispatchCard({type: 'complete', id: openedCard.id, now: Date.now()}); closeEditor();}}/>
+          onChange={(field, value) => commands.editCard(openedCard.id, field, value)}
+          onGalleryChange={images => commands.setGallery(openedCard.id, images)}
+          onComplete={() => {commands.completeCard(openedCard.id); closeEditor();}}/>
       </ScreenLayer>}
       {viewingCover && detailCard && <ScreenLayer testID="ui-image-screen">
         <ImageViewer card={detailCard} width={contentWidth} scale={scale} onClose={closeImage} transition={imageBack} galleryIndex={galleryIndex}
@@ -196,13 +197,6 @@ function Shell({memory}: {memory: ScreenMemory}) {
           memory={memory} scale={scale} onClose={closeChat} transition={editorBack}/>
       </ScreenLayer>}
     </View>
-    {saveError && <Pressable accessibilityRole="button" accessibilityLabel="화면 저장 다시 시도" onPress={() => {void memory.refresh().then(memory.flush);}}
-      style={{padding: 12, backgroundColor: colors.surface}}>
-      <Text accessibilityRole="alert" style={{color: colors.error}}>{storageIssue === 'corrupt' ? '저장한 데이터를 읽을 수 없어 원본을 보존하고 있어요.'
-        : storageIssue === 'unsupported' ? '다른 버전에서 저장한 데이터예요. 원본을 보존하고 있어요.'
-          : storageIssue === 'conflict' ? '다른 창의 변경과 충돌해 저장하지 못했어요. 이 창의 수정 내용은 아직 저장되지 않았어요.'
-            : storageIssue === 'read' ? '저장한 데이터를 불러오지 못했어요. 눌러서 다시 시도'
-              : '변경 내용을 저장하지 못했어요. 눌러서 다시 시도'}</Text>
-    </Pressable>}
+    {saveError && <StorageIssueBanner memory={memory} issue={storageIssue}/>}
   </View>;
 }

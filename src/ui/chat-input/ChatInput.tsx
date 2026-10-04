@@ -1,9 +1,9 @@
+import type {GalleryImage} from '../../features/workspace/model';
 import {usePalette} from '../Theme';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Animated, Easing, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {GestureBlockRef} from '../HorizontalGesture.types';
-import type {GalleryImage} from '../cardDetails';
 import {Icon, type IconName} from '../Icon';
 import {PreviewArtwork} from '../PreviewArtwork';
 import {InputField} from './InputField';

@@ -1,6 +1,5 @@
-import type {ChatRow} from '../../src/ui/screenState';
-import type {WorkCard} from '../../src/ui/cardWorkspace';
-import type {StoredMessage} from '../../src/ui/workspace/types';
+import type {ChatRow, WorkCard} from '../../src/features/workspace/model';
+import type {StoredMessage} from '../../src/ports/workspace';
 
 export const fixtureSize = {cards: 10_000, chats: 10_000, turns: 10_000, characters: 10_000};
 const epoch = 1_790_000_000_000;

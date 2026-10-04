@@ -2,7 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type
 import {AccessibilityInfo, Animated, PanResponder, Platform, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
 import {advanceHeaderScroll, headerSettleTarget, type HeaderScrollPosition} from './scrollHeaderMotion';
 import {createScrollHeaderAnimation} from './scrollHeaderAnimation';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {emptyScrollMemory, type ScrollScope} from './screenState';
 import {useTabBarContentInset} from './tabBarLayout';
 

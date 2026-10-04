@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
+import type {GalleryImage} from '../src/features/workspace/model';
 import {act, useLayoutEffect, type ComponentProps, type ReactNode} from 'react';
 import {Animated} from 'react-native';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, expect, it, vi} from 'vitest';
 import {ChatInput} from '../src/ui/chat-input/ChatInput';
 import type {InputFieldProps} from '../src/ui/chat-input/InputField.types';
-import type {GalleryImage} from '../src/ui/cardDetails';
+
 import {DesktopPane} from '../src/ui/desktop/DesktopPane';
 
 const measured = vi.hoisted(() => ({height: 25, line: undefined as number | undefined, props: null as InputFieldProps | null}));

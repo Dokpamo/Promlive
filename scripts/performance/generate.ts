@@ -1,8 +1,8 @@
 import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {dirname} from 'node:path';
-import {workspaceSchema} from '../../src/ui/workspace/SqliteWorkspace';
-import {cardIndexes, chatIndex, metadata} from '../../src/ui/workspace/types';
+import {workspaceSchema} from '../../src/adapters/sqlite/SqliteWorkspace';
+import {cardIndexes, chatIndex, metadata} from '../../src/features/workspace/indexing';
 import {fixtureCard, fixtureChat, fixtureId, fixtureMessage, fixtureSize, messageShapes} from './fixture';
 
 const destination = process.argv[2];

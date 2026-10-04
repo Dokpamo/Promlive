@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {inspectScreenSnapshot} from '../src/ui/screenState';
 import './ui-image-fixtures';
 import {act, type ReactNode} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
@@ -6,11 +7,11 @@ import {AccessibilityInfo, Animated} from 'react-native';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import App from '../App';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
-import {createScreenStorage} from '../src/ui/screenStorage.web';
+import {createScreenStorage} from '../src/adapters/screen/screenStorage.web';
 import {installBrowserScreenStorage} from './browser-screen-storage';
 
 vi.mock('../src/app/runtime', () => ({initialize: () => new Promise(() => {})}));
-vi.mock('../src/ui/screenStorage', () => import('../src/ui/screenStorage.web'));
+vi.mock('../src/adapters/screen/screenStorage', () => import('../src/adapters/screen/screenStorage.web'));
 vi.mock('../src/ui/chat-input/InputField', () => import('../src/ui/chat-input/InputField.web'));
 
 vi.mock('react-native', async () => {
@@ -89,7 +90,7 @@ it('opens from the right with the same full-size underlay and safely interrupts 
     stop: () => {}, reset: () => {},
   }));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   const underlay = query('[data-testid="ui-root-screen"]') as HTMLElement;
   const tint = underlay.querySelector('[data-testid="ui-root-screen-dim"]') as HTMLElement;
   const x = (element: HTMLElement) => Number(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
@@ -123,14 +124,14 @@ it('opens from the right with the same full-size underlay and safely interrupts 
 it('opens immediately when the system requests reduced motion', async () => {
   vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-bot-card-night-library', false);
   expect((query('[data-testid="ui-back-motion"]') as HTMLElement).style.transform).toBe('translateX(0px)');
   expect((query('[data-testid="ui-back-page"]') as HTMLElement).style.borderTopLeftRadius).toBe('0px');
 });
 
 it('opens a cover-only viewer, pans only when zoomed and returns to the same detail position', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
   await clickControl('ui-bot-card-night-library');
@@ -161,7 +162,7 @@ it('opens a cover-only viewer, pans only when zoomed and returns to the same det
 }, 10000);
 
 it('restores an open image viewer immediately and closes to its detail before the library', async () => {
-  const disk = createScreenStorage(), memory = new ScreenMemory(disk);
+  const disk = createScreenStorage(inspectScreenSnapshot), memory = new ScreenMemory(disk);
   memory.updateView(view => ({...view, detailCardId: 'forest-post', coverOpen: true}));
   await memory.flush();
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -177,7 +178,7 @@ it('restores an open image viewer immediately and closes to its detail before th
 });
 
 it('keeps both bars fixed while adjacent filter bodies travel together without a blank frame or fade', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
   const page = query('[data-testid="ui-page-library"]') as HTMLElement;
@@ -227,7 +228,7 @@ it('keeps both bars fixed while adjacent filter bodies travel together without a
 
 it('keeps the immediate previous page painted and slides it from the left without resizing or fading', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-bot-card-night-library');
   await clickControl('ui-card-detail-more');
   await clickControl('ui-card-detail-edit');
@@ -266,7 +267,7 @@ it('keeps the immediate previous page painted and slides it from the left withou
 });
 
 it('keeps a collapsed header at the same height when a swipe lands on a shorter filter', async () => {
-  const disk = createScreenStorage();
+  const disk = createScreenStorage(inspectScreenSnapshot);
   const memory = new ScreenMemory(disk);
   memory.rememberScroll('library:all', {offset: 320, hidden: 120, height: 120, maxOffset: 600});
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -292,7 +293,7 @@ it('keeps a collapsed header at the same height when a swipe lands on a shorter 
 }, 10000);
 
 it('swipes the body through filters before tabs and returns from details without opening a card during the drag', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
   await dragBody('ui-library-swipe', 350, 60);
@@ -321,7 +322,7 @@ it('swipes the body through filters before tabs and returns from details without
 
 it('shows the four root screens with settings actions connected to new detail pages', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   expect([...queryAll('[role="tab"]')].map(tab => tab.getAttribute('aria-label'))).toEqual(['서재', '채팅', '생성', '설정']);
   for (const [id, label] of [['library', '서재'], ['chats', '채팅'], ['create', '생성'], ['settings', '설정']]) {
     const tab = query(`[data-testid="ui-tab-${id}"]`) as HTMLElement;
@@ -367,7 +368,7 @@ it('shows the four root screens with settings actions connected to new detail pa
 
 it('switches on press down and keeps inactive pages ready without exposing their controls', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-library-filter-recent');
   const library = query('[data-testid="ui-page-library"]')!;
   const grid = query('[data-testid="ui-library-grid"]')!;
@@ -406,7 +407,7 @@ it('slides directly to a distant pressed tab while the tab bar stays fixed and s
     stop() {}, reset() {},
   }));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   const home = document.querySelector('[data-testid="ui-page-library"]') as HTMLElement;
   const settings = document.querySelector('[data-testid="ui-page-settings"]') as HTMLElement;
   const bar = query('[data-testid="ui-tab-bar"]') as HTMLElement;
@@ -440,7 +441,7 @@ it('slides directly to a distant pressed tab while the tab bar stays fixed and s
 });
 
 it('keeps creation visible when a settings swipe finishes after a newer tab selection', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   memory.updateView(view => ({...view, tab: 'create', creationFilter: 'external'}));
   const completions: (() => void)[] = [];
   vi.spyOn(Animated, 'timing').mockImplementation(() => ({
@@ -465,7 +466,7 @@ it('keeps creation visible when a settings swipe finishes after a newer tab sele
 });
 
 it('keeps adjacent tab headers a screen apart through refreshes and interrupted transitions', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   memory.updateView(view => ({...view, tab: 'create', creationFilter: 'external'}));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
@@ -497,7 +498,7 @@ it('keeps adjacent tab headers a screen apart through refreshes and interrupted 
 
 it('opens published card details without a header, preserves the library, and publishes edits only on completion', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-library-filter-recent');
   const grid = query('[data-testid="ui-library-grid"]')!;
   grid.scrollTop = 180;
@@ -527,7 +528,7 @@ it('opens published card details without a header, preserves the library, and pu
 });
 
 it('restores an open card detail on the first render after restart', async () => {
-  const disk = createScreenStorage();
+  const disk = createScreenStorage(inspectScreenSnapshot);
   const memory = new ScreenMemory(disk);
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
@@ -545,7 +546,7 @@ it('restores an open card detail on the first render after restart', async () =>
 
 it('searches chat titles and AI replies while keeping library and chat search independent', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   const click = async (id: string) => {
     await act(async () => (query(`[data-testid="${id}"]`) as HTMLElement).click());
   };
@@ -582,7 +583,7 @@ it('searches chat titles and AI replies while keeping library and chat search in
 });
 
 it('opens a saved editor on the first render after restart and restores each tab search and filter', async () => {
-  const disk = createScreenStorage();
+  const disk = createScreenStorage(inspectScreenSnapshot);
   const memory = new ScreenMemory(disk);
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
@@ -609,7 +610,7 @@ it('opens a saved editor on the first render after restart and restores each tab
 });
 
 it('keeps the visible chat screen mounted while a background refresh changes one message', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   memory.updateView(view => ({...view, tab: 'chats'}));
   await memory.flush();
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
@@ -626,7 +627,7 @@ it('keeps the visible chat screen mounted while a background refresh changes one
 
 it('searches preview cards and can clear or close search without opening legacy screens', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   const search = query('[data-testid="ui-library-search-button"]') as HTMLElement;
   await act(async () => search.click());
   expect(search.getAttribute('aria-expanded')).toBe('true');
@@ -659,7 +660,7 @@ it('searches preview cards and can clear or close search without opening legacy 
 
 it('opens a creation draft, retains edits when returning, and only adds it to the library on completion', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   expect(query('[data-testid="ui-bot-card-draft-1"]')).toBeNull();
   await clickControl('ui-tab-create');
   await clickControl('ui-create-filter-draft');
@@ -689,7 +690,7 @@ it('opens a creation draft, retains edits when returning, and only adds it to th
 
 it('groups external cards for editing while preserving their published versions until completion', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   const original = query('[data-testid="ui-bot-card-night-library"]')!.textContent;
   await clickControl('ui-tab-create');
   await clickControl('ui-create-filter-external');
@@ -714,7 +715,7 @@ it('groups external cards for editing while preserving their published versions 
 
 it('starts new drafts from the plus button and requires the public sections before completion', async () => {
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-tab-create');
   await clickControl('ui-header-action');
   await clickControl('ui-card-editor-complete');
@@ -742,7 +743,7 @@ it('starts new drafts from the plus button and requires the public sections befo
 });
 
 it('shows all story sections and opens a gallery image with a selectable filmstrip, preserving detail scroll', async () => {
-  const memory = new ScreenMemory(createScreenStorage());
+  const memory = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
   await clickControl('ui-bot-card-night-library');
@@ -753,7 +754,7 @@ it('shows all story sections and opens a gallery image with a selectable filmstr
   await clickControl('ui-gallery-thumb-2');
   expect(query('[data-testid="ui-gallery-counter"]')?.textContent).toBe('3 / 3');
   await memory.flush();
-  expect(new ScreenMemory(createScreenStorage()).getSnapshot().view.galleryIndex).toBe(2);
+  expect(new ScreenMemory(createScreenStorage(inspectScreenSnapshot)).getSnapshot().view.galleryIndex).toBe(2);
   await clickControl('ui-image-viewer-back');
   expect(query('[data-testid="ui-card-detail-content"]')).toBe(detail);
   expect(detail.scrollTop).toBe(700);
@@ -766,7 +767,7 @@ it('animates gallery entrance even while horizontal photo paging disables swipe 
     stop: () => {}, reset: () => {},
   }));
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
-  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage())}/>));
+  await act(async () => root!.render(<App memory={new ScreenMemory(createScreenStorage(inspectScreenSnapshot))}/>));
   await clickControl('ui-bot-card-night-library', false);
   await act(async () => {entries[0]!.source.setValue(0); entries[0]!.complete();});
   await clickControl('ui-card-gallery-1', false);
@@ -783,7 +784,7 @@ it('animates gallery entrance even while horizontal photo paging disables swipe 
 });
 
 it('opens a conversation from detail and the chat list, sends local messages and retains drafts across a restart', async () => {
-  const disk = createScreenStorage(), memory = new ScreenMemory(disk);
+  const disk = createScreenStorage(inspectScreenSnapshot), memory = new ScreenMemory(disk);
   const container = document.createElement('div'); document.body.append(container); root = createRoot(container);
   await act(async () => root!.render(<App memory={memory}/>));
   await clickControl('ui-bot-card-night-library');

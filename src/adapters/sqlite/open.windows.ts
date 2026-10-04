@@ -1,5 +1,6 @@
 import {NativeModules} from 'react-native';
-import {SerialDatabase, type SqlResult, type SqlValue} from '../../ports/storage';
+import {SerialDatabase} from './SerialDatabase';
+import {type SqlResult, type SqlValue} from '../../ports/storage';
 interface NativeSqlite { execute(sql: string, params: readonly SqlValue[]): Promise<SqlResult>; close(): Promise<void> }
 export async function openDatabase() {
   const native = NativeModules.PromliveSqlite as NativeSqlite | undefined;

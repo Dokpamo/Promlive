@@ -1,10 +1,9 @@
+import type {WorkCard, LibraryCard, ChatRow} from '../../features/workspace/model';
 import {useContext, useEffect, useMemo, useSyncExternalStore} from 'react';
-import type {ScreenMemoryController} from '../ScreenMemory';
-import type {WorkCard, LibraryCard} from '../cardWorkspace';
-import type {ChatRow} from '../screenState';
+import type {ScreenMemoryController} from '../ScreenController';
 import {BodyPageContext} from '../BodyMotion';
-import type {CollectionQuery} from './types';
-import type {CollectionState} from './Collection';
+import type {CollectionQuery} from '../../ports/workspace';
+import type {CollectionState} from './contracts';
 
 const noSubscribe = () => () => {};
 const empty: CollectionState = {rows: [], next: null, ready: false, loading: false, error: false};

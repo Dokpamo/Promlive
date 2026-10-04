@@ -12,7 +12,7 @@ import {FilterChips} from '../FilterChips';
 import {NavigationButton} from '../Navigation';
 import {Icon} from '../Icon';
 import {ProfilePhotoEditor} from './ProfilePhotoEditor';
-import type {SettingsServices} from './SettingsServices';
+import type {SettingsServices} from '../../app/settingsServices';
 import {ChoicePage, Field, Note, SettingsFocusContext, SettingsPage, TextAction, type SettingsNavigation} from './controls';
 
 export function Avatar({image, name, size = 52}: {image: string | null; name: string; size?: number}) {

@@ -1,15 +1,16 @@
+import type {WorkCard} from '../features/workspace/model';
 import {themedStyles} from './Theme';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, AppState, type FlatList, Text, View} from 'react-native';
 import {ContentRow} from './ContentRow';
 import {FilterChips} from './FilterChips';
 import {creationFilters, type CreationFilter} from './creationPreview';
-import {filteredWorkCards, type WorkCard} from './cardWorkspace';
+import {filteredWorkCards} from './cardWorkspace';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ScrollFrame} from './ScrollFrame';
 import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {useWorkspaceRows} from './workspace/hooks';
 
 export function Creation({cards, width, scale, header, query, onOpen, memory, filter, onFilterChange}: {

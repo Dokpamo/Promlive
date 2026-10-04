@@ -1,18 +1,11 @@
-import {cardWorkspaceReducer, type CardAction, type LibraryCard} from './cardWorkspace';
-import type {GalleryImage} from './cardDetails';
-import {ScreenStorageConflict, type ScreenStorage} from './screenPersistence';
-import {inspectScreenView, inspectScreenSnapshot, emptyScrollMemory, initialScreenData, initialScreenView, reconcileScreenData, validScreenData,
-  type ScreenData, type ScreenSnapshot, type ScreenState, type ScreenView, type ScrollMemory, type ScrollScope, type ScreenStorageIssue} from './screenState';
-import type {WorkspaceMemory} from './workspace/WorkspaceMemory';
-
-/** UI contract shared by the legacy snapshot migrator and indexed workspace. */
-export type ScreenMemoryController = Pick<ScreenMemory, 'getSnapshot' | 'subscribe' | 'updateView' | 'dispatchCard' | 'ensureChat' |
-  'updateChatDraft' | 'sendChat' | 'updateChatImage' | 'getScroll' | 'rememberScroll' | 'resetScroll' | 'flush' | 'refresh'> & {
-    workspace?: WorkspaceMemory;
-  };
+import type {CardAction, LibraryCard, GalleryImage} from '../features/workspace/model';
+import {cardWorkspaceReducer} from './cardWorkspace';
+import {ScreenStorageConflict, type ScreenStorage} from '../ports/screenStorage';
+import {inspectScreenView, inspectScreenSnapshot, emptyScrollMemory, initialScreenData, initialScreenView, reconcileScreenData, validScreenData, type ScreenData, type ScreenSnapshot, type ScreenState, type ScreenView, type ScrollMemory, type ScrollScope, type ScreenStorageIssue} from './screenState';
+import type {ScreenMemoryController} from './ScreenController';
 
 /** Cache first, durable writes in order, then background reconciliation without a loading screen. */
-export class ScreenMemory {
+export class ScreenMemory implements ScreenMemoryController {
   private state: ScreenState;
   private positions: ScreenSnapshot['positions'];
   private listeners = new Set<() => void>();

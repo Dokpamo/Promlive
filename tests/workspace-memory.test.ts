@@ -1,10 +1,10 @@
 import {IDBFactory, IDBKeyRange} from 'fake-indexeddb';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {IndexedWorkspace} from '../src/ui/workspace/IndexedWorkspace';
+import {IndexedWorkspace} from '../src/adapters/indexeddb/IndexedWorkspace';
 import {WorkspaceMemory} from '../src/ui/workspace/WorkspaceMemory';
 import {WorkspaceRoom} from '../src/ui/workspace/Room';
 import {initialScreenData, initialScreenView, type ScreenSnapshot} from '../src/ui/screenState';
-import type {ScreenStorage} from '../src/ui/screenPersistence';
+import type {ScreenStorage} from '../src/ports/screenStorage';
 import {workspaceTuning} from '../src/ui/workspace/tuning';
 
 const stores: IndexedWorkspace[] = [];

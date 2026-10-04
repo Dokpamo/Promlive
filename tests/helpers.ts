@@ -1,5 +1,5 @@
 import {DatabaseSync} from 'node:sqlite';
-import {SerialDatabase} from '../src/ports/storage';
+import {SerialDatabase} from '../src/adapters/sqlite/SerialDatabase';
 import {migrate} from '../src/adapters/sqlite/migrations';
 import {Repository} from '../src/adapters/sqlite/repository';
 import type {AiProvider, AiEvent, AiRequest} from '../src/ports/ai';

@@ -1,14 +1,14 @@
+import type {EditableCardField, WorkCard, GalleryImage} from '../features/workspace/model';
 import {usePalette, themedStyles} from './Theme';
 import {createRef, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {BackHandler, Keyboard, Platform, Pressable, ScrollView, Text, TextInput, View, type LayoutChangeEvent} from 'react-native';
 import {KeyboardPage} from './KeyboardPage';
-import type {EditableCardField, WorkCard} from './cardWorkspace';
 import {missingCardFields, parseCardTags} from './cardWorkspace';
-import {nightLibraryDetails, type GalleryImage} from './cardDetails';
+import {nightLibraryDetails} from './cardDetails';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork} from './PreviewArtwork';
 import {navigation} from './tokens';
-import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenController';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {SwipeBack} from './SwipeBack';
 import {FilterChips} from './FilterChips';

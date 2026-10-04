@@ -1,14 +1,12 @@
-import type {ScreenMemoryController} from '../ScreenMemory';
-import {ScreenStorageConflict, type ScreenStorage} from '../screenPersistence';
-import {inspectScreenSnapshot, inspectScreenView, decodeScreenSnapshot, validScreenData, emptyScrollMemory, initialScreenData, initialScreenView,
-  type ChatRow, type ScreenData, type ScreenView, type ScreenState, type ScreenSnapshot, type ScrollScope, type ScrollMemory, type ScreenStorageIssue} from '../screenState';
-import {cardWorkspaceReducer, type CardAction, type LibraryCard} from '../cardWorkspace';
-import type {GalleryImage} from '../cardDetails';
-import type {ChatMessage} from '../chatConversation';
+import type {ChatRow, CardAction, LibraryCard, GalleryImage, ChatMessage} from '../../features/workspace/model';
+import type {ScreenMemoryController} from '../ScreenController';
+import {ScreenStorageConflict, type ScreenStorage} from '../../ports/screenStorage';
+import {inspectScreenSnapshot, inspectScreenView, decodeScreenSnapshot, validScreenData, emptyScrollMemory, initialScreenData, initialScreenView, type ScreenData, type ScreenView, type ScreenState, type ScreenSnapshot, type ScrollScope, type ScrollMemory, type ScreenStorageIssue} from '../screenState';
+import {cardWorkspaceReducer} from '../cardWorkspace';
 import {WorkspaceCollection} from './Collection';
 import {WorkspaceRoom} from './Room';
 import {workspaceTuning as tuning} from './tuning';
-import type {WorkspaceCache, WorkspaceStorage, CollectionQuery, CollectionRow, WorkspaceSeed} from './types';
+import type {WorkspaceCache, WorkspaceStorage, CollectionQuery, CollectionRow, WorkspaceSeed} from '../../ports/workspace';
 
 type PendingWrite = {key: string; run: () => Promise<void>};
 type Cache = {version: 2; snapshot: ScreenSnapshot; collections: Array<{query: CollectionQuery; rows: CollectionRow[]}>; revisions: Array<[string, number]>};
@@ -79,7 +77,13 @@ export class WorkspaceMemory implements ScreenMemoryController {
     return this.initializing ??= this.store.initialize(() => this.seed()).then(initial => {
       this.initialized = true; this.initializing = null;
       if (initial && !this.cacheLoaded) {
-        if (!this.viewChanged) {this.state = {...this.state, view: initial.view}; this.positions = initial.positions;}
+        if (!this.viewChanged) {
+          // Storage treats presentation as opaque. Validate it here without
+          // serializing the migrated message/card bodies a second time.
+          const restored = decodeScreenSnapshot(JSON.stringify({version: 1, data: {cards: [], chats: []},
+            view: initial.view, positions: initial.positions}), true);
+          if (restored) {this.state = {...this.state, view: restored.view}; this.positions = restored.positions;}
+        }
         // Seed only list-sized projections through normal indexed reads below.
       }
       this.cacheDirty = true; this.issue(null); this.emit();

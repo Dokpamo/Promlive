@@ -1,9 +1,10 @@
+import {inspectScreenSnapshot} from '../src/ui/screenState';
 // @vitest-environment jsdom
 import {beforeEach, expect, it, vi} from 'vitest';
-import {createScreenStorage} from '../src/ui/screenStorage.web';
+import {createScreenStorage} from '../src/adapters/screen/screenStorage.web';
 import {ScreenMemory} from '../src/ui/ScreenMemory';
 import {initialScreenData, initialScreenView, decodeScreenSnapshot} from '../src/ui/screenState';
-import {screenStorageKey, screenViewKey, ScreenStorageConflict} from '../src/ui/screenPersistence';
+import {screenStorageKey, screenViewKey, ScreenStorageConflict} from '../src/ports/screenStorage';
 import {browserStore, installBrowserScreenStorage} from './browser-screen-storage';
 
 beforeEach(installBrowserScreenStorage);
@@ -21,15 +22,15 @@ it.each(['localStorage', 'sessionStorage'] as const)('preserves legacy view and 
   const failure = vi.spyOn(store, 'setItem').mockImplementation((key, value) => {
     if (key === screenViewKey) throw new Error('view quota'); set(key, value);
   });
-  const first = new ScreenMemory(createScreenStorage());
+  const first = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   first.updateChatDraft('night-library', '첫 수정'); await first.flush();
   expect(first.getSnapshot().storageIssue).toBe('write');
   // Reload the same tab and edit again before ending the browser session.
-  const reloaded = new ScreenMemory(createScreenStorage());
+  const reloaded = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   reloaded.updateChatDraft('night-library', '두 번째 수정'); await reloaded.flush();
   failure.mockRestore();
   Object.defineProperty(window, 'sessionStorage', {configurable: true, value: browserStore()});
-  const reopened = new ScreenMemory(createScreenStorage());
+  const reopened = new ScreenMemory(createScreenStorage(inspectScreenSnapshot));
   expect(reopened.getSnapshot().view).toEqual(saved.view);
   expect(reopened.getScroll('chat:night-library').offset).toBe(240);
   expect(reopened.getSnapshot().data.chats.find(chat => chat.id === 'night-library')!.draft).toBe('두 번째 수정');
@@ -41,7 +42,7 @@ it.each(['localStorage', 'sessionStorage'] as const)('preserves legacy view and 
 it('preserves a good recovery backup when repairing the primary fails for quota', async () => {
   const good = snapshot('유일한 정상본');
   window.localStorage.setItem(screenStorageKey, '{broken'); window.localStorage.setItem(screenStorageKey + ':backup', good);
-  const storage = createScreenStorage(), memory = new ScreenMemory(storage), set = window.localStorage.setItem;
+  const storage = createScreenStorage(inspectScreenSnapshot), memory = new ScreenMemory(storage), set = window.localStorage.setItem;
   vi.spyOn(window.localStorage, 'setItem').mockImplementation((key, value) => {if (key === screenStorageKey) throw new Error('quota'); set(key, value);});
   await memory.refresh().then(memory.flush);
   expect(memory.getSnapshot().saveError).toBe(true);
@@ -50,7 +51,7 @@ it('preserves a good recovery backup when repairing the primary fails for quota'
 });
 it.each(['backup', 'primary'])('retains a valid copy when the %s write fails', async failure => {
   const previous = snapshot('저장된 원본'); window.localStorage.setItem(screenStorageKey, previous);
-  const storage = createScreenStorage(), set = window.localStorage.setItem;
+  const storage = createScreenStorage(inspectScreenSnapshot), set = window.localStorage.setItem;
   vi.spyOn(window.localStorage, 'setItem').mockImplementation((key, value) => {
     if (key === screenStorageKey + (failure === 'backup' ? ':backup' : '')) throw new Error('quota'); set(key, value);
   });
@@ -59,7 +60,7 @@ it.each(['backup', 'primary'])('retains a valid copy when the %s write fails', a
 });
 it('serializes two writers and rejects a stale content snapshot inside the lock', async () => {
   const previous = snapshot('처음'); window.localStorage.setItem(screenStorageKey, previous);
-  const a = createScreenStorage(), b = createScreenStorage(), first = snapshot('A');
+  const a = createScreenStorage(inspectScreenSnapshot), b = createScreenStorage(inspectScreenSnapshot), first = snapshot('A');
   const results = await Promise.allSettled([a.write(first, previous), b.write(snapshot('B'), previous)]);
   expect(results[0]!.status).toBe('fulfilled');
   expect(results[1]).toMatchObject({status: 'rejected', reason: expect.any(ScreenStorageConflict)});
@@ -67,20 +68,20 @@ it('serializes two writers and rejects a stale content snapshot inside the lock'
 });
 it('keeps presentation in per-tab storage without changing shared content', async () => {
   const content = snapshot('공유'); window.localStorage.setItem(screenStorageKey, content);
-  const a = createScreenStorage(); await a.writeView(JSON.stringify({tab: 'settings'}));
+  const a = createScreenStorage(inspectScreenSnapshot); await a.writeView(JSON.stringify({tab: 'settings'}));
   const tabA = window.sessionStorage;
   Object.defineProperty(window, 'sessionStorage', {configurable: true, value: browserStore()});
-  const b = createScreenStorage(); expect(b.readViewSync()).toContain('settings');
+  const b = createScreenStorage(inspectScreenSnapshot); expect(b.readViewSync()).toContain('settings');
   await b.writeView(JSON.stringify({tab: 'create'}));
   expect(tabA.getItem(screenViewKey)).toContain('settings');
   expect(b.readViewSync()).toContain('create'); expect(b.readSync()).toBe(content);
   // Closing all tabs must not lose the most recently viewed screen.
   Object.defineProperty(window, 'sessionStorage', {configurable: true, value: browserStore()});
-  expect(createScreenStorage().readViewSync()).toContain('create');
+  expect(createScreenStorage(inspectScreenSnapshot).readViewSync()).toContain('create');
 });
 it('does not perform an unsafe write when the browser has no cross-tab lock support', async () => {
   Object.defineProperty(navigator, 'locks', {configurable: true, value: undefined});
-  const storage = createScreenStorage();
+  const storage = createScreenStorage(inspectScreenSnapshot);
   await expect(storage.write(snapshot('새 값'), null)).rejects.toThrow('Web Locks');
   expect(storage.readSync()).toBeNull();
 });

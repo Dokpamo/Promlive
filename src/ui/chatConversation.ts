@@ -1,7 +1,4 @@
-import type {GalleryImage} from './cardDetails';
-
-export type ChatMessage = {id: string; role: 'user' | 'assistant'; text: string; sentAt: number; image?: GalleryImage};
-export type Conversation = {messages: ChatMessage[]; draft: string; draftImage: GalleryImage | null};
+import type {ChatMessage, Conversation} from '../features/workspace/model';
 
 /** Local sample dialogue. Sending never invents an AI response. */
 export function previewConversation(id: string, lastMessage: string, at: number): Conversation {

@@ -1,7 +1,7 @@
+import type {LibraryCard} from '../features/workspace/model';
 import {useEffect, useRef, useState} from 'react';
 import {BackHandler, Platform, Pressable, ScrollView, StatusBar, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {LibraryCard} from './cardWorkspace';
 import {NavigationButton} from './Navigation';
 import {ImageSurface} from './ImageSurface';
 import type {ImageSurfaceHandle} from './ImageSurface.types';
