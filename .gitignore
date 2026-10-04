@@ -66,6 +66,7 @@ yarn-error.log
 # testing
 /coverage
 /dist/
+/performance-artifacts/
 .env
 .env.*
 !.env.example

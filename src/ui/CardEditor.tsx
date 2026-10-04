@@ -8,7 +8,7 @@ import {nightLibraryDetails, type GalleryImage} from './cardDetails';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork} from './PreviewArtwork';
 import {navigation} from './tokens';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {SwipeBack} from './SwipeBack';
 import {FilterChips} from './FilterChips';

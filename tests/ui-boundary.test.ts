@@ -18,14 +18,14 @@ it('keeps the production entry disconnected from legacy screens while reusing da
         return;
       }
       const base = resolve(dirname(file), specifier);
-      if (base.endsWith('.json')) {expect(existsSync(base)).toBe(true); return;}
+      if (/\.(json|jpg|png|webp)$/.test(base)) {expect(existsSync(base)).toBe(true); return;}
       const target = [base + '.ts', base + '.tsx', resolve(base, 'index.ts'), resolve(base, 'index.tsx')].find(existsSync);
       expect(target, `Missing dependency: ${file} → ${specifier}`).toBeDefined();
       const dataService = target!.endsWith('.ts') && ['src/features/', 'src/adapters/', 'src/ports/', 'src/extensions/', 'src/creator-sdk/', 'src/app/runtime.ts'].some(path => target!.startsWith(resolve(root, path)));
       expect(target!.startsWith(uiRoot) || dataService, `Legacy UI reconnected: ${file} → ${target}`).toBe(true);
       visit(target!);
       // Check native adapters too, rather than only the default desktop/web module.
-      for (const platform of ['android', 'ios', 'web']) for (const extension of ['ts', 'tsx']) {
+      for (const platform of ['android', 'ios', 'native', 'web']) for (const extension of ['ts', 'tsx']) {
         const adapter = `${base}.${platform}.${extension}`;
         if (existsSync(adapter)) visit(adapter);
       }

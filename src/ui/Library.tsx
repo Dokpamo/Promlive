@@ -7,9 +7,10 @@ import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
 import {FilterChips} from './FilterChips';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import type {LibraryFilter} from './screenState';
 import {libraryFilters} from './swipeNavigation';
+import {useWorkspaceRows} from './workspace/hooks';
 
 type Props = {
   items: LibraryCard[];
@@ -28,13 +29,15 @@ export function Library({items, width, scale, header, query, memory, filter, onF
   const colors = usePalette();
   const styles = useStyles();
   const list = useRef<FlatList<LibraryCard>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `library:${filter}`);
   const gap = 3 * scale;
   const cardWidth = (width - gap * 2) / 3;
   const term = query.trim().normalize('NFKC').toLocaleLowerCase();
-  const cards = items.filter(card =>
+  const filtered = items.filter(card =>
     (filter === 'all' || card.activity === filter) &&
     `${card.title} ${card.character} ${card.creator}`.normalize('NFKC').toLocaleLowerCase().includes(term));
+  const collection = useWorkspaceRows(memory, {scope: 'library', filter, search: query}, filtered);
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `library:${filter}`, collection);
+  const cards = collection.rows;
 
   const listHeader = <>
     {header}
@@ -43,6 +46,7 @@ export function Library({items, width, scale, header, query, memory, filter, onF
 
   return <ScrollFrame scope="library" header={listHeader} scrolling={scrolling}>
     <Animated.FlatList ref={list} testID="ui-library-grid" data={cards} numColumns={3} keyExtractor={card => card.id}
+      onEndReached={collection.loadMore} onEndReachedThreshold={2} windowSize={5} maxToRenderPerBatch={6}
       contentContainerStyle={scrolling.minimumContentStyle}
       style={styles.list} columnWrapperStyle={{gap}} ItemSeparatorComponent={() => <View style={{height: gap}}/>}
       ListHeaderComponent={<View testID="ui-library-header-space" pointerEvents="none" style={{height: scrolling.headerHeight}}/>}
@@ -61,10 +65,10 @@ export function Library({items, width, scale, header, query, memory, filter, onF
           <Text numberOfLines={1} ellipsizeMode="tail" style={styles.cardCreator}>{item.creator}</Text>
         </View>
       </Pressable>}
-      ListEmptyComponent={<View testID="ui-library-no-results" style={styles.empty}>
+      ListEmptyComponent={collection.ready ? <View testID="ui-library-no-results" style={styles.empty}>
         <Text style={styles.emptyTitle}>검색 결과가 없어요</Text>
         <Text style={styles.emptyHint}>다른 이름이나 제작자로 검색해 보세요.</Text>
-      </View>}/>
+      </View> : null}/>
   </ScrollFrame>;
 }
 

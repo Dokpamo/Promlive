@@ -5,7 +5,7 @@ import {desktopMetrics} from './desktop/desktopMetrics';
 import {useRef} from 'react';
 import type {SettingsDestination} from './settings/OtherSettings';
 import {usePalette} from './Theme';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {Icon, type IconName} from './Icon';
 import {listTypography, navigation, settingsLayout as layout, settingsListLayout} from './tokens';

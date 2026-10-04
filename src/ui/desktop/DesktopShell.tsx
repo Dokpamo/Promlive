@@ -5,7 +5,7 @@ import {TabButton} from '../TabButton';
 import {Icon} from '../Icon';
 import {useReducedMotion} from '../useReducedMotion';
 import {usePalette} from '../Theme';
-import type {ScreenMemory} from '../ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from '../ScreenMemory';
 import {useScreenMemory} from '../useScreenMemory';
 import {publishedLibraryCards} from '../cardWorkspace';
 import {CardEditor} from '../CardEditor';

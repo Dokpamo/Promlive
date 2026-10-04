@@ -98,6 +98,15 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <PropertyGroup Condition="'$(PromlivePerformanceBuild)'=='true'">
+    <BundleEntryFile>scripts/performance/native-entry.js</BundleEntryFile>
+    <TargetName>PromliveBenchmark</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(PromlivePerformanceBuild)'=='true'">
+    <ClCompile>
+      <PreprocessorDefinitions>PROMLIVE_PERFORMANCE_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="Promlive.h" />

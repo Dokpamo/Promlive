@@ -13,7 +13,8 @@ import type {AiProvider} from '../ports/ai';
 import type {StoryRepository} from '../ports/repository';
 import {SqliteAuthoringStore} from '../adapters/sqlite/authoringStore';
 import type {AuthoringStore} from '../features/authoring/store';
-export interface Runtime { repo: StoryRepository; creation: CreationService; provider: AiProvider; aiPreferences?: AiSettingsPreferences; extensions?: SummaryExtensions; authoring?: AuthoringStore }
+import type {SqlDatabase} from '../ports/storage';
+export interface Runtime { repo: StoryRepository; creation: CreationService; provider: AiProvider; aiPreferences?: AiSettingsPreferences; extensions?: SummaryExtensions; authoring?: AuthoringStore; database?: SqlDatabase }
 let boot: Promise<Runtime> | undefined;
 export function initialize(): Promise<Runtime> {
   boot ??= (async () => {
@@ -28,7 +29,7 @@ export function initialize(): Promise<Runtime> {
       const coordinator = new GenerationCoordinator(provider);
       const extensions = new SummaryExtensions(new SqliteExtensionStore(db), repo, coordinator);
       await extensions.load();
-      return {repo, provider, creation: new CreationService(repo, coordinator), aiPreferences, extensions, authoring: new SqliteAuthoringStore(db)};
+      return {repo, provider, creation: new CreationService(repo, coordinator), aiPreferences, extensions, authoring: new SqliteAuthoringStore(db), database: db};
     } catch (error) { await db.close(); throw error; }
   })().catch(error => {boot = undefined; throw error;});
   return boot;

@@ -9,7 +9,8 @@ import {formatChatTimestamp} from './chatTimestamp';
 import {ScrollFrame} from './ScrollFrame';
 import {filterChipsHeight, navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import {useWorkspaceRows} from './workspace/hooks';
 
 export function Creation({cards, width, scale, header, query, onOpen, memory, filter, onFilterChange}: {
   cards: WorkCard[];
@@ -31,13 +32,15 @@ export function Creation({cards, width, scale, header, query, onOpen, memory, fi
     return () => {clearInterval(timer); subscription.remove();};
   }, []);
   const list = useRef<FlatList<WorkCard>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `create:${filter}`);
+  const collection = useWorkspaceRows(memory, {scope: 'create', filter, search: query}, filteredWorkCards(cards, filter, query));
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale + filterChipsHeight(scale), JSON.stringify([width, query]), memory, `create:${filter}`, collection);
   const listHeader = <>
     {header}
     <FilterChips scope="create" items={creationFilters} selected={filter} onChange={onFilterChange} scale={scale}/>
   </>;
   return <ScrollFrame scope="create" header={listHeader} scrolling={scrolling}>
-    <Animated.FlatList ref={list} testID="ui-create-list" data={filteredWorkCards(cards, filter, query)} extraData={now}
+    <Animated.FlatList ref={list} testID="ui-create-list" data={collection.rows} extraData={now}
+      onEndReached={collection.loadMore} onEndReachedThreshold={2} windowSize={5} maxToRenderPerBatch={6}
       contentContainerStyle={scrolling.minimumContentStyle}
       keyExtractor={item => item.id} style={styles.list}
       ListHeaderComponent={<View testID="ui-create-header-space" pointerEvents="none" style={{height: scrolling.headerHeight}}/>}
@@ -53,10 +56,10 @@ export function Creation({cards, width, scale, header, query, onOpen, memory, fi
           accessibilityLabel={`${title}, ${subtitle}, 마지막 수정 ${timestamp}, 편집하기`}
           onPress={() => onOpen(item.id)}/>;
       }}
-      ListEmptyComponent={<View testID="ui-create-no-results" style={styles.empty}>
+      ListEmptyComponent={collection.ready ? <View testID="ui-create-no-results" style={styles.empty}>
         <Text style={styles.emptyTitle}>검색 결과가 없어요</Text>
         <Text style={styles.emptyHint}>다른 제목이나 캐릭터로 검색해 보세요.</Text>
-      </View>}/>
+      </View> : null}/>
   </ScrollFrame>;
 }
 

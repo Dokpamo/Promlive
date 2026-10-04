@@ -11,33 +11,38 @@ export function composerScrollOffset(offset: number, content: number, viewport: 
   return Math.max(0, Math.min(height, content - viewport - offset));
 }
 
-export function useChatChrome(onTap: () => void, composerHeight: number, headerHeight: number, initialOffset = 0) {
+export function useChatChrome(onTap: () => void, composerHeight: number, headerHeight: number, initialOffset = 0,
+  bounds: {hasOlder?: boolean; hasNewer?: boolean} = {}) {
   const [hidden, setHidden] = useState(false), [offscreen, setOffscreen] = useState(false);
   const [headerOffscreen, setHeaderOffscreen] = useState(initialOffset >= headerHeight - 1);
   const controls = useRef(new Animated.Value(1)).current;
   const scrollY = useRef(new Animated.Value(initialOffset)).current;
   const endOffset = useRef(new Animated.Value(0)).current;
   const lastEnd = useRef(0);
+  const geometry = useRef({offset: initialOffset, content: 0, viewport: 0});
   const hideProgress = useMemo(() => {
     // Both controls stay visible in a short conversation, including rubber-band scrolling.
     const scrollable = endOffset.interpolate({inputRange: [0, 0.01], outputRange: [0, 1], extrapolate: 'clamp'});
     return Animated.multiply(Animated.subtract(1, controls), scrollable);
   }, [controls, endOffset]);
   const header = useMemo(() => {
-    const fromTop = scrollY.interpolate({inputRange: [0, headerHeight], outputRange: [0, 1], extrapolate: 'clamp'});
+    const fromTop = scrollY.interpolate({inputRange: [0, headerHeight], outputRange: [bounds.hasOlder ? 1 : 0, 1], extrapolate: 'clamp'});
     return Animated.subtract(1, Animated.multiply(hideProgress, fromTop));
-  }, [hideProgress, scrollY, headerHeight]);
+  }, [hideProgress, scrollY, headerHeight, bounds.hasOlder]);
   const composerTranslateY = useMemo(() => {
     const distance = Animated.subtract(endOffset, scrollY).interpolate({inputRange: [0, composerHeight],
       outputRange: [0, composerHeight], extrapolate: 'clamp'});
     return Animated.multiply(hideProgress, distance);
   }, [hideProgress, endOffset, scrollY, composerHeight]);
   const updateGeometry = useCallback((offset: number, content: number, viewport: number) => {
-    const end = Math.max(0, content - viewport);
+    geometry.current = {offset, content, viewport};
+    // A paged window edge is not the beginning/end of the conversation.
+    const end = Math.max(0, content - viewport) + (bounds.hasNewer ? composerHeight : 0);
     if (lastEnd.current !== end) {lastEnd.current = end; endOffset.setValue(end);}
-    setHeaderOffscreen(end > 0 && offset >= headerHeight - 1);
-    setOffscreen(composerScrollOffset(offset, content, viewport, composerHeight) >= composerHeight - 1);
-  }, [composerHeight, headerHeight, endOffset]);
+    setHeaderOffscreen(!!bounds.hasOlder || (end > 0 && offset >= headerHeight - 1));
+    setOffscreen(!!bounds.hasNewer || composerScrollOffset(offset, content, viewport, composerHeight) >= composerHeight - 1);
+  }, [composerHeight, headerHeight, endOffset, bounds.hasOlder, bounds.hasNewer]);
+  useEffect(() => {const g = geometry.current; updateGeometry(g.offset, g.content, g.viewport);}, [updateGeometry]);
   const reduced = useReducedMotion();
   const touch = useRef<{x: number; y: number; at: number} | null>(null);
   useEffect(() => {

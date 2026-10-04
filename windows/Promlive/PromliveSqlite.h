@@ -20,7 +20,11 @@ struct PromliveSqlite {
     if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &localPath))) throw std::runtime_error("Cannot open local application storage");
     std::filesystem::path directory(localPath);
     CoTaskMemFree(localPath);
+#ifdef PROMLIVE_PERFORMANCE_BUILD
+    directory /= L"PromliveBenchmark";
+#else
     directory /= L"Storyloom";
+#endif
     std::filesystem::create_directories(directory);
     const auto file = (directory / L"storyloom.sqlite").wstring();
     const int result = sqlite3_open16(file.c_str(), &database);

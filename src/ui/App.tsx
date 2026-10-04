@@ -17,7 +17,9 @@ import {createBackTransition} from './backTransition';
 import {useScreenCorners} from './useScreenCorners';
 import {libraryFilters, stepRootView, type RootPageKey, type SwipeDirection} from './swipeNavigation';
 import {publishedLibraryCards} from './cardWorkspace';
-import {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
+import {WorkspaceMemory} from './workspace/WorkspaceMemory';
+import {createWorkspace} from './workspace/createWorkspace';
 import {createScreenStorage} from './screenStorage';
 import {useScreenMemory} from './useScreenMemory';
 import type {LibraryFilter, ScreenView} from './screenState';
@@ -34,7 +36,7 @@ import {isDesktopLayout} from './desktop/desktopLayout';
 
 /** First render uses the local snapshot; background refresh never replaces it with a loader. */
 export default function App({memory: provided, settingsServices}: {memory?: ScreenMemory; settingsServices?: SettingsServices} = {}) {
-  const [memory] = useState(() => provided ?? new ScreenMemory(createScreenStorage()));
+  const [memory] = useState(() => provided ?? (() => {const {store, cache} = createWorkspace(); return new WorkspaceMemory(createScreenStorage(), store, cache);})());
   return <SettingsServicesProvider services={settingsServices}><ThemeProvider memory={memory}><AppFrame memory={memory}/></ThemeProvider></SettingsServicesProvider>;
 }
 function AppFrame({memory}: {memory: ScreenMemory}) {

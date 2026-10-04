@@ -1,7 +1,8 @@
 import {useEffect} from 'react';
 import {AppState, Platform} from 'react-native';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {screenStorageKey} from './screenPersistence';
+import {workspaceDatabase} from './workspace/types';
 
 export function useScreenMemory(memory: ScreenMemory) {
   useEffect(() => {
@@ -14,7 +15,7 @@ export function useScreenMemory(memory: ScreenMemory) {
     const visibility = () => {if (document.visibilityState === 'visible') refresh(); else void memory.flush();};
     const leave = () => {void memory.flush();};
     const storageChanged = (event: StorageEvent) => {
-      if (event.key === null || event.key === screenStorageKey) refresh();
+      if (event.key === null || event.key === screenStorageKey || event.key === `${workspaceDatabase}:change`) refresh();
     };
     if (Platform.OS === 'web') {
       window.addEventListener('pagehide', leave);

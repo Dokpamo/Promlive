@@ -7,6 +7,9 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    if (project.hasProperty('performanceBuild')) {
+        entryFile = file('../../scripts/performance/native-entry.js')
+    }
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -81,6 +84,11 @@ android {
     defaultConfig {
         // Keep the installed app's identity so updates retain its data and keys.
         applicationId "com.storyloom"
+        buildConfigField "boolean", "PERFORMANCE_BUILD", project.hasProperty('performanceBuild') ? 'true' : 'false'
+        if (project.hasProperty('performanceBuild')) {
+            applicationId "com.storyloom.benchmark"
+            manifestPlaceholders = [usesCleartextTraffic: 'true']
+        }
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -99,11 +107,23 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            if (project.hasProperty('performanceBuild')) {
+                debuggable true
+                manifestPlaceholders = [usesCleartextTraffic: 'true']
+            }
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        if (project.hasProperty('performanceBuild')) {
+            variant.manifestPlaceholders.put('usesCleartextTraffic', 'true')
         }
     }
 }

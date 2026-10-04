@@ -2,14 +2,16 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type
 import {AccessibilityInfo, Animated, PanResponder, Platform, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent} from 'react-native';
 import {advanceHeaderScroll, headerSettleTarget, type HeaderScrollPosition} from './scrollHeaderMotion';
 import {createScrollHeaderAnimation} from './scrollHeaderAnimation';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {emptyScrollMemory, type ScrollScope} from './screenState';
 import {useTabBarContentInset} from './tabBarLayout';
 
 type ScrollTarget = {scrollToOffset: (options: {offset: number; animated?: boolean}) => void};
+type Paging = {hasMore: boolean; loading?: boolean; loadMore?: (() => Promise<void>) | undefined};
 
 /** Keep content overscroll separate from header visibility and its settle animation. */
-export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHeight: number, resetKey: string, memory?: ScreenMemory, scope?: ScrollScope) {
+export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHeight: number, resetKey: string, memory?: ScreenMemory, scope?: ScrollScope, paging?: Paging) {
+  const page = useRef(paging); page.current = paging;
   const bottomInset = useTabBarContentInset();
   const saved = useRef(memory && scope ? memory.getScroll(scope) : emptyScrollMemory).current;
   const {height: windowHeight} = useWindowDimensions();
@@ -23,7 +25,7 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
   const pendingAdoption = useRef<number | null>(null);
   const measurements = useRef({content: 0, viewport: 0});
   const previousKey = useRef(resetKey);
-  const restorePending = useRef(saved.offset > 0);
+  const restorePending = useRef(saved.offset > 0), requestedHeight = useRef(-1);
   const contentOffset = useRef({x: 0, y: saved.offset}).current;
   // A new graph discards the accumulated native delta when search/filter/width changes.
   const animation = useMemo(() => createScrollHeaderAnimation(headerHeight, position.current.maxOffset,
@@ -116,11 +118,18 @@ export function useScrollHeader(list: RefObject<ScrollTarget | null>, initialHei
       animation.maxOffset.setValue(maxOffset);
     }
     if (restorePending.current) {
-      restorePending.current = false;
       list.current?.scrollToOffset({offset: Math.min(saved.offset, maxOffset), animated: false});
+      if (saved.offset > maxOffset && page.current?.hasMore && page.current.loadMore) {
+        if (requestedHeight.current !== measurements.current.content) {requestedHeight.current = measurements.current.content; void page.current.loadMore();}
+        return;
+      }
+      restorePending.current = false;
     }
     remember();
   }, [animation, list, remember, saved.offset, minimumContentHeight]);
+  useEffect(() => {if (restorePending.current && !paging?.loading) {
+    const frame = requestAnimationFrame(updateRange); return () => cancelAnimationFrame(frame);
+  }}, [paging?.hasMore, paging?.loading, updateRange]);
 
   useLayoutEffect(reset, [reset, resetKey]);
   useEffect(() => {

@@ -6,7 +6,7 @@ import type {LibraryCard} from './cardWorkspace';
 import {Icon} from './Icon';
 import {NavigationButton} from './Navigation';
 import {PreviewArtwork, previewArtworkRatio} from './PreviewArtwork';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {listTypography, navigation, navigationActionMetrics} from './tokens';
 import {usePlainScrollMemory} from './usePlainScrollMemory';
 import {SwipeBack} from './SwipeBack';

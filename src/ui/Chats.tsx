@@ -2,12 +2,13 @@ import {themedStyles} from './Theme';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Animated, AppState, type FlatList, Text, View} from 'react-native';
 import type {ChatRow} from './screenState';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {formatChatTimestamp} from './chatTimestamp';
 import {ContentRow} from './ContentRow';
 import {navigation} from './tokens';
 import {useScrollHeader} from './useScrollHeader';
 import {ScrollFrame} from './ScrollFrame';
+import {useWorkspaceRows} from './workspace/hooks';
 
 type Props = {
   items: ChatRow[];
@@ -29,16 +30,19 @@ export function Chats({items, width, scale, header, query, memory, onOpen}: Prop
     return () => {clearInterval(timer); subscription.remove();};
   }, []);
   const list = useRef<FlatList<ChatRow>>(null);
-  const scrolling = useScrollHeader(list, navigation.headerHeight * scale, JSON.stringify([width, query]), memory, 'chats');
   const term = query.trim().normalize('NFKC').toLocaleLowerCase();
-  const chats = items.filter(chat =>
+  const filtered = items.filter(chat =>
     `${chat.title} ${chat.character} ${chat.lastAssistantMessage}`.normalize('NFKC').toLocaleLowerCase().includes(term));
+  const collection = useWorkspaceRows(memory, {scope: 'chats', filter: 'all', search: query}, filtered);
+  const scrolling = useScrollHeader(list, navigation.headerHeight * scale, JSON.stringify([width, query]), memory, 'chats', collection);
+  const chats = collection.rows;
   const listHeader = <>
     {header}
   </>;
 
   return <ScrollFrame scope="chats" header={listHeader} scrolling={scrolling}>
     <Animated.FlatList ref={list} testID="ui-chats-list" data={chats} extraData={now} keyExtractor={chat => chat.id}
+    onEndReached={collection.loadMore} onEndReachedThreshold={2} windowSize={5} maxToRenderPerBatch={6}
     contentContainerStyle={scrolling.minimumContentStyle}
     style={styles.list} ListHeaderComponent={<View testID="ui-chats-header-space" pointerEvents="none" style={{height: scrolling.headerHeight}}/>}
     {...scrolling.scrollProps}
@@ -50,10 +54,10 @@ export function Chats({items, width, scale, header, query, memory, onOpen}: Prop
       return <ContentRow scope="chat" id={item.id} title={item.title} subtitle={item.lastAssistantMessage}
         timestamp={timestamp} tile={item.tile} accessibilityLabel={`${item.title}, 마지막 대화 ${timestamp}, ${item.lastAssistantMessage}`} onPress={() => onOpen(item.id)}/>;
     }}
-    ListEmptyComponent={<View testID="ui-chats-no-results" style={styles.empty}>
+    ListEmptyComponent={collection.ready ? <View testID="ui-chats-no-results" style={styles.empty}>
       <Text style={styles.emptyTitle}>검색 결과가 없어요</Text>
       <Text style={styles.emptyHint}>다른 제목이나 메시지로 검색해 보세요.</Text>
-    </View>}/>
+    </View> : null}/>
   </ScrollFrame>;
 }
 

@@ -27,7 +27,11 @@ struct PromliveScreenMemory {
     if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &localPath))) throw std::runtime_error("Cannot locate screen memory");
     std::filesystem::path directory(localPath);
     CoTaskMemFree(localPath);
+#ifdef PROMLIVE_PERFORMANCE_BUILD
+    directory /= L"PromliveBenchmark";
+#else
     directory /= L"Promlive";
+#endif
     std::filesystem::create_directories(directory);
     return directory / name;
   }
@@ -87,6 +91,16 @@ struct PromliveScreenMemory {
   void WriteView(std::string value, ReactPromise<void> promise) noexcept {
     try {FileLock guard; Replace(L"screen-view.json", value); promise.Resolve();}
     catch (...) {promise.Reject("Cannot save screen view");}
+  }
+  REACT_SYNC_METHOD(ReadCacheSync, L"readCacheSync");
+  JSValueObject ReadCacheSync() noexcept {
+    try {FileLock guard; return ReadFile(L"workspace-cache-v2.json");}
+    catch (...) {return {{"error", "Cannot read workspace cache"}};}
+  }
+  REACT_METHOD(WriteCache, L"writeCache");
+  void WriteCache(std::string value, ReactPromise<void> promise) noexcept {
+    try {FileLock guard; Replace(L"workspace-cache-v2.json", value); promise.Resolve();}
+    catch (...) {promise.Reject("Cannot save workspace cache");}
   }
 };
 }

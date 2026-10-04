@@ -81,7 +81,7 @@ export function TabPages({view, pages, width, enabled, onStep, ref}: {
         testID={item.key === rootPageKey(view, item.tab) ? `ui-page-${item.tab}` : `ui-prepared-${item.key}`}
         active={active} visible={visible} interactive={active && !motion.settling && !tabMoving}>
         <BodyPageContext.Provider value={{key: item.key, translateX: position.body, headerOpacity: position.header,
-          headerVisible: active || item.tab !== view.tab}}>{pages[item.key]}</BodyPageContext.Provider>
+          headerVisible: active || item.tab !== view.tab, prepared: active || (enabled && neighbor)}}>{pages[item.key]}</BodyPageContext.Provider>
       </PageLayer>;
     })}
   </View></BodyMotionContext.Provider></SwipeContext.Provider>;

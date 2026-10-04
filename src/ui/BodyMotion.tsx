@@ -4,7 +4,7 @@ import type {RootPageKey} from './swipeNavigation';
 
 export type HeaderMotion = {readHidden: () => number; adoptHidden: (hidden: number) => void};
 export const BodyPageContext = createContext<{key: RootPageKey; translateX?: Animated.AnimatedAddition<number>;
-  headerOpacity?: Animated.AnimatedAddition<number>; headerVisible: boolean}>({
+  headerOpacity?: Animated.AnimatedAddition<number>; headerVisible: boolean; prepared?: boolean}>({
   key: 'library:all', headerVisible: true,
 });
 

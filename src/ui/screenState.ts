@@ -22,7 +22,8 @@ export type ScreenView = {
   galleryIndex: number | null;
   chatId: string | null;
 };
-export type ScrollMemory = {offset: number; hidden: number; height: number; maxOffset: number};
+export type ScrollMemory = {offset: number; hidden: number; height: number; maxOffset: number;
+  anchor?: {id: string; sequence: number; offset: number}};
 export type ScrollScope = Tab | 'editor' | 'detail' | `chat:${string}` | `library:${LibraryFilter}` | `create:${CreationFilter}`;
 export type ScreenSnapshot = {version: 1; savedAt: number; data: ScreenData; view: ScreenView; positions: Partial<Record<ScrollScope, ScrollMemory>>};
 export type ScreenStorageIssue = 'corrupt' | 'unsupported' | 'read' | 'write' | 'conflict';
@@ -80,7 +81,7 @@ function upgradeData(value: unknown): ScreenData | null {
 }
 
 /** Validate persisted content separately from optional/older presentation fields. */
-export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null {
+export function decodeScreenSnapshot(raw: string | null, allowUnloadedReferences = false): ScreenSnapshot | null {
   if (!raw) return null;
   try {
     const value: unknown = JSON.parse(raw);
@@ -93,12 +94,12 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     if (choice(saved.tab, ['library', 'chats', 'create', 'settings'])) view.tab = saved.tab;
     if (choice(saved.libraryFilter, ['all', 'recent', 'idle'])) view.libraryFilter = saved.libraryFilter;
     if (choice(saved.creationFilter, ['all', 'draft', 'ready', 'mine', 'external'])) view.creationFilter = saved.creationFilter;
-    if (typeof saved.openedCardId === 'string' && data.cards.some(card => card.id === saved.openedCardId)) view.openedCardId = saved.openedCardId;
-    if (typeof saved.detailCardId === 'string' && data.cards.some(card => card.id === saved.detailCardId && card.published)) view.detailCardId = saved.detailCardId;
-    if (!view.openedCardId && typeof saved.chatId === 'string' && data.chats.some(chat => chat.id === saved.chatId)) view.chatId = saved.chatId;
+    if (typeof saved.openedCardId === 'string' && (allowUnloadedReferences || data.cards.some(card => card.id === saved.openedCardId))) view.openedCardId = saved.openedCardId;
+    if (typeof saved.detailCardId === 'string' && (allowUnloadedReferences || data.cards.some(card => card.id === saved.detailCardId && card.published))) view.detailCardId = saved.detailCardId;
+    if (!view.openedCardId && typeof saved.chatId === 'string' && (allowUnloadedReferences || data.chats.some(chat => chat.id === saved.chatId))) view.chatId = saved.chatId;
     view.coverOpen = saved.coverOpen === true && !!view.detailCardId && !view.openedCardId && !view.chatId;
     const gallery = data.cards.find(card => card.id === view.detailCardId)?.published?.gallery;
-    if (view.coverOpen && number(saved.galleryIndex) && Number.isInteger(saved.galleryIndex) && gallery?.[saved.galleryIndex]) view.galleryIndex = saved.galleryIndex;
+    if (view.coverOpen && number(saved.galleryIndex) && Number.isInteger(saved.galleryIndex) && (allowUnloadedReferences || gallery?.[saved.galleryIndex])) view.galleryIndex = saved.galleryIndex;
     if (object(saved.searches)) for (const scope of ['library', 'chats', 'create'] as const) {
       const search = saved.searches[scope];
       if (object(search) && typeof search.open === 'boolean' && text(search.query)) view.searches[scope] = {open: search.open, query: search.query};
@@ -106,10 +107,16 @@ export function decodeScreenSnapshot(raw: string | null): ScreenSnapshot | null 
     const positions: ScreenSnapshot['positions'] = {};
     const scopes: ScrollScope[] = ['library', 'chats', 'create', 'settings', 'editor', 'detail',
       'library:all', 'library:recent', 'library:idle', 'create:all', 'create:draft', 'create:ready', 'create:mine', 'create:external', ...data.chats.map(chat => `chat:${chat.id}` as const)];
+    if (allowUnloadedReferences && object(value.positions)) for (const scope of Object.keys(value.positions)) {
+      if (scope.startsWith('chat:') && !scopes.includes(scope as ScrollScope)) scopes.push(scope as ScrollScope);
+    }
     if (object(value.positions)) for (const scope of scopes) {
       const position = value.positions[scope];
       if (object(position) && number(position.offset) && number(position.hidden) && number(position.height) && number(position.maxOffset)) {
         positions[scope] = {offset: Math.min(position.offset, position.maxOffset), hidden: Math.min(position.hidden, position.height), height: position.height, maxOffset: position.maxOffset};
+        if (object(position.anchor) && text(position.anchor.id) && number(position.anchor.sequence) && typeof position.anchor.offset === 'number' && Number.isFinite(position.anchor.offset)) {
+          positions[scope]!.anchor = {id: position.anchor.id, sequence: position.anchor.sequence, offset: position.anchor.offset};
+        }
       }
     }
     // Older snapshots saved one position per tab. Assign it only to that tab's selected filter.

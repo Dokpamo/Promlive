@@ -1,6 +1,6 @@
 import {createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {Platform, StyleSheet, useColorScheme, type ImageStyle, type TextStyle, type ViewStyle} from 'react-native';
-import type {ScreenMemory} from './ScreenMemory';
+import type {ScreenMemoryController as ScreenMemory} from './ScreenMemory';
 import {colorPalettes} from './tokens';
 import {useSettingsServices} from './settings/SettingsServices';
 export type Palette = {[K in keyof typeof colorPalettes.light]: string};

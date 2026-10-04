@@ -1,5 +1,21 @@
 # Native compatibility
 
+## Bounded message windows
+
+`@react-native/virtualized-lists` 0.81.6 must preserve the mounted message range
+when old bodies are evicted from the beginning of a bounded chat window. Upstream
+only finds the previous first key in the new data; an evicted key cannot be found.
+The patch also finds the new first key in the previous data, adjusts the range
+before native scroll anchoring, and handles equal-count window replacements.
+Without this, fast reverse scrolling can briefly unmount the visible messages
+and make native anchoring jump to a different message. The previous data is kept
+by reference, not copied. `virtualized-window-patch.test.ts` exercises the installed
+transition; also repeat native forward/reverse scrolling after an RN upgrade.
+
+```sh
+npx patch-package @react-native/virtualized-lists --include 'Lists/VirtualizedList.js'
+```
+
 `react-native-macos` 0.81.9 has a separate, macOS-only patch:
 
 - Render images with `RCTUIView` and a dedicated image sublayer instead of

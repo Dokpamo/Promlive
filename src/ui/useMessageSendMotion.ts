@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} from 'react';
-import {Animated, Easing, Platform, type LayoutRectangle, type ScrollView} from 'react-native';
+import {Animated, Easing, Platform, type LayoutRectangle} from 'react-native';
+import type {ScrollController} from './workspace/useListScroll';
 import {animationBatch} from './animationBatch';
 import {useReducedMotion} from './useReducedMotion';
 import {messageSendDuration, messageSendLayout, sendRemaining, sendSamples, sendSqueeze} from './messageSendMotion';
@@ -9,7 +10,7 @@ type Flight = {id: string; phase: 'measuring' | 'flying'; composerHeight: number
   frozenRows: {id: string; layout: LayoutRectangle}[]};
 
 /** Only explicit local sends animate. Restoring a room never replays its messages. */
-export function useMessageSendMotion(scroll: RefObject<ScrollView | null>, reserve: number, textTop: number) {
+export function useMessageSendMotion(scroll: RefObject<ScrollController | null>, reserve: number, textTop: number) {
   const reduced = useReducedMotion();
   const [flight, setFlight] = useState<Flight | null>(null);
   const active = useRef<Flight | null>(null);
@@ -107,6 +108,7 @@ export function useMessageSendMotion(scroll: RefObject<ScrollView | null>, reser
   }, [flight, progress, finish]);
 
   return {flight, prepare, finish, historyY,
+    prune: (ids: Set<string>) => {for (const id of rowLayouts.current.keys()) if (!ids.has(id)) rowLayouts.current.delete(id);},
     isActive: () => !!active.current,
     onContentSize: (height: number) => {dimensions.current.content = height; startWhenMeasured();},
     onViewport: (height: number) => {
