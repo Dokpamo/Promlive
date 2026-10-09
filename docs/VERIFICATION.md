@@ -1,5 +1,11 @@
 # 검증 기록
 
+## 2026-10-09 공개 문서 기준 검증
+
+공개 앱 기준 커밋 `d4054e70eed9b42caa3118a6bee75d1fb2210867`에서 분리한 문서 작업공간에 `npm ci`를 실행하고 `npm run verify`를 통과했다. 로컬 Node.js는 26.0.0이며, TypeScript·64개 파일의 540개 테스트·Vite production build가 통과했다. 기존 큰 번들 경고는 남아 있다. 이번 변경은 앱 코드·의존성·데이터 스키마를 수정하지 않는다.
+
+이번에 네이티브 앱을 다시 빌드하거나 모든 플랫폼 설치를 검증하지 않았다. README의 화면은 더 최신 로컬 macOS 개발 빌드의 실제 캡처이며 공개 앱 기준과 다르다. [구현 상태](PRODUCT_STATUS.md), [화면 출처](media/README.md), [배포 준비 상태](RELEASE_READINESS.md)를 함께 확인한다. 아래 기록은 각각 당시 변경과 환경에 대한 기록이다.
+
 ## 2026-10-04 구형 UI 및 저장 구조 정리
 
 검증 대상·삭제 근거·새 경계는 [UI 정리 기록](UI_MAINTENANCE.md)에 기록했다. TypeScript, 64파일·540개 테스트, 웹 build, Windows·Android JS 번들, macOS·iOS Release 빌드를 통과했다. macOS 및 iOS Simulator의 현재 채팅 화면을 확인했다. Android 네이티브 검증은 외장 볼륨의 SDK 부재로, Windows 네이티브 실행은 해당 환경에서 실행하지 않아 이번 결과에 포함하지 않는다. 기존 성능 예산과 데이터 스키마는 변경하지 않았다.

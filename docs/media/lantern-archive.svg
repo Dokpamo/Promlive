@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#172F39"/><stop offset="1" stop-color="#081F29"/></linearGradient><linearGradient id="door" x2="1" y2="1"><stop stop-color="#FFE8AE"/><stop offset="1" stop-color="#B3D5C4"/></linearGradient><radialGradient id="glow"><stop stop-color="#FBE2A1" stop-opacity=".26"/><stop offset="1" stop-color="#FBE2A1" stop-opacity="0"/></radialGradient></defs>
+<path fill="url(#sky)" d="M0 0h900v1200H0z"/>
+<circle cx="450" cy="520" r="410" fill="url(#glow)"/>
+<g fill="none" stroke="#6C999A" stroke-width="1" opacity=".28"><circle cx="450" cy="490" r="255"/><circle cx="450" cy="490" r="290"/><path d="M160 490h580M450 200v580"/></g>
+<path d="M252 855V491a198 198 0 0 1 396 0v364" fill="#0C242E" stroke="#B9C8A9" stroke-width="3"/>
+<path d="M284 855V495a166 166 0 0 1 332 0v360" fill="url(#door)"/>
+<path d="M329 855V515a121 121 0 0 1 242 0v340" fill="#23474C"/>
+<path d="M355 814V525a95 95 0 0 1 190 0v289" fill="#17343D"/>
+<path d="M0 1040L284 855h332l284 185v160H0" fill="#203E45"/>
+<path d="M345 855h210l222 345H123" fill="#ADC6AC" opacity=".18"/>
+<g stroke="#92B2A7" opacity=".45"><path d="M80 965h740M20 1050h860M0 1160h900"/></g>
+<g fill="#FAE4AC"><path d="M449 494l6 23 23 6-23 6-6 23-6-23-23-6 23-6z"/><circle cx="224" cy="240" r="3"/><circle cx="693" cy="323" r="3"/><circle cx="672" cy="158" r="2"/><circle cx="162" cy="401" r="2"/><circle cx="566" cy="234" r="2"/></g>
+<g fill="#D4DDCB" font-family="Arial,sans-serif" text-anchor="middle"><text x="450" y="104" font-size="16" letter-spacing="6">PROMLIVE ORIGINAL</text><text x="450" y="991" font-size="30" letter-spacing="5">THE LANTERN ARCHIVE</text><text x="450" y="1030" font-size="13" letter-spacing="3">ONE MEMORY. EVERY EVENING.</text></g>
+</svg>
